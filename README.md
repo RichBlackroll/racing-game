@@ -1,5 +1,7 @@
 # WILDRUN — Porsche forest drive
 
+Elios racing game.
+
 Serve this folder with `python3 -m http.server 8765`, then open http://localhost:8765.
 
 - WASD or arrow keys: accelerate, brake/reverse, steer.
