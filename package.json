@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild game-source.js --bundle --splitting --format=esm --minify --outdir=build",
+    "build": "esbuild bootstrap.js --bundle --splitting --format=esm --minify --outdir=build",
     "start": "python3 -m http.server 8765",
-    "test": "node --test tablet.test.js cones.test.js jumps.test.js playthings.test.js people.test.js modifier.test.js"
+    "test": "node --test"
   },
   "dependencies": {
     "three": "0.170.0",

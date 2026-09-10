@@ -6,6 +6,7 @@ import { createPlaythings } from "./playthings.js";
 import { createPeopleField } from "./people.js";
 import { createFriendAdventure } from "./friends.js";
 import { createModifier } from "./modifier-ui.js";
+import { createGaragePreview } from "./modifier-preview.js";
 import { moveWithBounces } from "./collision.js";
 import {
   tabletProfile,
@@ -22,7 +23,8 @@ import {
   mergeVertices,
 } from "three/addons/utils/BufferGeometryUtils.js";
 
-async function main() {
+export async function main(loading) {
+  await loading.phase(0, "Packing a little atmosphere...");
   const device = tabletProfile({
     userAgent: navigator.userAgent,
     platform: navigator.platform,
@@ -30,11 +32,7 @@ async function main() {
     coarse: matchMedia("(any-pointer: coarse)").matches,
   });
   document.body.classList.toggle("touch-device", device.touch);
-  if (device.touch) {
-    document.getElementById("camera").textContent = "Camera";
-    document.getElementById("reset").textContent = "Reset";
-  }
-  const boostLabel = device.touch ? "BOOST ↗" : "BOOST ↗ · Shift";
+  const boostLabel = "Boost";
   const requestedLevel = new URLSearchParams(location.search).get("level");
   const level = ["forest", "city", "stunt", "moon"].includes(requestedLevel) ? requestedLevel : "forest";
   const isCity = level === "city", isMoon = level === "moon", isStunt = level === "stunt";
@@ -64,15 +62,7 @@ async function main() {
   renderer.domElement.addEventListener("webglcontextlost", (event) => {
     event.preventDefault();
     contextLost = true;
-    const error = document.getElementById("error");
-    error.style.display = "block";
-    error.replaceChildren(
-      document.createTextNode("Graphics paused. Reload to resume your drive. "),
-    );
-    const retry = document.createElement("button");
-    retry.textContent = "Reload game";
-    retry.onclick = () => location.reload();
-    error.append(retry);
+    loading.fail(new Error("Graphics paused. Reload to resume your drive."));
   });
   const camera = new THREE.PerspectiveCamera(
     55,
@@ -92,6 +82,7 @@ async function main() {
     null,
     null,
   ]);
+  await loading.phase(1, isMoon ? "Moving a few craters into place..." : isCity ? "Waking up the neighborhood..." : isStunt ? "Giving the ramps a little extra bounce..." : "Planting a few happy little trees...");
   if (env) env.mapping = THREE.EquirectangularReflectionMapping;
   scene.environment = env;
   scene.background = new THREE.Color(0xabbdb5);
@@ -542,6 +533,9 @@ async function main() {
   // Porsche GT3 RS by Ddiaz Design, CC BY-NC-SA 4.0. See CREDITS.md.
   const car = new THREE.Group();
   scene.add(car);
+  // Only the visual group visits the garage; driving position and heading stay here.
+  const carVisual = new THREE.Group();
+  car.add(carVisual);
   const paint = new THREE.MeshStandardMaterial({
       color: 0xc60920,
       metalness: 0.12,
@@ -550,6 +544,7 @@ async function main() {
     }),
     dark = mat(0x111318),
     metal = mat(0xaeb4b6, { metalness: 0.9, roughness: 0.25 });
+  await loading.phase(2, "Polishing your getaway car...");
   const gltf = await new GLTFLoader().loadAsync("porsche-gt3-rs.glb");
   const model = gltf.scene;
   model.updateMatrixWorld(true);
@@ -622,7 +617,7 @@ async function main() {
       geo.translate(-c.x, -c.y, -c.z);
       let pivot = new THREE.Group();
       pivot.position.copy(c);
-      car.add(pivot);
+      carVisual.add(pivot);
       let spin = mesh(geo, m, pivot);
       wheels.push({
         pivot,
@@ -630,7 +625,7 @@ async function main() {
         hub: new THREE.Group(),
         front: c.z > 0,
       });
-    } else mesh(geo, m, car);
+    } else mesh(geo, m, carVisual);
     geos.forEach((g) => g.dispose());
   }
   const gates = [];
@@ -652,7 +647,7 @@ async function main() {
   // A fixed rear rocket housing and an emissive plume, included in the traced scene.
   const rocket = new THREE.Group();
   rocket.position.set(0, 0.65, -2.85);
-  car.add(rocket);
+  carVisual.add(rocket);
   let housing = mesh(
     new THREE.CylinderGeometry(0.28, 0.34, 0.65, 24, 1, true),
     new THREE.MeshStandardMaterial({ color: 0x727b82, metalness: 0.8, roughness: 0.32, side: THREE.DoubleSide }),
@@ -701,6 +696,7 @@ async function main() {
   );
   inner.rotation.x = -Math.PI / 2;
   const boostButton = document.getElementById("boost");
+  const boostText = boostButton.querySelector("[data-label]");
   let sceneDirty = true,
     boostEnds = 0,
     recovering = false,
@@ -726,6 +722,7 @@ async function main() {
   fill.lookAt(car.position);
   scene.add(fill);
 
+  await loading.phase(3, isMoon ? "Hanging the Earth in the sky..." : "Letting a little sunshine in...");
   // One-time procedural lighting bake; no ray tracing or live shadow maps.
   let bakedShadow, carShadow;
   const atlasSize = device.tablet ? 1024 : 2048,
@@ -862,9 +859,10 @@ async function main() {
   const levelControl = document.getElementById("level");
   levelControl.value = level;
   levelControl.onchange = () => {
+    clearKeys();
     const url = new URL(location.href);
     url.searchParams.set("level", levelControl.value);
-    location.href = url.href;
+    loading.navigate(url, level).catch(loading.fail);
   };
   document.querySelector(".badge").innerHTML =
     '<span class="dot"></span> ' +
@@ -939,8 +937,35 @@ async function main() {
     toast: document.getElementById("toast"),
     progress: document.getElementById("progress"),
   };
-  // Car configurator: panel owns visuals; its tuning map feeds the physics.
-  const modifier = createModifier({ car, wheels, paint, rocket, show });
+  const garagePreview = createGaragePreview({
+    renderer, car: carVisual, environment: scene.environment, contactTexture: contact,
+  });
+  // The same editable model and renderer serve both the road and the garage.
+  const modifier = createModifier({
+    car: carVisual, wheels, paint, rocket, show, preview: garagePreview,
+    onOpenChange(open) {
+      clearKeys();
+      for (const id of ["camera", "reset"]) document.getElementById(id).disabled = open;
+      if (open) {
+        speed = slipX = slipZ = steer = 0;
+        boosting = recovering = false;
+        boostEnds = 0;
+        flame.visible = false;
+        boostButton.disabled = false;
+        boostText.textContent = boostLabel;
+        document.body.classList.remove("boosting");
+        for (const wheel of wheels) wheel.pivot.rotation.y = 0;
+        ui.speed.textContent = "0";
+        ui.gear.textContent = "N";
+        ui.meter.style.width = "0%";
+      } else {
+        last = qualityStart = fpsStart = performance.now();
+        qualityFrames = fpsFrames = 0;
+        resize();
+        renderFrame();
+      }
+    },
+  });
   function reset() {
     sceneDirty = true;
     boosting = false;
@@ -948,7 +973,7 @@ async function main() {
     boostEnds = 0;
     flame.visible = false;
     boostButton.disabled = false;
-    boostButton.textContent = boostLabel;
+    boostText.textContent = boostLabel;
     car.position.set(start.x, 0, start.z);
     speed = 0;
     slipX = 0;
@@ -1046,6 +1071,7 @@ async function main() {
     qualityStart = performance.now(),
     qualityFrames = 0;
   const pauseButton = document.getElementById("pause");
+  const pauseText = pauseButton.querySelector("[data-label]");
   function pauseGame(value) {
     if (paused === value) return;
     paused = value;
@@ -1062,7 +1088,9 @@ async function main() {
       fpsFrames = 0;
       show("Back on the road");
     }
-    pauseButton.textContent = paused ? "Resume" : "Pause";
+    pauseText.textContent = paused ? "Resume" : "Pause";
+    pauseButton.setAttribute("aria-label", paused ? "Resume driving" : "Pause driving");
+    pauseButton.title = paused ? "Resume driving" : "Pause driving";
     pauseButton.setAttribute("aria-pressed", String(paused));
   }
   pauseButton.onclick = () => pauseGame(!paused);
@@ -1079,7 +1107,7 @@ async function main() {
       boosting = recovering = false;
       flame.visible = false;
       boostButton.disabled = false;
-      boostButton.textContent = boostLabel;
+      boostText.textContent = boostLabel;
       document.body.classList.remove("boosting");
       sceneDirty = true;
       clearKeys();
@@ -1088,7 +1116,7 @@ async function main() {
   show(hasRamps ? (isMoon ? "Moon Run · Ready for a moon jump?" : "Stunt Park · Follow the ramp arrows!") : "Vincent is waiting for a picnic delivery!");
   function frame(now) {
     requestAnimationFrame(frame);
-    if ((paused && !modifier.active) || document.hidden || contextLost || adventure.busy()) {
+    if (loading.active || (paused && !modifier.active) || document.hidden || contextLost || (adventure.busy() && !modifier.active)) {
       last = now;
       return;
     }
@@ -1096,6 +1124,10 @@ async function main() {
     if (device.tablet && now - last < 1000 / 60 - 1) return;
     let dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+    if (modifier.active) {
+      garagePreview.render(dt);
+      return;
+    }
     if (device.tablet) {
       qualityFrames++;
       if (now - qualityStart >= 3000) {
@@ -1111,31 +1143,12 @@ async function main() {
         qualityFrames = 0;
       }
     }
-    // Configurator open: park the physics and slowly spin the car like a
-    // turntable while the camera orbits close.
-    if (modifier.active) {
-      steer = THREE.MathUtils.lerp(steer, 0, 1 - Math.exp(-4 * dt));
-      heading += 0.35 * dt;
-      car.rotation.set(0, heading, 0);
-      for (let w of wheels) w.pivot.rotation.y = 0;
-      const f = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading));
-      const desired = car.position.clone().addScaledVector(f, -7);
-      desired.y += 2.4;
-      const target = car.position.clone();
-      target.y += 1.1;
-      if (camera.position.distanceToSquared(desired) > 0.01)
-        camera.position.lerp(desired, 1 - Math.exp(-2.5 * dt));
-      camera.fov = THREE.MathUtils.lerp(camera.fov, 55, 1 - Math.exp(-3 * dt));
-      camera.updateProjectionMatrix();
-      camera.lookAt(target);
-      renderFrame();
-      return;
-    }
     let throttle =
         (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0),
       turn =
-        (keys.a || keys.arrowleft ? 1 : 0) -
-        (keys.d || keys.arrowright ? 1 : 0),
+        ((keys.a || keys.arrowleft ? 1 : 0) -
+        (keys.d || keys.arrowright ? 1 : 0)) ||
+        (Number.isFinite(keys.steering) ? THREE.MathUtils.clamp(keys.steering, -1, 1) : 0),
       offroad = roadDist(car.position.x, car.position.z) > 6;
     const tune = modifier.tuning;
     const cruiseMax = (off) => (off ? 17 * tune.offroadTop : 32 * tune.top);
@@ -1155,16 +1168,16 @@ async function main() {
         1 + Math.cos(now * 0.032) * 0.12,
         1 + Math.sin(now * 0.025) * 0.2,
       );
-      boostButton.textContent =
-        "BOOSTING · " + Math.max(0, (boostEnds - now) / 1000).toFixed(1) + "s";
+      boostText.textContent =
+        "Boosting " + Math.max(0, (boostEnds - now) / 1000).toFixed(1) + "s";
     } else if (recovering) {
       if (speed > cruiseMax(offroad))
         speed = Math.max(cruiseMax(offroad), speed - (throttle < 0 ? 28 : 14) * dt);
-      boostButton.textContent = "RETURNING TO CRUISE";
+      boostText.textContent = "Cooling down";
       if (speed <= cruiseMax(offroad)) {
         recovering = false;
         boostButton.disabled = false;
-        boostButton.textContent = boostLabel;
+        boostText.textContent = boostLabel;
       }
     } else {
       speed += throttle * (speed * throttle < 0 ? 22 : 10) * tune.accel * dt;
@@ -1212,7 +1225,7 @@ async function main() {
         boosting = recovering = false;
         flame.visible = false;
         boostButton.disabled = false;
-        boostButton.textContent = boostLabel;
+        boostText.textContent = boostLabel;
       }
       sceneDirty = true;
     }
@@ -1230,8 +1243,8 @@ async function main() {
         Math.min(Math.abs(speed) * 0.0015, 0.045 * tune.bounce);
     for (let w of wheels) {
       w.pivot.rotation.y = w.front ? steer * 0.36 : 0;
-      w.tire.rotation.x += (speed * dt) / 0.48;
-      w.hub.rotation.x += (speed * dt) / 0.48;
+      w.tire.rotation.x += (speed * dt) / w.radius;
+      w.hub.rotation.x += (speed * dt) / w.radius;
     }
     let g = gates[checkpoint];
     if (car.position.distanceTo(g.position) < 6) {
@@ -1287,12 +1300,18 @@ async function main() {
     }
     renderFrame();
   }
+  await loading.phase(4, "Calling your friends. You're almost there...");
+  camera.lookAt(car.position.x, 1, car.position.z);
+  drawMap();
+  renderFrame();
+  loading.complete();
   requestAnimationFrame(frame);
   function resize() {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     applyPixelRatio();
-    renderer.setSize(innerWidth, innerHeight);
+    if (modifier.active) garagePreview.resize();
+    else renderer.setSize(innerWidth, innerHeight);
   }
   addEventListener("resize", resize);
   window.visualViewport?.addEventListener("resize", resize);
@@ -1334,11 +1353,7 @@ async function main() {
     mods: { ...modifier.config },
     tuning: modifier.tuning,
     configuring: modifier.active,
+    modifierVisuals: modifier.visuals,
+    garagePreview: garagePreview.state(),
   });
 }
-main().catch((e) => {
-  document.getElementById("error").style.display = "block";
-  document.getElementById("error").textContent =
-    "Unable to start the renderer: " + e.message;
-  console.error(e);
-});

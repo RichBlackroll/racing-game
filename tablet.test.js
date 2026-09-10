@@ -82,3 +82,67 @@ test("simultaneous steering and throttle release independently; interruption cle
   assert.equal(keys.w, false);
   assert.equal(go.pressed, false);
 });
+
+function steeringFixture() {
+  const win = new EventTarget(), doc = new EventTarget(), pad = new Button();
+  const attributes = {}, style = {};
+  pad.style = { setProperty: (name, value) => { style[name] = value; } };
+  pad.setAttribute = (name, value) => { attributes[name] = value; };
+  pad.getBoundingClientRect = () => ({ left: 0, width: 200 });
+  pad.hasPointerCapture = () => true;
+  pad.releasePointerCapture = () => {};
+  doc.getElementById = () => pad;
+  const go = new Button("w"), keys = {};
+  const clear = bindDrivingInput(keys, [go], win, doc);
+  return { win, doc, pad, attributes, style, go, keys, clear };
+}
+
+test("touch steering is proportional, clamped, and independent of the throttle", () => {
+  const { pad, attributes, style, go, keys } = steeringFixture();
+  fire(pad, "pointerdown", { pointerId: 1, pointerType: "touch", clientX: 72 });
+  assert.ok(Math.abs(keys.steering - 0.5) < 1e-12);
+  assert.equal(attributes["aria-valuenow"], "-50");
+  assert.equal(attributes["aria-valuetext"], "50% left");
+  assert.ok(Math.abs(parseFloat(style["--steer-x"]) + 28) < 1e-12);
+  fire(go, "pointerdown", { pointerId: 2, pointerType: "touch" });
+  assert.equal(keys.w, true);
+  assert.ok(Math.abs(keys.steering - 0.5) < 1e-12);
+  fire(pad, "pointermove", { pointerId: 99, clientX: 300 });
+  assert.ok(Math.abs(keys.steering - 0.5) < 1e-12);
+  fire(pad, "pointermove", { pointerId: 1, clientX: 300 });
+  assert.equal(keys.steering, -1);
+  fire(pad, "pointerup", { pointerId: 1 });
+  assert.equal(Math.abs(keys.steering), 0);
+  assert.equal(keys.w, true);
+});
+
+test("interruption recenters touch steering and clears held pedals", () => {
+  for (const interrupt of ["pointercancel", "lostpointercapture", "blur", "resize", "visibilitychange", "clear"]) {
+    const { pad, win, doc, go, keys, clear } = steeringFixture();
+    fire(pad, "pointerdown", { pointerId: 1, pointerType: "touch", clientX: 20 });
+    fire(go, "pointerdown", { pointerId: 2, pointerType: "touch" });
+    if (interrupt === "clear") clear();
+    else if (interrupt === "visibilitychange") fire(doc, interrupt);
+    else if (["blur", "resize"].includes(interrupt)) fire(win, interrupt);
+    else fire(pad, interrupt, { pointerId: 1 });
+    assert.equal(Math.abs(keys.steering), 0, interrupt);
+    assert.equal(pad.pressed, false, interrupt);
+    if (!["pointercancel", "lostpointercapture"].includes(interrupt)) assert.equal(keys.w, false, interrupt);
+  }
+});
+
+test("steering slider supports keyboard adjustment and recenters on blur", () => {
+  const { pad, keys, attributes } = steeringFixture();
+  fire(pad, "keydown", { key: "ArrowLeft" });
+  assert.equal(keys.steering, 0.1);
+  assert.equal(attributes["aria-valuetext"], "10% left");
+  fire(pad, "keydown", { key: "Home" });
+  assert.equal(keys.steering, 1);
+  fire(pad, "keydown", { key: "End" });
+  assert.equal(keys.steering, -1);
+  fire(pad, "keydown", { key: "Escape" });
+  assert.equal(Math.abs(keys.steering), 0);
+  fire(pad, "keydown", { key: "ArrowRight" });
+  fire(pad, "blur");
+  assert.equal(Math.abs(keys.steering), 0);
+});

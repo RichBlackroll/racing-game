@@ -1,252 +1,98 @@
-html,
-body {
-  width: 100%;
-  height: 100%;
-  overscroll-behavior: none;
-}
-.game-canvas {
-  position: fixed;
-  inset: 0;
-  touch-action: none;
-}
-button {
-  touch-action: manipulation;
-}
-#handbrake {
-  display: none;
-}
-#error {
-  z-index: 20;
-}
-.touch-device {
-  height: 100dvh;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-.touch-device header {
-  top: max(20px, env(safe-area-inset-top));
-  left: max(24px, env(safe-area-inset-left));
-}
-.touch-device h1 {
-  font-size: 30px;
-}
-.touch-device .top {
-  top: max(20px, env(safe-area-inset-top));
-  right: max(24px, env(safe-area-inset-right));
-  max-width: 540px;
-  gap: 8px;
-}
-.touch-device .top button,
-.touch-device #quality,
-.touch-device #level {
-  min-height: 44px;
-  font-size: 16px;
-  padding: 10px 12px;
-}
-.touch-device #quality,
-.touch-device #level {
-  max-width: 200px;
-}
-.touch-device .badge {
-  left: max(24px, env(safe-area-inset-left));
-  top: 115px;
-  font-size: 9px;
-}
-.touch-device #render-status {
-  left: max(24px, env(safe-area-inset-left)) !important;
-  top: 140px !important;
-  font-size: 9px !important;
-  letter-spacing: 1px !important;
-}
-.touch-device #map {
-  top: 145px;
-  right: max(24px, env(safe-area-inset-right));
-  width: 104px;
-  height: 104px;
-  pointer-events: none;
-}
-.touch-device .controls {
-  display: none;
-}
-.touch-device .touch {
-  display: flex;
-  z-index: 4;
-  bottom: max(44px, calc(env(safe-area-inset-bottom) + 24px));
-  left: max(24px, env(safe-area-inset-left));
-  right: max(24px, env(safe-area-inset-right));
-  pointer-events: none;
-}
-.touch-device .touch div {
-  gap: 12px;
-}
-.touch-device .touch button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 80px;
-  height: 80px;
-  padding: 0;
-  border-radius: 22px;
-  font-size: 27px;
-  background: #18372de6;
-  border: 1px solid #ffffff60;
-  pointer-events: auto;
-  touch-action: none;
-  -webkit-user-select: none;
-}
-.touch-device .touch button small {
-  font-size: 10px;
-  font-weight: bold;
-  letter-spacing: 1px;
-}
-.touch-device .touch button[data-key="w"] {
-  background: #e6f5a7;
-  color: #18372d;
-}
-.touch-device .touch button.pressed,
-.touch-device #handbrake.pressed {
-  background: #f3ffce;
-  color: #18372d;
-  border-color: white;
-  box-shadow: 0 0 0 3px #ffffff40;
-  transform: scale(0.96);
-}
-.touch-device #boost,
-.touch-device #handbrake {
-  display: block;
-  z-index: 4;
-  position: absolute;
-  bottom: max(140px, calc(env(safe-area-inset-bottom) + 120px));
-  min-height: 52px;
-  width: 172px;
-  padding: 10px;
-  font-size: 12px;
-  border-radius: 16px;
-  touch-action: none;
-}
-.touch-device #boost {
-  right: max(24px, env(safe-area-inset-right));
-}
-.touch-device #handbrake {
-  left: max(24px, env(safe-area-inset-left));
-}
-.touch-device .bottom {
-  bottom: max(212px, calc(env(safe-area-inset-bottom) + 192px));
-  right: max(28px, env(safe-area-inset-right));
-  left: auto;
-}
-.touch-device #speed {
-  font-size: 42px;
-  letter-spacing: -2px;
-}
-.touch-device .bar {
-  width: 100px;
-  margin-top: 10px;
-}
-.touch-device .mission {
-  left: 50%;
-  bottom: max(55px, calc(env(safe-area-inset-bottom) + 35px));
-  transform: translateX(-50%);
-  text-align: center;
-  pointer-events: none;
-}
-.touch-device .mission p {
-  font-size: 12px;
-}
-.touch-device #toast {
-  top: 34%;
-  max-width: 70%;
-  text-align: center;
-  font-size: 17px;
-}
-.touch-device a[href="CREDITS.md"] {
-  bottom: max(6px, env(safe-area-inset-bottom)) !important;
-}
-@media (orientation: portrait) {
-  .touch-device .top {
-    top: 100px;
-    left: max(24px, env(safe-area-inset-left));
-    right: max(24px, env(safe-area-inset-right));
-    max-width: none;
-    justify-content: flex-start;
-  }
-  .touch-device .badge {
-    top: 210px;
-  }
-  .touch-device #render-status {
-    top: 232px !important;
-  }
-  .touch-device #map {
-    top: 220px;
-    width: 96px;
-    height: 96px;
-  }
-  .touch-device .mission {
-    bottom: 240px;
-  }
+/* A two-thumb cockpit: proportional steering left, distinct pedals right. */
+.touch-device { height: 100dvh; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; --steering-size: 176px; --pedal-width: 84px; --pedal-height: 126px; --drive-bottom: calc(var(--edge-bottom) + 16px); }
+.touch-device .top kbd, .touch-device #boost kbd, .touch-device .controls { display: none; }
+.touch-device #level { font-size: 16px; }
+.touch-device .touch { position: fixed; z-index: 3; bottom: var(--drive-bottom); left: var(--edge-left); right: var(--edge-right); display: flex; align-items: flex-end; justify-content: space-between; pointer-events: none; }
+.steering-control { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.steering-control > .instrument-label, .pedal-control > .instrument-label { color: #e3e9df; text-shadow: 0 1px 8px #101b24; }
+#steering-pad { --steer-x: 0px; position: relative; width: var(--steering-size); height: var(--steering-size); border-radius: 50%; background: #1c2323ed; border: 1px solid #ffffff30; box-shadow: var(--ui-shadow), inset 0 0 0 10px #ffffff03; touch-action: none; pointer-events: auto; cursor: grab; }
+#steering-pad::before { content: ""; position: absolute; inset: 22px; border-radius: 50%; border: 1px dashed #ffffff20; }
+.steering-guide { position: absolute; left: 22px; right: 22px; height: 1px; top: 50%; background: #ffffff12; }
+.steering-arrow { position: absolute; top: 50%; transform: translateY(-53%); color: var(--ui-muted); font-size: 25px; font-weight: 300; }
+.steering-arrow-left { left: 13px; }
+.steering-arrow-right { right: 13px; }
+.steering-thumb { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 64px; height: 64px; margin: -32px; border: 1px solid #ffffff36; border-radius: 50%; background: linear-gradient(145deg, #46504a, #2c3430); box-shadow: 0 5px 16px #0005, inset 0 1px #ffffff12; transform: translateX(var(--steer-x)); transition: transform 130ms ease-out, background 130ms; pointer-events: none; }
+.steering-thumb span { width: 18px; height: 4px; border-radius: 2px; background: var(--ui-accent); }
+#steering-pad.pressed { border-color: #bbcfba80; cursor: grabbing; }
+#steering-pad.pressed .steering-thumb { transition: none; background: #576b57; border-color: var(--ui-accent); }
+.steering-hint { font-size: 8px; letter-spacing: 1.5px; color: #e3e9df; text-shadow: 0 1px 8px #101b24; }
+.pedal-control { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; padding-bottom: 18px; }
+.pedals { display: flex; align-items: flex-end; gap: 12px; }
+.touch-device .pedal { width: var(--pedal-width); height: var(--pedal-height); display: flex; flex-direction: column; gap: 9px; border-radius: 20px; background: var(--ui-surface); border-color: #ffffff30; box-shadow: var(--ui-shadow); touch-action: none; pointer-events: auto; padding: 12px 8px; }
+.pedal .icon { width: 24px; height: 24px; margin-bottom: 5px; }
+.pedal > span { font-size: 14px; font-weight: 600; }
+.pedal small { font-size: 8px; letter-spacing: .8px; }
+.touch-device .pedal-brake { height: calc(var(--pedal-height) - 18px); color: #e2d3c0; }
+.touch-device .pedal-go { color: var(--ui-accent-ink); background: var(--ui-accent); border-color: #d7e3cc; }
+.touch-device .pedal.pressed { background: #e3ebd9; color: #202b24; border-color: #fff; box-shadow: 0 0 0 3px #bbcfba30; transform: translateY(3px); }
+.touch-device #handbrake, .touch-device #boost { display: flex; position: fixed; z-index: 3; min-height: 48px; touch-action: none; bottom: calc(var(--drive-bottom) + var(--steering-size) + 55px); }
+.touch-device #handbrake { left: var(--edge-left); width: var(--steering-size); background: var(--ui-surface); font-size: 12px; border-radius: 12px; }
+.touch-device #handbrake.pressed { background: var(--ui-accent); color: var(--ui-accent-ink); }
+.touch-device #boost { right: var(--edge-right); width: calc(var(--pedal-width) * 2 + 12px); bottom: calc(var(--drive-bottom) + var(--pedal-height) + 68px); border-radius: 12px; }
+.touch-device #boost [data-label] { flex: none; }
+.touch-device .bottom { left: 50%; right: auto; bottom: calc(var(--drive-bottom) + 6px); transform: translateX(-50%); }
+.touch-device .speed { width: 150px; padding: 14px 16px; }
+.touch-device #speed { font-size: 46px; }
+.touch-device #toast { bottom: calc(var(--drive-bottom) + 164px); max-width: min(380px, 42%); }
+.touch-device .credits { left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.touch-device.paused #steering-pad, .touch-device.paused .pedal, .touch-device.paused #handbrake { pointer-events: none; }
+@media (orientation: portrait) and (min-width: 601px) {
+  .touch-device .top { top: calc(var(--edge-top) + 101px); left: var(--edge-left); right: var(--edge-right); justify-content: space-between; }
+  .touch-device .top .toolbar-label { display: inline; }
+  .touch-device #friend-hud, .touch-device .map-card { top: calc(var(--edge-top) + 181px); }
 }
 @media (max-width: 600px) {
-  .touch-device .touch {
-    left: 16px;
-    right: 16px;
-  }
-  .touch-device .touch button {
-    width: 64px;
-    height: 72px;
-    border-radius: 18px;
-  }
-  .touch-device .touch div {
-    gap: 8px;
-  }
-  .touch-device #boost,
-  .touch-device #handbrake {
-    width: 136px;
-  }
-  .touch-device #boost {
-    right: 16px;
-  }
-  .touch-device #handbrake {
-    left: 16px;
-  }
-  .touch-device .top {
-    gap: 6px;
-  }
-  .touch-device #quality,
-  .touch-device #level {
-    max-width: calc(50% - 4px);
-    font-size: 16px;
-  }
+  .touch-device { --steering-size: 138px; --pedal-width: 66px; --pedal-height: 112px; --drive-bottom: calc(var(--edge-bottom) + 14px); }
+  .touch-device #level { font-size: 16px; max-width: 155px; }
+  .touch-device .top button { min-width: 40px; padding: 8px; }
+  .touch-device .pedal { border-radius: 16px; }
+  .pedals { gap: 8px; }
+  .pedal > span { font-size: 13px; }
+  .pedal small { font-size: 7px; }
+  .touch-device #boost { width: calc(var(--pedal-width) * 2 + 8px); bottom: calc(var(--drive-bottom) + var(--steering-size) + 55px); }
+  .touch-device .bottom { left: auto; right: var(--edge-right); bottom: calc(var(--drive-bottom) + var(--steering-size) + 120px); transform: none; }
+  .touch-device .speed { width: 105px; padding: 11px; }
+  .touch-device .speed .instrument-label { display: none; }
+  .touch-device .speed-reading { margin: 0 0 8px; gap: 6px; }
+  .touch-device #speed { font-size: 34px; letter-spacing: -2px; }
+  .touch-device .speed-meta { gap: 5px; }
+  .touch-device #gear { height: 20px; min-width: 20px; font-size: 10px; }
+  .touch-device .unit { font-size: 7px; }
+  .touch-device #toast { bottom: calc(var(--drive-bottom) + var(--steering-size) + 125px); left: var(--edge-left); transform: none; max-width: calc(100% - 153px); font-size: 11px; padding: 10px 12px; }
+  .steering-thumb { width: 54px; height: 54px; margin: -27px; }
 }
-@media (orientation: landscape) and (max-height: 550px) {
-  .touch-device header p,
-  .touch-device .eyebrow,
-  .touch-device .badge,
-  .touch-device #render-status,
-  .touch-device #map {
-    display: none;
-  }
-  .touch-device h1 {
-    font-size: 24px;
-  }
-  .touch-device .top {
-    max-width: 70%;
-  }
-  .touch-device .touch button {
-    width: 64px;
-    height: 64px;
-  }
-  .touch-device .touch div {
-    gap: 8px;
-  }
-  .touch-device #boost,
-  .touch-device #handbrake {
-    width: 136px;
-    bottom: 120px;
-  }
-  .touch-device .bottom {
-    bottom: 185px;
-  }
+@media (orientation: landscape) and (max-height: 600px) {
+  :root { --ui-gap: 16px; }
+  .touch-device { --steering-size: 112px; --pedal-width: 66px; --pedal-height: 90px; --drive-bottom: calc(var(--edge-bottom) + 5px); }
+  .brand .eyebrow, .brand p, .map-card { display: none; }
+  h1 { font-size: 25px; margin: 12px 0 0; }
+  .top .toolbar-label { display: none; }
+  .top { max-width: calc(100% - 185px); }
+  .touch-device #level { max-width: 154px; }
+  .touch-device #friend-hud { top: calc(var(--edge-top) + 64px); width: 224px; padding: 12px; }
+  .touch-device #friend-hud .friend-heading small { font-size: 8px; }
+  .touch-device #friend-title { font-size: 17px; }
+  .touch-device #friend-clue { font-size: 11px; margin: 6px 0 0; }
+  .touch-device #friend-crew, .touch-device #friend-dots { display: none; }
+  .steering-control { gap: 5px; }
+  .steering-control > .instrument-label, .pedal-control > .instrument-label, .steering-hint { display: none; }
+  .steering-thumb { width: 46px; height: 46px; margin: -23px; }
+  #steering-pad::before { inset: 16px; }
+  .touch-device #handbrake { left: calc(var(--edge-left) + var(--steering-size) + 12px); bottom: var(--drive-bottom); width: 48px; padding: 0; }
+  #handbrake > span { display: none; }
+  .touch-device #boost { bottom: calc(var(--drive-bottom) + var(--pedal-height) + 10px); min-height: 44px; }
+  .pedal-control { padding-bottom: 0; }
+  .touch-device .pedal { gap: 5px; border-radius: 15px; }
+  .pedal .icon { width: 20px; height: 20px; margin: 0; }
+  .pedal small { font-size: 7px; }
+  .touch-device .bottom { bottom: var(--drive-bottom); }
+  .touch-device .speed { width: 118px; padding: 10px 12px; }
+  .touch-device .speed .instrument-label { display: none; }
+  .touch-device .speed-reading { margin: 0 0 8px; }
+  .touch-device #speed { font-size: 34px; }
+  .touch-device #toast { bottom: calc(var(--drive-bottom) + 93px); max-width: 32%; font-size: 11px; padding: 8px 12px; }
+}
+@media (orientation: portrait) and (max-height: 700px) {
+  .touch-device #friend-crew { display: none; }
+  .touch-device #friend-dots { margin-top: 4px; }
 }

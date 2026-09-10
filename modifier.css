@@ -1,285 +1,252 @@
-/* WILDRUN car configurator — big, chunky, playful buttons for young drivers.
-   Theme: forest green #18372d with accent #e6f5a7, matching index.html buttons. */
-
+/* Vehicle studio: shared surfaces, restrained equipment details. */
 #modifier {
-  --mod-accent: #e6f5a7;
-  --mod-panel: #18372dc9;
   position: fixed;
-  top: 92px; /* below the top toolbar */
-  right: 32px;
-  bottom: 166px; /* above the bottom HUD */
-  width: 320px;
+  top: max(96px, calc(env(safe-area-inset-top, 0px) + 72px));
+  right: max(24px, env(safe-area-inset-right, 0px));
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  width: 380px;
+  max-width: calc(100% - 48px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 24px;
+  padding: 24px;
   overflow-y: auto;
-  z-index: 5;
-  color: #fff;
-  background: var(--mod-panel);
-  border: 1px solid #ffffff30;
-  border-radius: 16px;
-  box-shadow: 0 12px 44px #0008;
-  animation: mod-enter 0.28s ease-out;
-}
-#modifier[hidden] {
-  display: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-muted) transparent;
+  z-index: 20;
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: mod-enter 180ms ease-out;
 }
 
-/* --- header row: title, preset buttons, close --- */
-.mod-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+#modifier[hidden] { display: none; }
+#modifier > * { flex-shrink: 0; min-width: 0; }
+.mod-preview {
+  position: fixed;
+  top: max(96px, calc(env(safe-area-inset-top, 0px) + 72px));
+  right: calc(404px + max(24px, env(safe-area-inset-right, 0px)));
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  left: max(24px, env(safe-area-inset-left, 0px));
+  overflow: hidden;
+  isolation: isolate;
+  z-index: 19;
+  border-radius: var(--ui-radius);
+  background: #e7ecdf;
+  touch-action: none;
+  cursor: grab;
+}
+.mod-preview:active { cursor: grabbing; }
+/* Override the live canvas's fixed placement and inline road dimensions. */
+.mod-preview > .game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: -1;
+}
+.mod-preview-hint {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  margin: 0;
+  color: #465247;
+  font-size: 11px;
+  pointer-events: none;
+}
+.mod-turn { position: absolute; bottom: 8px; right: 12px; min-height: 44px; }
+.configuring #friend-hud { visibility: hidden; pointer-events: none; }
+#modifier button {
+  min-height: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ui-text);
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  box-shadow: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+#modifier button:focus-visible,
+#modifier .mod-title:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
+
+.mod-head { display: flex; align-items: center; gap: 16px; }
+.mod-heading { flex: 1; min-width: 0; }
+.mod-eyebrow {
+  margin: 0 0 6px;
+  color: var(--ui-accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  line-height: 1.4;
 }
 #modifier .mod-title {
   margin: 0;
-  flex: 1 1 100%;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--mod-accent);
-}
-.mod-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1 1 auto;
-}
-#modifier .mod-presets button {
-  padding: 9px 11px;
-  font-size: 15px;
-  border-radius: 10px;
+  color: var(--ui-text);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
 }
 #modifier .mod-close {
-  margin-left: auto;
-  padding: 15px 18px;
-  font-size: 16px;
-  font-weight: 700;
-  color: #18372d;
-  background: var(--mod-accent);
-  border: 0;
-  border-radius: 12px;
-  box-shadow: 0 4px 0 #9aa45e; /* chunky kid-friendly pressed edge */
+  flex-shrink: 0;
+  padding-inline: 19px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  font-weight: 600;
 }
-#modifier .mod-close:hover {
-  background: #f4ffc2;
+.mod-section-title {
+  margin: 0 0 10px;
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-transform: uppercase;
 }
-#modifier .mod-close:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 #9aa45e;
-}
+.mod-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#modifier .mod-preset { padding: 9px 6px; font-size: 12px; }
+#modifier .mod-preset[aria-pressed="true"] { border-color: var(--ui-accent); background: var(--ui-raised); }
 
-/* --- part tabs --- */
 .mod-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-#modifier .mod-tab {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  border-radius: 10px;
-}
-#modifier .mod-tab.selected {
-  background: var(--mod-accent);
-  color: #18372d;
-  border-color: var(--mod-accent);
-}
-
-/* --- option grid: 2 columns of big buttons --- */
-.mod-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding-block: 16px;
+  border-block: 1px solid var(--ui-border);
 }
+#modifier .mod-tab { padding-inline: 6px; color: var(--ui-muted); border-color: transparent; font-size: 12px; }
+#modifier .mod-tab.selected { color: var(--ui-text); background: var(--ui-raised); border-color: var(--ui-border); }
+
+.mod-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 #modifier .mod-option {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 84px;
-  padding: 12px 8px;
-  font-size: 28px; /* big emoji first */
-  line-height: 1.15;
-  text-align: center;
-  border-radius: 12px;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: 112px;
+  padding: 14px;
+  text-align: left;
 }
-#modifier .mod-option small {
+.mod-option-index {
+  color: var(--ui-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
 }
-#modifier .mod-option .mod-option-fact {
+.mod-option-swatch {
   display: block;
-  font-size: 9px;
-  font-weight: 400;
-  color: #ffffff90;
+  width: 30px;
+  height: 18px;
+  border: 1px solid #ffffff40;
+  border-radius: 4px;
+  background: var(--mod-paint);
+  box-shadow: inset 0 1px 0 #ffffff30;
 }
-#modifier .mod-option.selected {
-  border: 3px solid var(--mod-accent);
-  background: #e6f5a722;
-  box-shadow: 0 0 18px #e6f5a766;
-}
-#modifier .mod-option:hover {
-  background: #345946;
-}
-#modifier .mod-option.selected:hover {
-  background: #e6f5a733;
-}
+.mod-option-name { font-size: 13px; font-weight: 600; line-height: 1.35; }
+#modifier .mod-option-fact { color: var(--ui-muted); font-size: 11px; line-height: 1.5; font-weight: 400; }
+#modifier .mod-option.selected { background: var(--ui-raised); border-color: var(--ui-accent); }
+#modifier .mod-option.selected .mod-option-name { color: var(--ui-accent); }
 
-/* focus / hover consistency for every button inside the panel */
-#modifier button:hover {
-  background: #345946;
-}
-#modifier .mod-close:hover {
-  background: #f4ffc2;
-}
-#modifier button:focus-visible {
-  outline: 3px solid var(--mod-accent);
-  outline-offset: 2px;
-}
-
-/* --- fact card at the panel bottom --- */
 .mod-fact {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas:
-    "emoji name speak"
-    "emoji text speak";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name speak" "text text";
   align-items: center;
-  gap: 2px 10px;
-  padding: 12px;
-  background: #ffffff12;
-  border: 1px solid #ffffff25;
+  gap: 6px 12px;
+  padding: 16px;
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
+  background: var(--ui-raised);
 }
-.mod-fact-emoji {
-  grid-area: emoji;
-  font-size: 42px;
-  line-height: 1;
-}
-.mod-fact-name {
-  grid-area: name;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--mod-accent);
-}
-.mod-fact-text {
-  grid-area: text;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #ffffffd0;
-}
-#modifier .mod-speak {
-  grid-area: speak;
-  width: 46px;
-  height: 46px;
-  padding: 0;
-  font-size: 22px;
-  border-radius: 50%;
-  background: #ffffff14;
+.mod-fact-name { grid-area: name; color: var(--ui-text); font-size: 13px; font-weight: 600; }
+.mod-fact-text { grid-area: text; margin: 0; color: var(--ui-muted); font-size: 12px; line-height: 1.6; }
+#modifier .mod-speak { grid-area: speak; color: var(--ui-accent); font-size: 12px; }
+.mod-summary { padding-top: 18px; border-top: 1px solid var(--ui-border); }
+.mod-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin: 0; }
+.mod-chip { min-width: 0; }
+.mod-chip-label { margin-bottom: 4px; color: var(--ui-muted); font-size: 10px; line-height: 1.4; }
+.mod-chip-name { margin: 0; color: var(--ui-text); font-size: 12px; line-height: 1.4; }
+
+@media (hover: hover) {
+  #modifier button:hover { background: var(--ui-raised); border-color: var(--ui-muted); }
+  #modifier .mod-close:hover { background: var(--ui-accent); border-color: var(--ui-text); }
+  #modifier .mod-option.selected:hover { border-color: var(--ui-accent); }
 }
 
-/* --- build summary chips --- */
-.mod-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.mod-chips > * {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #e6f5a7;
-  background: #ffffff14;
-  border: 1px solid #ffffff25;
-  border-radius: 999px;
-}
-
-/* --- entrance animation --- */
-@keyframes mod-enter {
-  from {
-    opacity: 0;
-    transform: translateX(36px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-@keyframes mod-rise {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  #modifier {
-    animation: none;
-  }
-}
-
-/* --- small screens & coarse/touch pointers: dock as a bottom sheet --- */
-@media (max-width: 700px), (pointer: coarse) {
+/* Portrait touch devices get a sheet; landscape tablets keep the inspector. */
+@media (max-width: 700px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) {
   #modifier {
     top: auto;
     right: 0;
     bottom: 0;
     left: 0;
     width: 100%;
-    max-height: 55vh;
-    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-    border: 0;
-    border-top: 2px solid #ffffff30;
-    border-radius: 18px 18px 0 0;
+    max-width: none;
+    height: 55vh;
+    height: 55dvh;
+    max-height: none;
+    gap: 20px;
+    padding: 20px max(20px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+    border-bottom: 0;
+    border-radius: var(--ui-radius) var(--ui-radius) 0 0;
     animation-name: mod-rise;
   }
   .mod-tabs {
-    flex-wrap: nowrap;
+    display: flex;
     overflow-x: auto;
-    padding-bottom: 2px;
-    -webkit-overflow-scrolling: touch;
+    padding-block: 10px;
+    padding-inline: 4px;
+    scroll-padding-inline: 4px;
   }
-  #modifier .mod-tab {
-    flex: 0 0 auto;
-    min-width: 88px;
-    min-height: 52px;
-    font-size: 14px;
+  #modifier .mod-tab { flex: 0 0 auto; padding-inline: 14px; }
+  .mod-preview {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(55vh + 12px);
+    bottom: calc(55dvh + 12px);
   }
-  .mod-options {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  #modifier .mod-option {
-    min-height: 96px;
-    font-size: 32px;
-  }
-  #modifier .mod-presets button {
-    min-height: 48px;
-    font-size: 17px;
-  }
-  #modifier .mod-close {
-    padding: 16px 22px;
-    font-size: 18px;
-  }
-  #modifier .mod-speak {
-    width: 56px;
-    height: 56px;
-    font-size: 26px;
-  }
+}
+
+@media (max-width: 600px) and (orientation: portrait) {
+  .mod-preview { top: max(120px, calc(env(safe-area-inset-top, 0px) + 108px)); }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  #modifier { top: max(72px, env(safe-area-inset-top, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); padding: 18px; }
+  .mod-preview { top: max(72px, env(safe-area-inset-top, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+}
+@media (orientation: landscape) and (max-width: 900px) {
+  #modifier { width: 320px; right: max(12px, env(safe-area-inset-right, 0px)); }
+  .mod-preview { left: max(12px, env(safe-area-inset-left, 0px)); right: calc(332px + max(12px, env(safe-area-inset-right, 0px))); }
+}
+
+@keyframes mod-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes mod-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #modifier { animation: none; }
+  #modifier button { transition: none; }
 }

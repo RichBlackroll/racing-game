@@ -39,9 +39,9 @@ Porsche model: Ddiaz Design, CC BY-NC-SA 4.0, noncommercial use. See CREDITS.md 
 
 ## Car configurator
 
-Tap the 🛠 CAR button to open the configurator. While it is open the driving
-physics pause and the car spins slowly like a turntable next to a close
-camera, so every change is easy to see. Tabs change paint colour, wheels,
+Tap the Garage button to open the configurator. While it is open the driving
+physics pause and the live car appears in a dedicated preview. Drag to inspect
+it or use Turn car. Tabs change paint colour, wheels,
 suspension, engine, spoiler, and rocket booster. One-tap presets build a
 Race Car, a Monster Truck, or a Quiet Electric. Every option shows a short
 educational fact (count the cylinders, name the colour, every push has an
@@ -54,12 +54,15 @@ instantly, and a bigger rocket boosts longer and faster. Removing the
 rocket disables BOOST until one is fitted again.
 
 `modifier-data.js` is a pure module describing parts, facts, and physics
-multipliers; `modifier-ui.js` builds the panel and applies the 3D visuals.
-Run `node --test modifier.test.js` for the tuning-model checks.
+multipliers; `modifier-ui.js` builds the panel, `modifier-car.js` applies the 3D
+visuals, and `modifier-preview.js` manages the live preview. Run `npm test` for
+the full test suite, including tuning, visuals, and garage integration checks.
 
 ## Rebuild
 
 Run `npm install` and `npm run build` in this folder. The editable application is `game-source.js`.
+
+`bootstrap.js` starts the lightweight loading screen before downloading the game bundle. Loading stages and recovery live in `loading.js`, with destination artwork and transitions in `experience.css`. Rebuild after JavaScript changes and deploy both `build/bootstrap.js` and its generated game chunk together.
 
 ## Levels and collisions
 
@@ -72,27 +75,28 @@ Collisions use a swept circular car collider against tree/rock circles and build
 Walkers wander along the road edges in every level. Each is a procedural
 instanced humanoid — randomized height, build, skin tone, hairdo, shirt
 pattern/color, pants or shorts, shoes, and occasional cap or glasses — built
-from capsule limbs, a rounded torso, and a detailed head. Fifteen instanced
-draw calls render any crowd size.
+from capsule limbs, a rounded torso, and a detailed head. Shared instanced
+meshes keep the crowd's draw-call count bounded. The first walkers spawn
+alongside the road ahead of the starting car.
 
-Pedestrians are Cannon-body ragdolls (no hard joints): soft positional springs
-and orientation springs hold ~11 body parts together, so everything bends,
-twists, and flails believably. While walking, the hips are puppeted kinematically
-and the gait drives the limbs. Behaviors:
+Pedestrians have 15 Cannon bodies joined by point-to-point constraints during
+impacts. Walking uses an animated, connected pose without running a physics
+solver for each walker. Behaviors:
 
-- Walking and wandering; they glance and pick fresh destinations.
+- Walking and wandering; they pick fresh destinations.
 - Panic sprint: a fast car nearby sends them running away, arms flailing, and
   they occasionally face-plant mid-sprint.
 - Knocked down: hits launch the whole ragdoll up and sideways with extra
   spin; they tumble, bounce, and pile into each other.
 - Pancake: the car driving over a fallen walker squashes them flat, then they
   rubber-spring back up when it passes.
-- Get up: fallen walkers roll to a push-up pose, rise to their knees, then
-  stand and continue walking.
+- Get up: settled ragdolls blend back into a connected upright pose, then
+  continue walking.
 - Voice: with friend-voice enabled they yell comedy lines on impact.
 
 `people.js` contains the controller; run `node --test people.test.js` for
-spawn/walk/hit/recover/reset regression checks.
+spawn/walk/hit/recover/reset regression checks, including finite mesh transforms,
+complete visible bodies, and recovery of the struck pedestrian.
 
 ## Friend Picnic Adventure
 

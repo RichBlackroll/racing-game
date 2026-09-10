@@ -1,10 +1,11 @@
-// Configurator panel ("Pimp your ride") — DOM UI + 3D visual application.
+// Vehicle studio panel: DOM UI + 3D visual application.
 // Imports the tuning contract from modifier-data.js and owns only the panel.
-import * as THREE from "three";
+import { createModifierCar } from "./modifier-car.js";
 import { PARTS, PRESETS, DEFAULTS, computeTuning } from "./modifier-data.js";
 
 export function createModifier(opts = {}) {
-  const { car, wheels = [], paint, rocket, show } = opts;
+  const { car, wheels = [], paint, rocket, show, preview, onOpenChange } = opts;
+  const visuals = createModifierCar({ car, wheels, paint, rocket });
 
   // ---- tiny DOM helper (textContent only; no user data in innerHTML) ----
   const el = (tag, cls, text) => {
@@ -40,189 +41,112 @@ export function createModifier(opts = {}) {
   let tuning = computeTuning(config);
   let selectedPartId = PARTS[0] ? PARTS[0].id : null;
 
-  // ---- captured wheel baseline (guarded; missing assets never crash) ----
-  const wheelInfo = (Array.isArray(wheels) ? wheels : []).map((w) => {
-    const info = {
-      pivot: w && w.pivot,
-      tire: w && w.tire,
-      baseY: null,
-      radius: null,
-      emissive: null,
-      emissiveIntensity: null,
-    };
-    try {
-      if (info.pivot) info.baseY = info.pivot.position.y;
-    } catch {}
-    try {
-      if (info.tire && info.tire.geometry) {
-        info.tire.geometry.computeBoundingSphere();
-        const bs = info.tire.geometry.boundingSphere;
-        if (bs && isFinite(bs.radius)) info.radius = bs.radius;
-      }
-    } catch {}
-    try {
-      const m = info.tire && info.tire.material;
-      if (m && m.emissive) {
-        info.emissive = m.emissive.getHex();
-        info.emissiveIntensity = m.emissiveIntensity;
-      }
-    } catch {}
-    return info;
-  });
-
-  // ---- spoiler group, built once, attached to the car ----
-  let spoiler = null;
-  try {
-    if (car) {
-      spoiler = new THREE.Group();
-      spoiler.position.set(0, 1.02, -1.55);
-      const dark = new THREE.MeshStandardMaterial({
-        color: 0x111318,
-        metalness: 0.4,
-        roughness: 0.5,
-      });
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.06, 0.45), dark);
-      spoiler.add(wing);
-      for (const x of [-0.92, 0.92]) {
-        const plate = new THREE.Mesh(
-          new THREE.BoxGeometry(0.05, 0.34, 0.4),
-          dark,
-        );
-        plate.position.set(x, -0.14, 0);
-        spoiler.add(plate);
-      }
-      spoiler.visible = false;
-      car.add(spoiler);
-    }
-  } catch {
-    spoiler = null;
-  }
-
-  // ---- visual application (each step guarded; re-applied from scratch) ----
-  function applyPaint() {
-    try {
-      const opt = optionOf("color", config.color);
-      if (paint && paint.color && opt && opt.hex) paint.color.set(opt.hex);
-    } catch {}
-  }
-  function applyWheels() {
-    const id = config.wheels;
-    for (const w of wheelInfo) {
-      try {
-        if (!w.pivot) continue;
-        let liftY = w.baseY;
-        if (id === "wide") w.pivot.scale.set(1.12, 1.02, 1.02);
-        else if (id === "monster") {
-          const s = 1.55;
-          w.pivot.scale.setScalar(s);
-          if (w.radius != null && w.baseY != null)
-            liftY = w.baseY + (s - 1) * w.radius;
-        } else w.pivot.scale.setScalar(1);
-        if (w.baseY != null) w.pivot.position.y = liftY;
-      } catch {}
-      try {
-        const m = w.tire && w.tire.material;
-        if (!m || !m.emissive) continue;
-        if (id === "hub") {
-          m.emissive.set(0x30f6ff); // electric cyan glow
-          m.emissiveIntensity = 0.9;
-        } else {
-          m.emissive.set(w.emissive != null ? w.emissive : 0x000000);
-          m.emissiveIntensity =
-            w.emissiveIntensity != null ? w.emissiveIntensity : 1;
-        }
-      } catch {}
-    }
-  }
-  function applySpoiler() {
-    try {
-      if (!spoiler) return;
-      const id = config.spoiler;
-      if (id === "big" || id === "mega") {
-        spoiler.visible = true;
-        spoiler.scale.setScalar(id === "mega" ? 1.45 : 1);
-      } else spoiler.visible = false; // stock
-    } catch {}
-  }
-  function applyRocket() {
-    try {
-      if (!rocket) return;
-      const id = config.rocket;
-      if (id === "small" || id === "big") {
-        rocket.visible = true;
-        rocket.scale.setScalar(id === "big" ? 1.5 : 1);
-      } else rocket.visible = false; // none
-    } catch {}
-  }
   function applyVisuals() {
-    applyPaint();
-    applyWheels();
-    applySpoiler();
-    applyRocket();
+    visuals.apply(config);
+    preview?.focus(selectedPartId);
   }
 
   // ---- panel DOM ----
   const panel = document.getElementById("modifier");
   const configureBtn = document.getElementById("configure");
-  let tabsEl, optionsEl, factEls, chipsEl;
+  let tabsEl, optionsEl, optionsTitle, factEls, chipsEl, title, presetsEl;
+  let previewHost;
+  let returnFocus = null;
 
   if (panel) {
-    // head: title + presets + close
-    const head = el("div", "mod-head");
-    head.append(el("div", "mod-title", "PIMP YOUR RIDE"));
-    const presetsEl = el("div", "mod-presets");
-    for (const preset of PRESETS) {
-      const b = el("button", null, `${preset.emoji} ${preset.name}`);
-      b.type = "button";
-      b.addEventListener("click", () => applyPreset(preset));
-      presetsEl.append(b);
+    if (preview) {
+      previewHost = el("section", "mod-preview");
+      previewHost.hidden = panel.hidden;
+      previewHost.setAttribute("aria-label", "Live vehicle preview");
+      const hint = el("p", "mod-preview-hint", "Drag to look around");
+      const turn = el("button", "mod-turn", "Turn car");
+      turn.type = "button";
+      turn.addEventListener("click", () => preview.turn());
+      previewHost.append(hint, turn);
+      panel.before(previewHost);
     }
-    head.append(presetsEl);
-    const closeBtn = el("button", "mod-close", "Drive ▶");
+    panel.setAttribute("aria-labelledby", "mod-title");
+    // Keep the aside non-modal so the vehicle remains available for inspection.
+    const head = el("div", "mod-head");
+    const heading = el("div", "mod-heading");
+    title = el("h2", "mod-title", "Your garage");
+    title.id = "mod-title";
+    title.tabIndex = -1;
+    heading.append(el("p", "mod-eyebrow", "VEHICLE STUDIO"), title);
+    head.append(heading);
+    const closeBtn = el("button", "mod-close", "Drive");
     closeBtn.type = "button";
     closeBtn.addEventListener("click", () => api.close());
     head.append(closeBtn);
     panel.append(head);
 
+    const presetSection = el("div", "mod-preset-section");
+    const presetTitle = el("h3", "mod-section-title", "Starting points");
+    presetTitle.id = "mod-preset-title";
+    presetsEl = el("div", "mod-presets");
+    presetsEl.setAttribute("role", "group");
+    presetsEl.setAttribute("aria-labelledby", presetTitle.id);
+    for (const preset of PRESETS) {
+      const b = el("button", "mod-preset", preset.name);
+      b.type = "button";
+      b.dataset.preset = preset.id;
+      b.addEventListener("click", () => applyPreset(preset));
+      presetsEl.append(b);
+    }
+    presetSection.append(presetTitle, presetsEl);
+    panel.append(presetSection);
+
     // tabs (one per part)
     tabsEl = el("div", "mod-tabs");
+    tabsEl.setAttribute("role", "group");
+    tabsEl.setAttribute("aria-label", "Vehicle components");
     for (const part of PARTS) {
-      const b = el("button", "mod-tab", `${part.emoji} ${part.name}`);
+      const b = el("button", "mod-tab", part.name);
       b.type = "button";
       b.dataset.part = part.id;
+      b.setAttribute("aria-controls", "mod-options");
       b.setAttribute("aria-pressed", "false");
       b.addEventListener("click", () => {
         selectedPartId = part.id;
         renderTabs();
         renderOptions();
         renderFact();
+        preview?.focus(selectedPartId);
       });
       tabsEl.append(b);
     }
     panel.append(tabsEl);
 
     // options of the selected part
+    const optionsSection = el("section", "mod-options-section");
+    optionsTitle = el("h3", "mod-section-title");
+    optionsTitle.id = "mod-options-title";
     optionsEl = el("div", "mod-options");
-    panel.append(optionsEl);
+    optionsEl.id = "mod-options";
+    optionsEl.setAttribute("role", "group");
+    optionsEl.setAttribute("aria-labelledby", optionsTitle.id);
+    optionsSection.append(optionsTitle, optionsEl);
+    panel.append(optionsSection);
 
     // fact card
     const fact = el("div", "mod-fact");
-    const factEmoji = el("span", "mod-fact-emoji");
     const factName = el("span", "mod-fact-name");
     const factText = el("p", "mod-fact-text");
-    const speakBtn = el("button", "mod-speak", "🔊");
+    const speakBtn = el("button", "mod-speak", "Listen");
     speakBtn.type = "button";
-    speakBtn.setAttribute("aria-label", "Read the fact aloud");
+    speakBtn.setAttribute("aria-label", "Listen to the selected option's description");
     speakBtn.addEventListener("click", () => {
       if (factText.textContent) speak(factText.textContent);
     });
-    fact.append(factEmoji, factName, factText, speakBtn);
+    fact.append(factName, factText, speakBtn);
     panel.append(fact);
-    factEls = { factEmoji, factName, factText };
+    factEls = { factName, factText };
 
-    // chips (one per part: part emoji + selected option name)
-    chipsEl = el("div", "mod-chips");
-    panel.append(chipsEl);
+    const summary = el("section", "mod-summary");
+    summary.append(el("h3", "mod-section-title", "Your specification"));
+    chipsEl = el("dl", "mod-chips");
+    summary.append(chipsEl);
+    panel.append(summary);
   }
 
   // ---- renderers ----
@@ -236,28 +160,41 @@ export function createModifier(opts = {}) {
   }
   function renderOptions() {
     if (!optionsEl) return;
+    const focused = optionsEl.contains(document.activeElement)
+      ? document.activeElement.dataset
+      : null;
     optionsEl.textContent = "";
     const part = partById(selectedPartId);
     if (!part) return;
-    for (const opt of part.options) {
+    optionsTitle.textContent = `${part.name} / ${String(part.options.length).padStart(2, "0")} options`;
+    let focusTarget;
+    for (const [index, opt] of part.options.entries()) {
       const b = el("button", "mod-option");
       b.type = "button";
-      b.setAttribute("aria-pressed", "false");
-      const emoji = el("span", null, opt.emoji);
-      const name = el("span", null, opt.name);
+      b.dataset.part = part.id;
+      b.dataset.option = opt.id;
+      const marker = el("span", opt.hex ? "mod-option-swatch" : "mod-option-index");
+      marker.setAttribute("aria-hidden", "true");
+      if (opt.hex) marker.style.setProperty("--mod-paint", opt.hex);
+      else marker.textContent = String(index + 1).padStart(2, "0");
+      const name = el("span", "mod-option-name", opt.name);
       const fact = el("small", "mod-option-fact", opt.fact);
-      b.append(emoji, name, fact);
+      b.append(marker, name, fact);
       const selected = config[part.id] === opt.id;
       b.classList.toggle("selected", selected);
       b.setAttribute("aria-pressed", selected ? "true" : "false");
       b.addEventListener("click", () => selectOption(part.id, opt.id));
       optionsEl.append(b);
+      if (focused?.part === part.id && focused.option === opt.id) focusTarget = b;
+    }
+    if (focused) {
+      (focusTarget || optionsEl.querySelector(".selected") || optionsEl.firstElementChild)
+        ?.focus({ preventScroll: true });
     }
   }
   function renderFact() {
     if (!factEls) return;
     const opt = optionOf(selectedPartId, config[selectedPartId]);
-    factEls.factEmoji.textContent = opt ? opt.emoji : "";
     factEls.factName.textContent = opt ? opt.name : "";
     factEls.factText.textContent = opt ? opt.fact : "";
   }
@@ -266,9 +203,18 @@ export function createModifier(opts = {}) {
     chipsEl.textContent = "";
     for (const part of PARTS) {
       const opt = optionOf(part.id, config[part.id]);
-      chipsEl.append(
-        el("span", null, `${part.emoji} ${opt ? opt.name : config[part.id]}`),
+      const chip = el("div", "mod-chip");
+      chip.append(
+        el("dt", "mod-chip-label", part.name),
+        el("dd", "mod-chip-name", opt ? opt.name : config[part.id]),
       );
+      chipsEl.append(chip);
+    }
+    for (const b of presetsEl?.children || []) {
+      const preset = PRESETS.find((p) => p.id === b.dataset.preset);
+      const presetConfig = { ...DEFAULTS, ...preset.config };
+      const selected = PARTS.every((part) => config[part.id] === presetConfig[part.id]);
+      b.setAttribute("aria-pressed", String(selected));
     }
   }
 
@@ -290,15 +236,44 @@ export function createModifier(opts = {}) {
     renderChips();
     const opt = optionOf(partId, optionId);
     if (opt) {
-      toast(`${opt.emoji} ${opt.name}`);
-      speak(opt.fact);
+      toast(opt.name);
+      if (document.getElementById("friend-voice")?.getAttribute("aria-pressed") === "true")
+        speak(opt.fact);
     }
   }
   function applyPreset(preset) {
     config = { ...DEFAULTS, ...preset.config };
     update();
-    toast(`${preset.emoji} ${preset.name}`);
-    speak(`${preset.name}! Rawr!`);
+    toast(preset.name);
+    if (document.getElementById("friend-voice")?.getAttribute("aria-pressed") === "true")
+      speak(`${preset.name} selected.`);
+  }
+
+  function setOpen(open) {
+    if (!panel || open === !panel.hidden) return;
+    if (open) returnFocus = document.activeElement;
+    panel.hidden = !open;
+    document.body.classList.toggle("configuring", open);
+    configureBtn?.setAttribute("aria-expanded", String(open));
+    if (previewHost) {
+      previewHost.hidden = !open;
+      if (!open) preview.close();
+    }
+    onOpenChange?.(open);
+    if (open && previewHost) preview.open(previewHost, selectedPartId);
+    // Bubble to both document and window input listeners.
+    document.dispatchEvent(new CustomEvent("driving-overlay-change", {
+      bubbles: true,
+      detail: { overlay: "modifier", active: open },
+    }));
+    if (open) title?.focus({ preventScroll: true });
+    else {
+      const target = returnFocus?.isConnected && returnFocus !== document.body
+        ? returnFocus
+        : configureBtn;
+      target?.focus({ preventScroll: true });
+      returnFocus = null;
+    }
   }
 
   // ---- public API ----
@@ -312,19 +287,27 @@ export function createModifier(opts = {}) {
     get tuning() {
       return tuning;
     },
+    get visuals() {
+      return visuals.state();
+    },
     open() {
-      if (panel) panel.hidden = false;
+      setOpen(true);
     },
     close() {
-      if (panel) panel.hidden = true;
+      setOpen(false);
     },
     toggle() {
-      if (panel) panel.hidden = !panel.hidden;
+      if (panel) setOpen(panel.hidden);
     },
   };
 
   // ---- wiring ----
-  if (configureBtn) configureBtn.addEventListener("click", () => api.toggle());
+  if (configureBtn) {
+    configureBtn.setAttribute("aria-controls", "modifier");
+    configureBtn.setAttribute("aria-expanded", String(api.active));
+    configureBtn.addEventListener("click", () => api.toggle());
+  }
+  document.body.classList.toggle("configuring", api.active);
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && api.active) api.close();
   });
