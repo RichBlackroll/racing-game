@@ -1,0 +1,92 @@
+/* The adventure HUD leaves the centre of the road and driving controls clear. */
+h1, #speed, .touch-device #speed { letter-spacing: 0; }
+header .eyebrow { letter-spacing: 0; }
+.badge, #render-status, .mission, .controls { display: none; }
+#toast { max-width: 70%; text-align: center; font-size: 16px; top: auto; bottom: 115px; }
+#friend-hud { --friend: #f36b74; position: absolute; top: 146px; left: 36px; width: 294px; padding: 18px; border-radius: 8px; color: #fff; background: #202c31f2; border-top: 3px solid var(--friend); box-shadow: 0 8px 28px #0002; }
+.friend-heading { display: flex; align-items: center; gap: 8px; }
+.friend-heading > div { flex: 1; min-width: 0; }
+.friend-heading small, .delivery-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0; color: var(--friend); }
+#friend-title { font-size: 21px; line-height: 1.25; margin: 5px 0 0; }
+#friend-clue { margin: 12px 0 8px; font-size: 14px; line-height: 1.45; }
+#friend-voice, #friend-repeat { flex: 0 0 40px; width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 24px; background: #ffffff12; }
+#friend-voice[aria-pressed="true"] { background: var(--friend); color: #202c31; }
+#friend-dots { height: 30px; display: flex; align-items: center; gap: 9px; font-size: 24px; color: #ffffff38; }
+#friend-dots .found { color: var(--friend); }
+#friend-crew { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 12px; padding-top: 13px; border-top: 1px solid #ffffff24; }
+.friend-stamp { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.friend-stamp b { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: #bcc4c6; background: #ffffff12; border: 2px solid transparent; font-size: 14px; }
+.friend-stamp small { font-size: 10px; }
+.friend-stamp.current b { border-color: var(--friend); color: var(--friend); }
+.friend-stamp.earned b { color: #202c31; background: var(--friend); }
+#friend-dialog { --friend: #f36b74; position: fixed; inset: 0; width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; padding: 36px 28px 28px; border: 0; border-top: 6px solid var(--friend); border-radius: 8px; background: #fff; color: #263742; text-align: center; overflow: auto; box-shadow: 0 20px 80px #0004; }
+#friend-dialog::backdrop { background: #172228a8; }
+#friend-dialog h2 { margin: 12px 0; font-size: 28px; line-height: 1.2; }
+#friend-dialog p { font-size: 17px; line-height: 1.5; min-height: 52px; margin: 12px 0 20px; }
+#delivery-close { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; color: #263742; background: transparent; font-size: 28px; }
+#delivery-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 20px 0; }
+#delivery-items .count-item { display: grid; place-items: center; width: 72px; height: 80px; padding: 0; font-size: 48px; color: var(--friend); background: #263742; border-radius: 8px; }
+#delivery-items .count-item:disabled { background: transparent; color: transparent; border: 2px dashed #dde3e6; opacity: 1; cursor: default; }
+#delivery-next { min-height: 52px; padding: 12px 24px; background: #263742; color: white; font-weight: 700; font-size: 16px; margin-top: 8px; }
+#friend-dialog button:focus-visible { outline: 3px solid #007a9e; outline-offset: 3px; }
+.picnic-friend { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 76px; }
+.picnic-friend b { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: #263742; background: var(--friend); font-size: 32px; }
+.picnic-friend small { font-size: 12px; }
+[hidden] { display: none !important; }
+.touch-device #friend-hud { top: 160px; left: 24px; width: 274px; }
+@media (orientation: portrait) and (max-width: 1000px) {
+  .touch-device #friend-hud { top: 218px; left: 24px; width: min(294px, calc(100% - 48px)); }
+  .touch-device #map { top: auto; bottom: 320px; right: 24px; width: 88px; height: 88px; }
+  .touch-device #toast { top: auto; bottom: 282px; }
+}
+@media (max-width: 600px) {
+  #friend-hud { left: 16px; top: 152px; width: 252px; padding: 14px; }
+  .touch-device #friend-hud { left: 16px; top: 214px; width: 252px; }
+  #friend-title { font-size: 20px; }
+  #friend-clue { font-size: 13px; }
+  #friend-dialog { padding: 32px 16px 24px; }
+  #friend-dialog h2 { font-size: 24px; }
+  #delivery-items { gap: 8px; }
+  #delivery-items .count-item { width: 48px; height: 64px; font-size: 36px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-device #friend-hud { top: 82px; left: 24px; width: 236px; padding: 10px 12px; }
+  #friend-crew { margin-top: 6px; padding-top: 6px; }
+  #friend-dots { display: none; }
+  #friend-title { font-size: 18px; }
+  #friend-clue { margin: 6px 0; font-size: 12px; }
+  .friend-stamp b { width: 24px; height: 24px; font-size: 11px; }
+  #friend-voice { width: 36px; height: 36px; flex-basis: 36px; }
+  .touch-device #toast { top: auto; bottom: 28px; max-width: 40%; font-size: 13px; }
+}
+
+#map { top: 140px; }
+
+@media (orientation: portrait) and (max-width: 600px) {
+  .touch-device header { top: 16px; left: 16px; }
+  .touch-device header p, .touch-device header .eyebrow { display: none; }
+  .touch-device h1 { font-size: 24px; margin: 0; }
+  .touch-device .top { top: 58px; left: 16px; right: 16px; }
+  .touch-device #friend-hud { top: 166px; width: calc(100% - 32px); padding: 12px; }
+  .touch-device #friend-title { font-size: 18px; margin-top: 3px; }
+  .touch-device #friend-clue { margin: 7px 0; }
+  .touch-device #friend-dots { display: none; }
+  .touch-device #friend-crew { margin-top: 8px; padding-top: 8px; gap: 4px; }
+  .touch-device .friend-stamp { flex-direction: row; justify-content: center; gap: 3px; }
+  .touch-device .friend-stamp b { width: 18px; height: 18px; font-size: 9px; flex-shrink: 0; }
+  .touch-device .friend-stamp small { font-size: 9px; }
+  .touch-device #toast { bottom: 270px; font-size: 12px; }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-device #friend-crew { display: none; }
+  .touch-device .top { max-width: calc(100% - 300px); }
+}
+
+#delivery-basket { display: flex; justify-content: center; gap: 8px; width: fit-content; min-width: 160px; max-width: 100%; margin: 24px auto 8px; padding: 8px 12px; border: 3px solid #263742; border-top: 0; border-radius: 0 0 8px 8px; background: #edf1f3; }
+.basket-slot { display: grid; place-items: center; width: 48px; height: 54px; flex: 0 0 48px; color: #263742; font-size: 40px; }
+.basket-slot.filled { animation: basket-drop 200ms ease-out; }
+#basket-label { font-size: 14px; font-weight: 700; color: #52616b; }
+@keyframes basket-drop { from { transform: translateY(-16px) scale(0.8); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@media (max-width: 600px) { #delivery-basket { gap: 4px; padding: 8px; } .basket-slot { width: 42px; flex-basis: 42px; font-size: 34px; } }
+@media (prefers-reduced-motion: reduce) { .basket-slot.filled { animation: none; } }

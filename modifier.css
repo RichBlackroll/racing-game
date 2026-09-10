@@ -1,0 +1,285 @@
+/* WILDRUN car configurator — big, chunky, playful buttons for young drivers.
+   Theme: forest green #18372d with accent #e6f5a7, matching index.html buttons. */
+
+#modifier {
+  --mod-accent: #e6f5a7;
+  --mod-panel: #18372dc9;
+  position: fixed;
+  top: 92px; /* below the top toolbar */
+  right: 32px;
+  bottom: 166px; /* above the bottom HUD */
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  z-index: 5;
+  color: #fff;
+  background: var(--mod-panel);
+  border: 1px solid #ffffff30;
+  border-radius: 16px;
+  box-shadow: 0 12px 44px #0008;
+  animation: mod-enter 0.28s ease-out;
+}
+#modifier[hidden] {
+  display: none;
+}
+
+/* --- header row: title, preset buttons, close --- */
+.mod-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#modifier .mod-title {
+  margin: 0;
+  flex: 1 1 100%;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--mod-accent);
+}
+.mod-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+#modifier .mod-presets button {
+  padding: 9px 11px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+#modifier .mod-close {
+  margin-left: auto;
+  padding: 15px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #18372d;
+  background: var(--mod-accent);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 4px 0 #9aa45e; /* chunky kid-friendly pressed edge */
+}
+#modifier .mod-close:hover {
+  background: #f4ffc2;
+}
+#modifier .mod-close:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #9aa45e;
+}
+
+/* --- part tabs --- */
+.mod-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#modifier .mod-tab {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+#modifier .mod-tab.selected {
+  background: var(--mod-accent);
+  color: #18372d;
+  border-color: var(--mod-accent);
+}
+
+/* --- option grid: 2 columns of big buttons --- */
+.mod-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#modifier .mod-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 84px;
+  padding: 12px 8px;
+  font-size: 28px; /* big emoji first */
+  line-height: 1.15;
+  text-align: center;
+  border-radius: 12px;
+}
+#modifier .mod-option small {
+  font-size: 11px;
+  font-weight: 700;
+}
+#modifier .mod-option .mod-option-fact {
+  display: block;
+  font-size: 9px;
+  font-weight: 400;
+  color: #ffffff90;
+}
+#modifier .mod-option.selected {
+  border: 3px solid var(--mod-accent);
+  background: #e6f5a722;
+  box-shadow: 0 0 18px #e6f5a766;
+}
+#modifier .mod-option:hover {
+  background: #345946;
+}
+#modifier .mod-option.selected:hover {
+  background: #e6f5a733;
+}
+
+/* focus / hover consistency for every button inside the panel */
+#modifier button:hover {
+  background: #345946;
+}
+#modifier .mod-close:hover {
+  background: #f4ffc2;
+}
+#modifier button:focus-visible {
+  outline: 3px solid var(--mod-accent);
+  outline-offset: 2px;
+}
+
+/* --- fact card at the panel bottom --- */
+.mod-fact {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "emoji name speak"
+    "emoji text speak";
+  align-items: center;
+  gap: 2px 10px;
+  padding: 12px;
+  background: #ffffff12;
+  border: 1px solid #ffffff25;
+  border-radius: 12px;
+}
+.mod-fact-emoji {
+  grid-area: emoji;
+  font-size: 42px;
+  line-height: 1;
+}
+.mod-fact-name {
+  grid-area: name;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mod-accent);
+}
+.mod-fact-text {
+  grid-area: text;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #ffffffd0;
+}
+#modifier .mod-speak {
+  grid-area: speak;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  font-size: 22px;
+  border-radius: 50%;
+  background: #ffffff14;
+}
+
+/* --- build summary chips --- */
+.mod-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mod-chips > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e6f5a7;
+  background: #ffffff14;
+  border: 1px solid #ffffff25;
+  border-radius: 999px;
+}
+
+/* --- entrance animation --- */
+@keyframes mod-enter {
+  from {
+    opacity: 0;
+    transform: translateX(36px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes mod-rise {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #modifier {
+    animation: none;
+  }
+}
+
+/* --- small screens & coarse/touch pointers: dock as a bottom sheet --- */
+@media (max-width: 700px), (pointer: coarse) {
+  #modifier {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 55vh;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 2px solid #ffffff30;
+    border-radius: 18px 18px 0 0;
+    animation-name: mod-rise;
+  }
+  .mod-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #modifier .mod-tab {
+    flex: 0 0 auto;
+    min-width: 88px;
+    min-height: 52px;
+    font-size: 14px;
+  }
+  .mod-options {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  #modifier .mod-option {
+    min-height: 96px;
+    font-size: 32px;
+  }
+  #modifier .mod-presets button {
+    min-height: 48px;
+    font-size: 17px;
+  }
+  #modifier .mod-close {
+    padding: 16px 22px;
+    font-size: 18px;
+  }
+  #modifier .mod-speak {
+    width: 56px;
+    height: 56px;
+    font-size: 26px;
+  }
+}

@@ -22,6 +22,5 @@ https://polyhaven.com/a/forest_floor
 ## Rendering libraries
 
 Three.js: https://github.com/mrdoob/three (MIT)
-three-gpu-pathtracer, Garrett Johnson: https://github.com/gkjohnson/three-gpu-pathtracer (MIT)
-three-mesh-bvh: https://github.com/gkjohnson/three-mesh-bvh (MIT)
-Denoising shader by Michele Morrone (BSD 2-Clause), included with three-gpu-pathtracer.
+
+- Cannon ES 0.20.0: MIT license. Used for traffic-cone physics; see licenses/cannon-es.txt.

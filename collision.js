@@ -1,8 +1,8 @@
-// Circle car collider, obstacle normals, swept substeps and elastic reflection.
+// Circle car collider, obstacle normals, swept substeps and a soft, low-rebound response.
 export function moveWithBounces(position, velocity, dt, obstacles, limit=280, radius=1.12) {
  let x=position.x,z=position.z,vx=velocity.x,vz=velocity.z,hits=0;
  const steps=Math.max(1,Math.ceil(Math.hypot(vx,vz)*dt/.4));
- function reflect(nx,nz){const into=vx*nx+vz*nz;if(into<0){vx-=1.82*into*nx;vz-=1.82*into*nz;hits++;}}
+ function reflect(nx,nz){const into=vx*nx+vz*nz;if(into<0){vx-=1.12*into*nx;vz-=1.82*into*nz;hits++;}}
  for(let i=0;i<steps;i++){
   x+=vx*dt/steps;z+=vz*dt/steps;
   for(const o of obstacles){

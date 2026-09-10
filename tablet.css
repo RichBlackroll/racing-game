@@ -1,0 +1,252 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+}
+.game-canvas {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+button {
+  touch-action: manipulation;
+}
+#handbrake {
+  display: none;
+}
+#error {
+  z-index: 20;
+}
+.touch-device {
+  height: 100dvh;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.touch-device header {
+  top: max(20px, env(safe-area-inset-top));
+  left: max(24px, env(safe-area-inset-left));
+}
+.touch-device h1 {
+  font-size: 30px;
+}
+.touch-device .top {
+  top: max(20px, env(safe-area-inset-top));
+  right: max(24px, env(safe-area-inset-right));
+  max-width: 540px;
+  gap: 8px;
+}
+.touch-device .top button,
+.touch-device #quality,
+.touch-device #level {
+  min-height: 44px;
+  font-size: 16px;
+  padding: 10px 12px;
+}
+.touch-device #quality,
+.touch-device #level {
+  max-width: 200px;
+}
+.touch-device .badge {
+  left: max(24px, env(safe-area-inset-left));
+  top: 115px;
+  font-size: 9px;
+}
+.touch-device #render-status {
+  left: max(24px, env(safe-area-inset-left)) !important;
+  top: 140px !important;
+  font-size: 9px !important;
+  letter-spacing: 1px !important;
+}
+.touch-device #map {
+  top: 145px;
+  right: max(24px, env(safe-area-inset-right));
+  width: 104px;
+  height: 104px;
+  pointer-events: none;
+}
+.touch-device .controls {
+  display: none;
+}
+.touch-device .touch {
+  display: flex;
+  z-index: 4;
+  bottom: max(44px, calc(env(safe-area-inset-bottom) + 24px));
+  left: max(24px, env(safe-area-inset-left));
+  right: max(24px, env(safe-area-inset-right));
+  pointer-events: none;
+}
+.touch-device .touch div {
+  gap: 12px;
+}
+.touch-device .touch button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  border-radius: 22px;
+  font-size: 27px;
+  background: #18372de6;
+  border: 1px solid #ffffff60;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+}
+.touch-device .touch button small {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.touch-device .touch button[data-key="w"] {
+  background: #e6f5a7;
+  color: #18372d;
+}
+.touch-device .touch button.pressed,
+.touch-device #handbrake.pressed {
+  background: #f3ffce;
+  color: #18372d;
+  border-color: white;
+  box-shadow: 0 0 0 3px #ffffff40;
+  transform: scale(0.96);
+}
+.touch-device #boost,
+.touch-device #handbrake {
+  display: block;
+  z-index: 4;
+  position: absolute;
+  bottom: max(140px, calc(env(safe-area-inset-bottom) + 120px));
+  min-height: 52px;
+  width: 172px;
+  padding: 10px;
+  font-size: 12px;
+  border-radius: 16px;
+  touch-action: none;
+}
+.touch-device #boost {
+  right: max(24px, env(safe-area-inset-right));
+}
+.touch-device #handbrake {
+  left: max(24px, env(safe-area-inset-left));
+}
+.touch-device .bottom {
+  bottom: max(212px, calc(env(safe-area-inset-bottom) + 192px));
+  right: max(28px, env(safe-area-inset-right));
+  left: auto;
+}
+.touch-device #speed {
+  font-size: 42px;
+  letter-spacing: -2px;
+}
+.touch-device .bar {
+  width: 100px;
+  margin-top: 10px;
+}
+.touch-device .mission {
+  left: 50%;
+  bottom: max(55px, calc(env(safe-area-inset-bottom) + 35px));
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+.touch-device .mission p {
+  font-size: 12px;
+}
+.touch-device #toast {
+  top: 34%;
+  max-width: 70%;
+  text-align: center;
+  font-size: 17px;
+}
+.touch-device a[href="CREDITS.md"] {
+  bottom: max(6px, env(safe-area-inset-bottom)) !important;
+}
+@media (orientation: portrait) {
+  .touch-device .top {
+    top: 100px;
+    left: max(24px, env(safe-area-inset-left));
+    right: max(24px, env(safe-area-inset-right));
+    max-width: none;
+    justify-content: flex-start;
+  }
+  .touch-device .badge {
+    top: 210px;
+  }
+  .touch-device #render-status {
+    top: 232px !important;
+  }
+  .touch-device #map {
+    top: 220px;
+    width: 96px;
+    height: 96px;
+  }
+  .touch-device .mission {
+    bottom: 240px;
+  }
+}
+@media (max-width: 600px) {
+  .touch-device .touch {
+    left: 16px;
+    right: 16px;
+  }
+  .touch-device .touch button {
+    width: 64px;
+    height: 72px;
+    border-radius: 18px;
+  }
+  .touch-device .touch div {
+    gap: 8px;
+  }
+  .touch-device #boost,
+  .touch-device #handbrake {
+    width: 136px;
+  }
+  .touch-device #boost {
+    right: 16px;
+  }
+  .touch-device #handbrake {
+    left: 16px;
+  }
+  .touch-device .top {
+    gap: 6px;
+  }
+  .touch-device #quality,
+  .touch-device #level {
+    max-width: calc(50% - 4px);
+    font-size: 16px;
+  }
+}
+@media (orientation: landscape) and (max-height: 550px) {
+  .touch-device header p,
+  .touch-device .eyebrow,
+  .touch-device .badge,
+  .touch-device #render-status,
+  .touch-device #map {
+    display: none;
+  }
+  .touch-device h1 {
+    font-size: 24px;
+  }
+  .touch-device .top {
+    max-width: 70%;
+  }
+  .touch-device .touch button {
+    width: 64px;
+    height: 64px;
+  }
+  .touch-device .touch div {
+    gap: 8px;
+  }
+  .touch-device #boost,
+  .touch-device #handbrake {
+    width: 136px;
+    bottom: 120px;
+  }
+  .touch-device .bottom {
+    bottom: 185px;
+  }
+}
