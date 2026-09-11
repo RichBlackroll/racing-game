@@ -2,6 +2,8 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { rampShape } from "./jumps.js";
+import { createTerrainBody } from "./terrain-physics.js";
 
 // ---------------------------------------------------------------------------
 // People field: instanced, procedural ragdoll pedestrians.
@@ -166,11 +168,16 @@ export function createPeopleField({
   ramps = [],
   roadDist = () => 0,
   gravity = 9.82,
+  terrain = null,
   count = 12,
   speech = () => false,
   onChange = () => {},
 }) {
   const people = [];
+  const groundAt = (x, z) => terrain?.heightAt(x, z) ?? 0;
+  const bound = terrain ? terrain.halfSize - 2 : 300;
+  const hasSafePosition = typeof terrain?.isSafePosition === "function";
+  const personRadius = 0.6;
   let hits = 0, lastYell = 0;
   let seed = 91357;
   const rnd = () => {
@@ -185,10 +192,7 @@ export function createPeopleField({
   world.defaultContactMaterial.friction = 0.45;
   world.defaultContactMaterial.restitution = 0.1;
 
-  const floor = new CANNON.Body({ mass: 0, collisionFilterGroup: 1, collisionFilterMask: 3 | 16 });
-  floor.addShape(new CANNON.Plane());
-  floor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-  floor.position.y = FLOOR_Y;
+  const floor = createTerrainBody(terrain, { collisionFilterGroup: 1, collisionFilterMask: 3 | 16 });
   world.addBody(floor);
 
   const prevCar = new CANNON.Vec3();
@@ -202,7 +206,7 @@ export function createPeopleField({
 
   for (const o of obstacles) {
     const body = new CANNON.Body({ mass: 0, collisionFilterGroup: 8, collisionFilterMask: 3 | 16 });
-    body.position.set(o.x, 1.5, o.z);
+    body.position.set(o.x, (o.y ?? groundAt(o.x, o.z)) + 1.5, o.z);
     body.addShape(o.hx !== undefined
       ? new CANNON.Box(new CANNON.Vec3(o.hx, 1.5, o.hz))
       : new CANNON.Cylinder(o.r, o.r, 3, 8));
@@ -210,8 +214,8 @@ export function createPeopleField({
   }
   for (const ramp of ramps) {
     const body = new CANNON.Body({ mass: 0, collisionFilterGroup: 8, collisionFilterMask: 3 | 16 });
-    body.addShape(new CANNON.Box(new CANNON.Vec3(ramp.width / 2, 0.4, ramp.length)));
-    body.position.set(ramp.x, 0.5, ramp.z);
+    body.addShape(rampShape(ramp));
+    body.position.set(ramp.x, (ramp.y ?? 0) + FLOOR_Y, ramp.z);
     body.quaternion.setFromEuler(0, ramp.heading, 0);
     world.addBody(body);
   }
@@ -278,9 +282,12 @@ export function createPeopleField({
       const off = 7.5 + rnd() * 5;
       const x = p.x + nx * off * side + (rnd() - 0.5) * 8;
       const z = p.z + nz * off * side + (rnd() - 0.5) * 8;
-      if (Math.abs(x) > 300 || Math.abs(z) > 300) continue;
+      if (Math.abs(x) > bound || Math.abs(z) > bound) continue;
+      if (hasSafePosition && !terrain.isSafePosition(x, z, personRadius)) continue;
       if (roadDist(x, z) < 6.6) continue;
-      if (obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < (o.hx ?? o.r) + 1.2)) continue;
+      if (obstacles.some((o) => hasSafePosition && o.hx !== undefined
+        ? Math.hypot(Math.max(Math.abs(o.x - x) - o.hx, 0), Math.max(Math.abs(o.z - z) - o.hz, 0)) < 1.2
+        : Math.hypot(o.x - x, o.z - z) < (o.hx ?? o.r) + 1.2)) continue;
       const dx = a.x - p.x, dz = a.z - p.z;
       return { x, z, heading: side > 0 ? Math.atan2(dx, dz) : Math.atan2(-dx, -dz) };
     }
@@ -363,11 +370,11 @@ export function createPeopleField({
       ftL: [-PX, -0.05 * S - 0.97 * S + 0.02 * S, 0.03 * S], ftR: [PX, -0.05 * S - 0.97 * S + 0.02 * S, 0.03 * S],
     };
     const B = { pelvis, torso, head, uaL, uaR, foL, foR, haL, haR, thL, thR, caL, caR, ftL, ftR };
-    pelvis.position.set(spot.x, p.pelvisY, spot.z);
+    pelvis.position.set(spot.x, groundAt(spot.x, spot.z) + p.pelvisY, spot.z);
     pelvis.quaternion.setFromEuler(0, spot.heading, 0);
     for (const k of Object.keys(ST)) {
       const b = B[k];
-      b.position.set(spot.x + ST[k][0], p.pelvisY + ST[k][1], spot.z + ST[k][2]);
+      b.position.set(spot.x + ST[k][0], pelvis.position.y + ST[k][1], spot.z + ST[k][2]);
       b.quaternion.set(0, 0, 0, 1);
       b.velocity.setZero();
       b.angularVelocity.setZero();
@@ -477,6 +484,22 @@ export function createPeopleField({
       child.force.setZero();
       child.torque.setZero();
       child.aabbNeedsUpdate = true;
+    }
+    if (terrain) {
+      // Lift the connected pose, not individual feet, to clear the uphill sole.
+      // The bounds cover both the collision foot and its forward-offset shoe.
+      let lift = 0;
+      for (const foot of [p.body.ftL, p.body.ftR]) {
+        for (const x of [-0.05, 0.05]) for (const y of [-0.032, 0.032]) for (const z of [-0.11, 0.24]) {
+          const corner = vq(foot.quaternion, { x: x * p.S, y: y * p.S, z: z * p.S });
+          lift = Math.max(lift, groundAt(foot.position.x + corner.x, foot.position.z + corner.z)
+            + FLOOR_Y - foot.position.y - corner.y);
+        }
+      }
+      for (const body of Object.values(p.body)) {
+        body.position.y += lift;
+        body.aabbNeedsUpdate = true;
+      }
     }
   }
   // Gait: hips swing about X, knees un/fold, arms counter-swing, spine leans
@@ -594,17 +617,23 @@ export function createPeopleField({
 
     for (const p of people) {
       const B = p.body;
+      if (hasSafePosition && !terrain.isSafePosition(B.pelvis.position.x, B.pelvis.position.z, personRadius)) {
+        resetPerson(p);
+        continue;
+      }
       p.stateT += dt;
       const dist = Math.hypot(B.pelvis.position.x - carX, B.pelvis.position.z - carZ);
+      const ground = groundAt(B.pelvis.position.x, B.pelvis.position.z);
+      const atCarHeight = Math.abs(B.pelvis.position.y - (car.position.y + 0.7)) < 0.7 + p.S * 0.6;
 
       // --- state machine --------------------------------------------------------
       if (p.state === "stand" || p.state === "panic") {
-        if (dist < 2.4 && speed > 2.5) {
+        if (dist < 2.4 && atCarHeight && speed > 2.5) {
           knock(p, speed, car.heading, p.state === "panic" ? 1.5 : 1.15);
           p.state = "tumble";
           p.stateT = 0;
           for (const k of Object.keys(B)) B[k].collisionFilterMask = 1 | 4 | 8 | 16;
-        } else if (dist < 15 && speed > 6 && p.state === "stand") {
+        } else if (dist < 15 && atCarHeight && speed > 6 && p.state === "stand") {
           p.state = "panic";
           p.panicT = 0;
           p.stateT = 0;
@@ -614,7 +643,7 @@ export function createPeopleField({
         }
         if (p.state !== "panic") p.panicT = 0;
       } else if (p.state === "tumble") {
-        if (dist < 2.5 && speed > 2) {
+        if (dist < 2.5 && atCarHeight && speed > 2) {
           // Car parked on top: pancake.
           p.crush = Math.min(1, p.crush + dt * 2.2);
           p.flatT += dt;
@@ -633,7 +662,7 @@ export function createPeopleField({
           }
         }
         const v = Math.hypot(B.pelvis.velocity.x, B.pelvis.velocity.z) + Math.abs(B.pelvis.velocity.y);
-        if (p.stateT > 2.4 && v < 1.0 && B.pelvis.position.y < 1.0 * p.S) {
+        if (p.stateT > 2.4 && v < 1.0 && B.pelvis.position.y < ground + FLOOR_Y + 1.0 * p.S) {
           p.state = "down";
           p.stateT = 0;
         }
@@ -648,7 +677,7 @@ export function createPeopleField({
           settle(p);
         }
       } else if (p.state === "rise") {
-        if (dist < 2 && speed > 3) {
+        if (dist < 2 && atCarHeight && speed > 3) {
           knock(p, speed, car.heading, 0.9);
           p.state = "tumble";
           p.stateT = 0;
@@ -658,6 +687,7 @@ export function createPeopleField({
 
       // --- movement/puppetry -----------------------------------------------------
       if (p.state === "stand" || p.state === "panic") {
+        B.pelvis.position.y = ground + p.pelvisY;
         let tx, tz;
         if (p.state === "panic") {
           const dx = B.pelvis.position.x - carX, dz = B.pelvis.position.z - carZ;
@@ -667,12 +697,18 @@ export function createPeopleField({
           p.panicT += dt;
         } else {
           if (!p.target || Math.hypot(p.target.x - B.pelvis.position.x, p.target.z - B.pelvis.position.z) < 2) {
-            const ia = Math.floor(rnd() * route.length);
-            const a = rnd() * Math.PI * 2, s = 20 + rnd() * 40;
-            p.target = {
-              x: THREE.MathUtils.clamp(route[ia].x + Math.sin(a) * s, -300, 300),
-              z: THREE.MathUtils.clamp(route[ia].z + Math.cos(a) * s, -300, 300),
-            };
+            p.target = { x: B.pelvis.position.x, z: B.pelvis.position.z };
+            for (let attempt = 0; attempt < (hasSafePosition ? 12 : 1); attempt++) {
+              const ia = Math.floor(rnd() * route.length);
+              const a = rnd() * Math.PI * 2, s = 20 + rnd() * 40;
+              const target = {
+                x: THREE.MathUtils.clamp(route[ia].x + Math.sin(a) * s, -bound, bound),
+                z: THREE.MathUtils.clamp(route[ia].z + Math.cos(a) * s, -bound, bound),
+              };
+              if (hasSafePosition && !terrain.isSafePosition(target.x, target.z, personRadius)) continue;
+              p.target = target;
+              break;
+            }
           }
           tx = p.target.x; tz = p.target.z;
         }
@@ -681,6 +717,17 @@ export function createPeopleField({
         if (d > 0.5) {
           const nx = dx / d, nz = dz / d;
           const sp = p.state === "panic" ? Math.min(7.4, 3.4 + speed * 0.55) : p.walkSpeed;
+          // A long frame must not jump across water between two dry endpoints.
+          const stepDt = hasSafePosition ? Math.min(dt, 0.05) : dt;
+          const x = THREE.MathUtils.clamp(B.pelvis.position.x + nx * sp * stepDt, -bound, bound);
+          const z = THREE.MathUtils.clamp(B.pelvis.position.z + nz * sp * stepDt, -bound, bound);
+          if (hasSafePosition && !terrain.isSafePosition(x, z, personRadius)) {
+            p.target = null;
+            standingTargets(p);
+            applyTargets(p, p.gaitTqs);
+            poseWalking(p);
+            continue;
+          }
           // panic: occasionally face-plant mid-sprint (comedy!)
           if (p.state === "panic" && rnd() < dt * 0.02) {
             knock(p, sp, Math.atan2(nx, nz), 0.9);
@@ -689,10 +736,10 @@ export function createPeopleField({
             for (const k of Object.keys(B)) B[k].collisionFilterMask = 1 | 4 | 8 | 16;
             continue;
           }
-          B.pelvis.position.x += nx * sp * dt;
-          B.pelvis.position.z += nz * sp * dt;
+          B.pelvis.position.x = x;
+          B.pelvis.position.z = z;
           const bob = Math.abs(Math.sin(p.phase + t * sp * 2.3)) * 0.025 * p.S;
-          B.pelvis.position.y = p.pelvisY + bob;
+          B.pelvis.position.y = groundAt(B.pelvis.position.x, B.pelvis.position.z) + p.pelvisY + bob;
           B.pelvis.velocity.setZero();
           B.pelvis.angularVelocity.set(0, 0, 0);
           const h = Math.atan2(nx, nz);
@@ -711,7 +758,7 @@ export function createPeopleField({
         standingTargets(p);
         applyTargets(p, p.gaitTqs);
         B.pelvis.position.copy(p.riseFrom.pelvis.position);
-        B.pelvis.position.y = p.pelvisY;
+        B.pelvis.position.y = groundAt(B.pelvis.position.x, B.pelvis.position.z) + p.pelvisY;
         B.pelvis.quaternion.setFromEuler(0, p.heading, 0);
         poseWalking(p);
         for (const [key, body] of Object.entries(B)) {
@@ -731,7 +778,7 @@ export function createPeopleField({
           B.pelvis.velocity.setZero();
           for (const k of Object.keys(B)) B[k].collisionFilterMask = 0;
           p.pelvisY = 1.08 * p.S;
-          B.pelvis.position.y = p.pelvisY;
+          B.pelvis.position.y = groundAt(B.pelvis.position.x, B.pelvis.position.z) + p.pelvisY;
           settle(p);
           standingTargets(p);
           applyTargets(p, p.gaitTqs);
@@ -754,16 +801,19 @@ export function createPeopleField({
     }
     // Step before uploading transforms so meshes match the current physics pose.
     if (sim && dt > 0) {
-      const teleport = Math.hypot(car.position.x - prevCar.x, car.position.z - prevCar.z) > 30;
-      carBody.position.set(teleport ? car.position.x : prevCar.x, car.position.y + 0.7, teleport ? car.position.z : prevCar.z);
-      carBody.velocity.set(teleport ? 0 : (car.position.x - prevCar.x) / dt, 0, teleport ? 0 : (car.position.z - prevCar.z) / dt);
+      const teleport = prevCar.distanceTo(car.position) > 30;
+      carBody.position.set(teleport ? car.position.x : prevCar.x, (teleport ? car.position.y : prevCar.y) + 0.7, teleport ? car.position.z : prevCar.z);
+      carBody.velocity.set(teleport ? 0 : (car.position.x - prevCar.x) / dt, teleport ? 0 : (car.position.y - prevCar.y) / dt, teleport ? 0 : (car.position.z - prevCar.z) / dt);
       carBody.quaternion.setFromEuler(0, car.heading, 0);
       carBody.aabbNeedsUpdate = true;
       world.step(1 / 120, Math.min(dt, 0.05), 8);
       onChange();
     }
     prevCar.copy(car.position);
-    for (const p of people) syncVisuals(p);
+    for (const p of people) {
+      if (hasSafePosition && !terrain.isSafePosition(p.body.pelvis.position.x, p.body.pelvis.position.z, personRadius)) resetPerson(p);
+      syncVisuals(p);
+    }
     for (const g of allGroups) g.mesh.instanceMatrix.needsUpdate = true;
   }
 
@@ -816,6 +866,43 @@ export function createPeopleField({
       if (p.glassesStyle) render(G.glasses[p.glassesStyle], s.glasses, B.head, qH, 0, 0.03 * p.S, 0.13 * p.S, 0.24 * p.S, 0.24 * p.S, 0.24 * p.S);
   }
 
+  function resetPerson(p) {
+    const B = p.body;
+    settle(p);
+    p.state = "stand";
+    p.stateT = 0;
+    p.panicT = 0;
+    p.crush = 0;
+    p.flatT = 0;
+    p.target = null;
+    B.pelvis.position.set(p.origin.x, groundAt(p.origin.x, p.origin.z) + p.pelvisY, p.origin.z);
+    B.pelvis.quaternion.setFromEuler(0, p.heading, 0);
+    B.pelvis.velocity.setZero();
+    B.pelvis.angularVelocity.setZero();
+    for (const k of Object.keys(p.ST)) {
+      const b = B[k], off = p.ST[k];
+      b.position.set(p.origin.x + off[0], B.pelvis.position.y + off[1], p.origin.z + off[2]);
+      b.quaternion.set(0, 0, 0, 1);
+      b.velocity.setZero();
+      b.angularVelocity.setZero();
+      b.collisionFilterMask = 0;
+      b.aabbNeedsUpdate = true;
+    }
+    standingTargets(p);
+    applyTargets(p, p.gaitTqs);
+    poseWalking(p);
+    if (hasSafePosition) {
+      p.riseFrom = null;
+      for (const body of Object.values(B)) {
+        body.previousPosition.copy(body.position);
+        body.interpolatedPosition.copy(body.position);
+        body.previousQuaternion.copy(body.quaternion);
+        body.interpolatedQuaternion.copy(body.quaternion);
+      }
+      world.broadphase.dirty = true;
+    }
+  }
+
   function reset(position = new THREE.Vector3(), heading = 0) {
     hits = 0;
     world.accumulator = 0;
@@ -825,30 +912,7 @@ export function createPeopleField({
     carBody.quaternion.setFromEuler(0, heading, 0);
     carBody.aabbNeedsUpdate = true;
     for (const p of people) {
-      const B = p.body;
-      settle(p);
-      p.state = "stand";
-      p.stateT = 0;
-      p.panicT = 0;
-      p.crush = 0;
-      p.flatT = 0;
-      p.target = null;
-      B.pelvis.position.set(p.origin.x, p.pelvisY, p.origin.z);
-      B.pelvis.quaternion.setFromEuler(0, p.heading, 0);
-      B.pelvis.velocity.setZero();
-      B.pelvis.angularVelocity.setZero();
-      for (const k of Object.keys(p.ST)) {
-        const b = B[k], off = p.ST[k];
-        b.position.set(p.origin.x + off[0], p.pelvisY + off[1], p.origin.z + off[2]);
-        b.quaternion.set(0, 0, 0, 1);
-        b.velocity.setZero();
-        b.angularVelocity.setZero();
-        b.collisionFilterMask = 0;
-        b.aabbNeedsUpdate = true;
-      }
-      standingTargets(p);
-      applyTargets(p, p.gaitTqs);
-      poseWalking(p);
+      resetPerson(p);
       syncVisuals(p);
     }
     world.broadphase.dirty = true;

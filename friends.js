@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const friends = [
+export const friends = [
   { name: "Vincent", color: "#f36b74", shape: "ball", count: 1, symbol: "●" },
   { name: "Lea", color: "#ffd35e", shape: "star", count: 2, symbol: "★" },
   { name: "Camilla", color: "#67c8f1", shape: "cube", count: 3, symbol: "■" },
@@ -9,8 +9,8 @@ const friends = [
 ];
 const saveKey = "wildrun-friends-v1";
 
-export function createFriendAdventure({ scene, route, onChange, onStop }) {
-  let index = 0, collected = 0, counted = 0, modalOpen = false, voice = false;
+export function createFriendAdventure({ scene, route, onChange, onStop, session }) {
+  let index = 0, collected = 0, counted = 0, modalOpen = false, voice = session?.value.voice ?? false;
   try {
     const saved = JSON.parse(localStorage.getItem(saveKey));
     if (Number.isInteger(saved?.index) && saved.index >= 0 && saved.index <= 5) {
@@ -79,9 +79,12 @@ export function createFriendAdventure({ scene, route, onChange, onStop }) {
   }
   speaker.onclick = () => {
     voice = !voice; speaker.setAttribute("aria-pressed", String(voice));
+    session?.update({ voice });
     speaker.title = voice ? "Turn voice off" : "Turn voice on";
     if (voice) say(clue.textContent); else window.speechSynthesis?.cancel();
   };
+  speaker.setAttribute("aria-pressed", String(voice));
+  speaker.title = voice ? "Turn voice off" : "Turn voice on";
   if (!("speechSynthesis" in window)) speaker.hidden = true;
   repeat.onclick = () => { index = 0; collected = 0; hasPrevious = false; save(); refresh(); };
   function refresh() {
@@ -106,7 +109,7 @@ export function createFriendAdventure({ scene, route, onChange, onStop }) {
     }
     dots.setAttribute("aria-label", collected + " of " + f.count + " collected");
     // Road-centre destinations stay reachable in both worlds.
-    const routeIndex = index * 43 + (delivering ? 38 : 8 + collected * 5);
+    const routeIndex = Math.floor((index * 43 + (delivering ? 38 : 8 + collected * 5)) / 240 * route.length);
     marker.position.copy(route[routeIndex]);
     const ahead = route[(routeIndex + 1) % route.length];
     marker.rotation.y = Math.atan2(ahead.x - marker.position.x, ahead.z - marker.position.z) + Math.PI;

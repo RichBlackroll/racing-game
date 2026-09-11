@@ -11,7 +11,8 @@ const VIEWS = {
 const TRANSITION_SECONDS = 0.25;
 const TAU = Math.PI * 2;
 
-// The caller owns driving state and RAF; render(dt) takes seconds. Coordinates: +Y up, +Z front.
+// The caller owns driving state and RAF; render(dt, force) takes seconds and can force a resume redraw.
+// Coordinates: +Y up, +Z front.
 export function createGaragePreview({ renderer, car, environment, contactTexture }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xe7ecdf);
@@ -69,13 +70,15 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
   const relative = new THREE.Vector3();
   const projected = new THREE.Box2();
   const projectedPoint = new THREE.Vector2();
+  const rendererSize = new THREE.Vector2();
   const points = [];
   const viewPoints = [];
-  let active = false, host = null, win = null, doc = null;
+  let active = false, dirty = false, host = null, win = null, doc = null;
   let original = null, observer = null, reducedMotion = null;
   let part = "color", [angle, elevation] = VIEWS.color;
   let distance = 0, motion = null;
   let width = 0, height = 0, top = 0, bottom = 0, side = 0;
+  let pixelRatio = 0;
   let pointerId = null, pointerX = 0, pointerY = 0;
 
   function measureCar() {
@@ -203,6 +206,7 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
   }
 
   function moveTo(yaw, pitch, immediate = false) {
+    dirty = true;
     const required = fitDistance(yaw, pitch);
     // Retain a little zoom slack so small part changes do not make the camera breathe.
     const nextDistance = Math.max(required, Math.min(distance || required, required * 1.1));
@@ -273,11 +277,15 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     );
     pointerX = event.clientX;
     pointerY = event.clientY;
-    moveTo(yaw, pitch, true);
+    if (yaw !== angle || pitch !== elevation) moveTo(yaw, pitch, true);
   }
 
   function visibilityChange() {
     if (doc.hidden) stopDrag();
+  }
+
+  function contextRestored() {
+    dirty = true;
   }
 
   function inputListeners(method) {
@@ -289,18 +297,32 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     win?.[method]("pointercancel", stopDrag);
     win?.[method]("blur", stopDrag);
     doc[method]("visibilitychange", visibilityChange);
+    renderer.domElement[method]("webglcontextlost", stopDrag);
+    renderer.domElement[method]("webglcontextrestored", contextRestored);
   }
 
   function resize() {
     if (!active) return;
     const w = host.clientWidth, h = host.clientHeight;
+    const layoutChanged = w !== width || h !== height;
+    if (layoutChanged) stopDrag();
     if (w <= 0 || h <= 0) {
       width = Math.max(0, w);
       height = Math.max(0, h);
       return;
     }
-    renderer.setSize(w, h, false);
-    if (w === width && h === height) return;
+    renderer.getSize(rendererSize);
+    if (rendererSize.x !== w || rendererSize.y !== h) {
+      renderer.setSize(w, h, false);
+      dirty = true;
+    }
+    // setPixelRatio also resizes/clears Three's canvas, even if the CSS layout did not change.
+    const nextPixelRatio = renderer.getPixelRatio();
+    if (pixelRatio !== nextPixelRatio) {
+      pixelRatio = nextPixelRatio;
+      dirty = true;
+    }
+    if (!layoutChanged) return;
     width = w;
     height = h;
     top = Math.min(36, height * 0.16);
@@ -314,6 +336,7 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     if (!nextHost?.appendChild) throw new TypeError("Garage preview requires a host element.");
     partId = Object.hasOwn(VIEWS, partId) ? partId : "color";
     if (active && host === nextHost) {
+      dirty = true;
       resize();
       if (partId !== part) focus(partId);
       return;
@@ -354,6 +377,7 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     observer = null;
     motion = null;
     active = false;
+    dirty = false;
     if (original.carParent) {
       original.carParent.add(car);
       const siblings = original.carParent.children;
@@ -370,8 +394,8 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     width = height = 0;
   }
 
-  function render(dt = 0) {
-    if (!active || !width || !height) return;
+  function render(dt = 0, force = false) {
+    if (!active || !width || !height || (!dirty && !motion && !force)) return;
     if (motion) {
       motion.elapsed += Number.isFinite(dt) ? Math.max(0, dt) : 0;
       const t = reducedMotion?.matches ? 1 : Math.min(1, motion.elapsed / TRANSITION_SECONDS);
@@ -383,6 +407,7 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
       updateCamera();
     }
     renderer.render(scene, camera);
+    dirty = false;
   }
 
   function state() {
@@ -402,5 +427,11 @@ export function createGaragePreview({ renderer, car, environment, contactTexture
     };
   }
 
-  return { open, close, resize, focus, turn, render, state };
+  return { open, close, resize, focus, turn, render, state,
+    setEnvironment(environment) {
+      if (scene.environment === environment) return;
+      scene.environment = environment;
+      dirty = true;
+    },
+  };
 }

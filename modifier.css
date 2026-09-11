@@ -1,252 +1,226 @@
-/* Vehicle studio: shared surfaces, restrained equipment details. */
+/* A contained garage: the car stays visible while only the workbench scrolls. */
 #modifier {
+  --mod-ink: var(--ui-accent-ink);
+  --mod-accent: var(--ui-accent);
   position: fixed;
-  top: max(96px, calc(env(safe-area-inset-top, 0px) + 72px));
-  right: max(24px, env(safe-area-inset-right, 0px));
-  bottom: max(24px, env(safe-area-inset-bottom, 0px));
-  width: 380px;
-  max-width: calc(100% - 48px);
-  box-sizing: border-box;
+  inset: 0;
+  width: min(1280px, calc(100vw - 40px));
+  height: min(900px, calc(100dvh - 40px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  overflow: hidden;
+  color: var(--mod-ink);
+  color-scheme: light;
+  background: #f8f8ed;
+  box-shadow: var(--ui-shadow);
+  font-family: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#modifier:not([open]) { display: none; }
+#modifier::backdrop { background: #142122e8; }
+#modifier .mod-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 348px;
+  grid-template-rows: 84px minmax(0, 1fr) 104px;
+  grid-template-areas: "head head" "stage bench" "tabs bench";
+  width: 100%;
+  height: 100%;
+}
+#modifier button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 10px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: #fffef8;
+  color: var(--mod-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.2;
+  touch-action: manipulation;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#modifier button:focus-visible, #modifier summary:focus-visible { outline: 3px solid #52724e; outline-offset: 3px; }
+#modifier button:active { transform: scale(0.96); }
+#modifier button:disabled { opacity: 0.4; cursor: default; transform: none; }
+.mod-icon { display: inline-flex; width: 24px; height: 24px; flex-shrink: 0; }
+.mod-icon svg, .mod-picture svg { width: 100%; height: 100%; display: block; }
+.mod-head {
+  grid-area: head;
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-muted) transparent;
-  z-index: 20;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
   color: var(--ui-text);
   background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  box-shadow: var(--ui-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  animation: mod-enter 180ms ease-out;
+  border-bottom: 1px solid var(--ui-border);
 }
-
-#modifier[hidden] { display: none; }
-#modifier > * { flex-shrink: 0; min-width: 0; }
-.mod-preview {
-  position: fixed;
-  top: max(96px, calc(env(safe-area-inset-top, 0px) + 72px));
-  right: calc(404px + max(24px, env(safe-area-inset-right, 0px)));
-  bottom: max(24px, env(safe-area-inset-bottom, 0px));
-  left: max(24px, env(safe-area-inset-left, 0px));
-  overflow: hidden;
-  isolation: isolate;
-  z-index: 19;
-  border-radius: var(--ui-radius);
-  background: #e7ecdf;
-  touch-action: none;
-  cursor: grab;
-}
-.mod-preview:active { cursor: grabbing; }
-/* Override the live canvas's fixed placement and inline road dimensions. */
-.mod-preview > .game-canvas {
+.mod-brand, .mod-head-actions { display: flex; align-items: center; gap: 14px; }
+.mod-brand > .mod-icon { width: 46px; height: 46px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 14px; color: var(--ui-accent); }
+.mod-eyebrow { display: block; font-size: 10px; font-weight: 650; letter-spacing: 1.6px; color: var(--ui-muted); }
+#modifier .mod-title { margin: 2px 0 0; font-size: 28px; line-height: 1.05; letter-spacing: -0.7px; color: var(--ui-text); }
+#modifier .mod-title:focus { outline: none; }
+#modifier .mod-undo { background: transparent; color: var(--ui-text); }
+#modifier .mod-close { min-height: 54px; padding: 12px 22px; border-color: #91aa90; background: var(--mod-accent); font-size: 18px; }
+.mod-stage { grid-area: stage; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #e7ecdf; }
+.mod-viewport { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+.mod-viewport:active { cursor: grabbing; }
+#modifier .mod-viewport .game-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.mod-stage-label { position: absolute; top: 20px; left: 24px; pointer-events: none; font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #61745c; }
+.mod-feedback {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: -1;
-}
-.mod-preview-hint {
-  position: absolute;
-  top: 12px;
-  left: 16px;
-  margin: 0;
-  color: #465247;
-  font-size: 11px;
+  top: 48px;
+  left: 22px;
+  max-width: calc(100% - 44px);
+  padding: 8px 12px;
+  border-radius: 24px;
+  color: #24472e;
+  background: #fbfff1eb;
+  font-size: 14px;
+  font-weight: 650;
   pointer-events: none;
 }
-.mod-turn { position: absolute; bottom: 8px; right: 12px; min-height: 44px; }
-.configuring #friend-hud { visibility: hidden; pointer-events: none; }
-#modifier button {
-  min-height: 44px;
-  min-width: 44px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--ui-text);
-  background: transparent;
-  border: 1px solid var(--ui-border);
-  border-radius: 10px;
-  box-shadow: none;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 140ms ease, border-color 140ms ease;
-}
-
-#modifier button:focus-visible,
-#modifier .mod-title:focus-visible {
-  outline: 2px solid var(--ui-accent);
-  outline-offset: 3px;
-}
-
-.mod-head { display: flex; align-items: center; gap: 16px; }
-.mod-heading { flex: 1; min-width: 0; }
-.mod-eyebrow {
-  margin: 0 0 6px;
-  color: var(--ui-accent);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  line-height: 1.4;
-}
-#modifier .mod-title {
-  margin: 0;
-  color: var(--ui-text);
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: -0.04em;
-  line-height: 1.15;
-}
-#modifier .mod-close {
-  flex-shrink: 0;
-  padding-inline: 19px;
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent);
-  border-color: var(--ui-accent);
-  font-weight: 600;
-}
-.mod-section-title {
-  margin: 0 0 10px;
-  color: var(--ui-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  line-height: 1.5;
-  text-transform: uppercase;
-}
-.mod-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-#modifier .mod-preset { padding: 9px 6px; font-size: 12px; }
-#modifier .mod-preset[aria-pressed="true"] { border-color: var(--ui-accent); background: var(--ui-raised); }
-
-.mod-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding-block: 16px;
-  border-block: 1px solid var(--ui-border);
-}
-#modifier .mod-tab { padding-inline: 6px; color: var(--ui-muted); border-color: transparent; font-size: 12px; }
-#modifier .mod-tab.selected { color: var(--ui-text); background: var(--ui-raised); border-color: var(--ui-border); }
-
-.mod-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-#modifier .mod-option {
+.mod-feedback:empty { display: none; }
+.mod-feedback .mod-icon { width: 18px; height: 18px; }
+.mod-preview-tools { position: absolute; bottom: 16px; left: 24px; right: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
+.mod-drag-hint { font-size: 13px; color: #5a6c57; }
+#modifier .mod-turn { min-height: 46px; background: #f9fbf1ed; border: 1px solid #c7d1be; font-size: 14px; pointer-events: auto; }
+.mod-tabs { grid-area: tabs; display: grid; grid-template-columns: repeat(6, minmax(58px, 1fr)); min-width: 0; gap: 8px; padding: 12px 16px; border-top: 1px solid #25432e16; background: #fcfbf2; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+#modifier .mod-tab { flex-direction: column; gap: 2px; min-width: 0; padding: 5px 2px; background: transparent; font-size: 14px; }
+.mod-tab .mod-picture { height: 38px; width: 56px; }
+#modifier .mod-tab.selected { border-color: #93ad8a; background: #d8e5cb; }
+.mod-tab .mod-swatch { width: 30px; height: 30px; margin: 4px 0; }
+.mod-workbench {
+  grid-area: bench;
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 9px;
-  min-height: 112px;
-  padding: 14px;
-  text-align: left;
+  gap: 18px;
+  min-height: 0;
+  padding: 24px 20px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: #faf8ee;
+  border-left: 1px solid #25432e16;
+  scrollbar-width: thin;
 }
-.mod-option-index {
-  color: var(--ui-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-}
-.mod-option-swatch {
-  display: block;
-  width: 30px;
-  height: 18px;
-  border: 1px solid #ffffff40;
-  border-radius: 4px;
-  background: var(--mod-paint);
-  box-shadow: inset 0 1px 0 #ffffff30;
-}
-.mod-option-name { font-size: 13px; font-weight: 600; line-height: 1.35; }
-#modifier .mod-option-fact { color: var(--ui-muted); font-size: 11px; line-height: 1.5; font-weight: 400; }
-#modifier .mod-option.selected { background: var(--ui-raised); border-color: var(--ui-accent); }
-#modifier .mod-option.selected .mod-option-name { color: var(--ui-accent); }
-
-.mod-fact {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "name speak" "text text";
-  align-items: center;
-  gap: 6px 12px;
-  padding: 16px;
-  border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  background: var(--ui-raised);
-}
-.mod-fact-name { grid-area: name; color: var(--ui-text); font-size: 13px; font-weight: 600; }
-.mod-fact-text { grid-area: text; margin: 0; color: var(--ui-muted); font-size: 12px; line-height: 1.6; }
-#modifier .mod-speak { grid-area: speak; color: var(--ui-accent); font-size: 12px; }
-.mod-summary { padding-top: 18px; border-top: 1px solid var(--ui-border); }
-.mod-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin: 0; }
-.mod-chip { min-width: 0; }
-.mod-chip-label { margin-bottom: 4px; color: var(--ui-muted); font-size: 10px; line-height: 1.4; }
-.mod-chip-name { margin: 0; color: var(--ui-text); font-size: 12px; line-height: 1.4; }
-
+.mod-choice-title { font-size: 24px; letter-spacing: -0.5px; margin: 0; }
+.mod-choice-hint { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: #61735e; }
+.mod-vehicle-picker { display: grid; gap: 12px; flex-shrink: 0; padding-bottom: 18px; border-bottom: 1px solid #d4dbc6; }
+.mod-vehicles { display: grid; gap: 10px; }
+#modifier .mod-vehicle { position: relative; justify-content: flex-start; min-height: 84px; min-width: 0; gap: 12px; border-color: #dce1cf; border-bottom-width: 4px; text-align: left; }
+.mod-vehicle-copy { min-width: 0; }
+.mod-vehicle-name { display: block; font-size: 15px; }
+.mod-vehicle-description { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; line-height: 1.35; color: #61735e; }
+.mod-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mod-options[data-part="color"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#modifier .mod-option { position: relative; min-height: 112px; min-width: 0; padding: 12px 6px 10px; flex-direction: column; gap: 6px; border: 2px solid #dce1cf; border-bottom-width: 4px; background: #fffef8; }
+.mod-picture { display: block; width: 80px; height: 56px; flex-shrink: 0; }
+.mod-swatch { width: 44px; height: 44px; border-radius: 50%; background: var(--paint); box-shadow: inset 0 0 0 2px #18372d15, inset -4px -5px 0 #0000000b; }
+#modifier .mod-options[data-part="color"] .mod-option { min-height: 95px; font-size: 12px; }
+.mod-check { position: absolute; top: -6px; right: -5px; display: none; width: 23px; height: 23px; align-items: center; justify-content: center; border-radius: 50%; background: #285037; color: #fff; }
+.mod-check .mod-icon { width: 17px; height: 17px; }
+#modifier .mod-option.selected, #modifier .mod-vehicle.selected { background: #e7efdc; border-color: #6e8a58; }
+.mod-option.selected .mod-check, .mod-vehicle.selected .mod-check { display: flex; }
+#modifier .mod-engine-listen { width: 100%; box-sizing: border-box; flex-shrink: 0; min-height: 52px; padding: 12px 16px; border-color: #6e8a58; background: #d8e5cb; }
+#modifier .mod-engine-listen[hidden] { display: none; }
+.mod-fact { display: grid; grid-template-columns: minmax(0, 1fr) 58px; align-items: center; gap: 12px; padding: 16px; border: 1px solid #d8dfbf; border-radius: 16px; background: #eef2dc; }
+.mod-fact-name { font-size: 16px; }
+.mod-fact-text { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: #476342; }
+#modifier .mod-speak { flex-direction: column; gap: 4px; min-height: 64px; padding: 8px 4px; font-size: 11px; background: #fcfff4; border-color: #d6e2b8; }
+.mod-builds { margin-top: auto; border-top: 1px solid #d4dbc6; padding-top: 6px; }
+.mod-builds summary { min-height: 48px; padding: 14px 0; cursor: pointer; font-size: 14px; font-weight: 650; touch-action: manipulation; }
+.mod-presets { display: grid; gap: 8px; padding-bottom: 6px; }
+#modifier .mod-preset { border-color: #d5dfbe; }
+.configuring #friend-hud { visibility: hidden; pointer-events: none; }
 @media (hover: hover) {
-  #modifier button:hover { background: var(--ui-raised); border-color: var(--ui-muted); }
-  #modifier .mod-close:hover { background: var(--ui-accent); border-color: var(--ui-text); }
-  #modifier .mod-option.selected:hover { border-color: var(--ui-accent); }
+  #modifier button:not(:disabled):hover { border-color: #77905b; background: #eaf0df; }
+  #modifier .mod-undo:hover { background: var(--ui-raised); }
+  #modifier .mod-close:hover { background: #cbdcc4; }
 }
-
-/* Portrait touch devices get a sheet; landscape tablets keep the inspector. */
-@media (max-width: 700px) and (orientation: portrait), (pointer: coarse) and (orientation: portrait) {
-  #modifier {
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    max-width: none;
-    height: 55vh;
-    height: 55dvh;
-    max-height: none;
-    gap: 20px;
-    padding: 20px max(20px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
-    border-bottom: 0;
-    border-radius: var(--ui-radius) var(--ui-radius) 0 0;
-    animation-name: mod-rise;
-  }
-  .mod-tabs {
-    display: flex;
-    overflow-x: auto;
-    padding-block: 10px;
-    padding-inline: 4px;
-    scroll-padding-inline: 4px;
-  }
-  #modifier .mod-tab { flex: 0 0 auto; padding-inline: 14px; }
-  .mod-preview {
-    left: max(12px, env(safe-area-inset-left, 0px));
-    right: max(12px, env(safe-area-inset-right, 0px));
-    bottom: calc(55vh + 12px);
-    bottom: calc(55dvh + 12px);
-  }
+@media (pointer: coarse), (max-width: 1100px) {
+  #modifier { width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
+  #modifier .mod-shell { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); grid-template-columns: minmax(0, 1fr) 320px; }
+  .mod-workbench { padding: 20px 16px; }
+  .mod-tabs { gap: 4px; padding: 12px 8px; }
 }
-
-@media (max-width: 600px) and (orientation: portrait) {
-  .mod-preview { top: max(120px, calc(env(safe-area-inset-top, 0px) + 108px)); }
+@media (orientation: portrait) and (max-width: 1000px), (max-width: 650px) {
+  #modifier .mod-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: 76px minmax(0, 1fr) 88px min(350px, 44dvh); grid-template-areas: "head" "stage" "tabs" "bench"; }
+  .mod-workbench { gap: 12px; padding: 14px 22px; border-left: 0; border-top: 1px solid #25432e16; }
+  .mod-choice-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+  .mod-choice-title { font-size: 21px; }
+  .mod-choice-hint { margin: 0; }
+  .mod-vehicles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #modifier .mod-vehicle { flex-direction: column; gap: 4px; padding: 8px; text-align: center; }
+  .mod-options { grid-template-columns: repeat(var(--option-count), minmax(0, 1fr)); }
+  #modifier .mod-option { min-height: 92px; padding: 8px 6px; }
+  .mod-fact { padding: 12px 14px; }
+  .mod-fact-text { margin-top: 4px; }
+  .mod-builds { margin: 0; padding: 0; }
+  .mod-builds summary { min-height: 44px; padding: 12px 0; }
+  .mod-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-
-@media (orientation: landscape) and (max-height: 500px) {
-  #modifier { top: max(72px, env(safe-area-inset-top, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); padding: 18px; }
-  .mod-preview { top: max(72px, env(safe-area-inset-top, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+@media (orientation: portrait) and (min-width: 650px) and (max-width: 1000px) {
+  .mod-options[data-part="color"] { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
-@media (orientation: landscape) and (max-width: 900px) {
-  #modifier { width: 320px; right: max(12px, env(safe-area-inset-right, 0px)); }
-  .mod-preview { left: max(12px, env(safe-area-inset-left, 0px)); right: calc(332px + max(12px, env(safe-area-inset-right, 0px))); }
+@media (max-width: 650px) {
+  .mod-head { padding: 12px; gap: 8px; }
+  .mod-brand { gap: 8px; }
+  .mod-brand > .mod-icon { display: none; }
+  .mod-head-actions { gap: 6px; }
+  #modifier .mod-title { font-size: 24px; }
+  .mod-eyebrow { font-size: 8px; letter-spacing: 1px; }
+  #modifier .mod-close { padding: 10px 12px; min-height: 50px; font-size: 15px; }
+  #modifier .mod-undo { padding: 8px; }
+  .mod-undo > span:not(.mod-icon) { display: none; }
+  #modifier .mod-shell { grid-template-rows: 70px minmax(0, 1fr) 76px min(390px, 46dvh); }
+  .mod-stage-label { top: 12px; left: 16px; font-size: 9px; }
+  .mod-feedback { top: 34px; left: 12px; padding: 5px 9px; font-size: 12px; }
+  .mod-preview-tools { bottom: 10px; left: 14px; right: 12px; }
+  .mod-drag-hint { font-size: 11px; }
+  #modifier .mod-turn { min-height: 44px; padding: 8px; font-size: 12px; }
+  .mod-tabs { gap: 3px; padding: 6px; }
+  #modifier .mod-tab { font-size: 11px; }
+  .mod-tab .mod-picture { width: 46px; height: 33px; }
+  .mod-tab .mod-swatch { width: 26px; height: 26px; margin: 4px; }
+  .mod-workbench { padding: 12px; gap: 10px; }
+  .mod-choice-title { font-size: 19px; }
+  .mod-choice-hint { font-size: 12px; }
+  .mod-options { gap: 8px; }
+  #modifier .mod-option { min-height: 84px; font-size: 13px; }
+  #modifier .mod-options[data-part="color"] .mod-option { min-height: 75px; padding: 7px 4px; font-size: 12px; }
+  .mod-option .mod-picture { width: 64px; height: 43px; }
+  .mod-option .mod-swatch { width: 36px; height: 36px; }
+  #modifier .mod-engine-listen { min-height: 48px; padding: 10px 12px; font-size: 14px; }
+  .mod-fact { gap: 8px; padding: 10px 12px; }
+  .mod-fact-text { font-size: 13px; line-height: 1.35; }
+  .mod-fact-name { font-size: 14px; }
+  #modifier .mod-speak { min-height: 58px; }
 }
-
-@keyframes mod-enter {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-@keyframes mod-rise {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+@media (orientation: landscape) and (max-height: 550px) {
+  #modifier .mod-shell { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: 66px minmax(0, 1fr) 80px; grid-template-areas: "head head" "stage bench" "tabs bench"; }
+  .mod-head { padding: 8px 18px; }
+  .mod-workbench { padding: 14px; gap: 12px; }
+  .mod-tabs { padding: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #modifier { animation: none; }
-  #modifier button { transition: none; }
+  #modifier *, #modifier *::before, #modifier *::after { animation: none !important; transition: none !important; }
+  #modifier button:active { transform: none; }
 }

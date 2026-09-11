@@ -1,0 +1,66 @@
+/* View-only cabin sits below the existing driving controls. */
+#cockpit { --dash-height: clamp(220px, 31vh, 300px); position: fixed; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; color: var(--ui-text); }
+.configuring #cockpit { visibility: hidden; }
+.cockpit-view .brand, .cockpit-view .controls { visibility: hidden; }
+.cockpit-view .speed { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.cockpit-roof { position: absolute; top: 0; width: 100%; height: 30px; background: linear-gradient(#111816, #303a34); border-bottom: 2px solid #667064; border-radius: 0 0 40% 40%; box-shadow: 0 6px 14px #0004; }
+.cockpit-roof i { position: absolute; left: 12%; width: 26%; height: 33px; border: 1px solid #58604f; border-radius: 0 0 9px 9px; background: linear-gradient(#323b33, #252e28); box-shadow: 0 4px 8px #0004; }
+.cockpit-roof i + i { left: auto; right: 12%; }
+.cockpit-pillar { position: absolute; top: 0; bottom: calc(var(--dash-height) - 60px); width: clamp(36px, 8vw, 132px); background: linear-gradient(100deg, #101816, #465047 48%, #242d27 73%, #0d1512); }
+.cockpit-pillar-left { left: 0; clip-path: polygon(0 0, 85% 0, 20% 100%, 0 100%); }
+.cockpit-pillar-right { right: 0; transform: scaleX(-1); clip-path: polygon(0 0, 85% 0, 20% 100%, 0 100%); }
+.cockpit-mirror { position: absolute; top: calc(var(--edge-top) + 76px); left: 50%; transform: translateX(-50%); width: clamp(190px, 21vw, 300px); height: clamp(58px, 6vw, 85px); padding: 7px; border: 2px solid #616c60; border-bottom-width: 4px; border-radius: 16px; box-shadow: 0 8px 18px #0007, inset 0 1px #a9af9355; }
+.cockpit-mirror::before { content: ""; position: absolute; bottom: 100%; left: calc(50% - 5px); width: 10px; height: 100px; background: linear-gradient(90deg, #101715, #465047, #131b16); }
+.cockpit-mirror-glass { position: absolute; inset: 7px; border-radius: 7px; box-shadow: 0 0 0 8px #1b231e, inset 0 0 10px #142a2244; }
+.cockpit-mirror span { position: absolute; bottom: 12px; left: 14px; font-size: 6px; letter-spacing: 1.6px; color: #eff4dd; text-shadow: 0 1px 3px #000; }
+.cockpit-mirror > i { position: absolute; bottom: -8px; left: calc(50% - 12px); width: 24px; height: 7px; border-radius: 0 0 4px 4px; background: #58604e; }
+.cockpit-dash { position: absolute; width: 100%; height: var(--dash-height); bottom: 0; filter: drop-shadow(0 -8px 12px #0005); }
+.cockpit-vent { position: absolute; bottom: calc(var(--dash-height) * .42); width: clamp(80px, 13vw, 188px); height: 44px; border: 5px solid #111a15; border-radius: 13px; background: repeating-linear-gradient(#0a110e 0 5px, #475349 6px, #202c23 8px); box-shadow: 0 0 0 2px #62705f, 0 7px 12px #0005; transform: skewY(-3deg); }
+.cockpit-vent-left { left: 7%; }
+.cockpit-vent-right { right: 7%; transform: skewY(3deg); }
+.cockpit-vent i { position: absolute; left: 48%; top: 4px; width: 8px; height: 26px; border: 1px solid #91a08a; border-radius: 2px; background: #44533f; }
+.cockpit-passenger-label { position: absolute; bottom: 55px; right: 9%; font-style: italic; font-size: 16px; font-weight: 700; letter-spacing: 4px; color: #a8b19a; }
+.cockpit-passenger-label span { display: block; margin-top: 8px; font-size: 7px; font-style: normal; letter-spacing: 5px; text-align: right; color: #74826e; }
+.cockpit-instruments { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); width: clamp(360px, 42vw, 560px); overflow: visible; filter: drop-shadow(0 8px 10px #0007); }
+.cockpit-dial { fill: url(#dial-face); stroke: #566455; stroke-width: 2; }
+.cockpit-instruments text, .cockpit-wheel text { text-anchor: middle; fill: #d8e5c5; font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; }
+.cockpit-instruments .cockpit-small, .cockpit-wheel .cockpit-small { font-size: 8px; letter-spacing: 1.5px; fill: #95a98f; }
+.cockpit-tick { fill: none; stroke: #6e8468; stroke-width: 1; }
+.cockpit-tick.major { stroke: #c1cfab; stroke-width: 2; }
+.cockpit-dial-number { font-size: 10px; }
+.cockpit-speed-value { font-size: 38px; font-weight: 500; }
+.cockpit-gear-value { font-size: 42px; }
+.cockpit-boost-value { font-size: 20px; font-weight: 600; }
+.cockpit-trip-value { font-size: 12px; }
+.cockpit-instruments .cockpit-brake { font-size: 8px; letter-spacing: 1.2px; fill: #63705e; }
+.cockpit-instruments .cockpit-brake.engaged { fill: #ffb482; }
+.cockpit-wheel { position: absolute; bottom: -155px; left: 50%; transform: translateX(-50%); width: 320px; filter: drop-shadow(0 8px 12px #0009); }
+.cockpit-view #toast { bottom: calc(150px + clamp(360px, 42vw, 560px) * .384); }
+@media (orientation: portrait) and (min-width: 601px) {
+  .touch-device .cockpit-mirror { top: var(--edge-top); width: 260px; height: 70px; }
+}
+@media (max-width: 900px) {
+  .cockpit-vent { width: 80px; height: 35px; }
+  .cockpit-vent-left { left: 4%; }
+  .cockpit-vent-right { right: 4%; }
+  .cockpit-passenger-label { display: none; }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  #cockpit { --dash-height: 235px; }
+  .cockpit-mirror { top: max(8px, env(safe-area-inset-top)); width: 180px; height: 50px; }
+  .cockpit-mirror span, .cockpit-roof i, .cockpit-vent { display: none; }
+  .cockpit-instruments { width: min(350px, 94vw); bottom: 96px; }
+  .cockpit-wheel { width: 260px; bottom: -120px; }
+  .touch-device #cockpit { --dash-height: calc(var(--drive-bottom) + var(--steering-size) + 130px); }
+  .touch-device .cockpit-instruments { bottom: calc(var(--drive-bottom) + var(--steering-size) + 82px); }
+  .touch-device .cockpit-wheel { bottom: -90px; }
+  .cockpit-view #friend-crew { display: none; }
+  .touch-device.cockpit-view #toast { bottom: calc(var(--drive-bottom) + var(--steering-size) + 224px); }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #cockpit { --dash-height: 170px; }
+  .cockpit-mirror { top: calc(var(--edge-top) + 65px); width: 190px; height: 52px; }
+  .cockpit-instruments { width: 340px; bottom: 34px; }
+  .cockpit-wheel { width: 220px; bottom: -156px; }
+  .cockpit-view #toast { bottom: 195px; }
+}

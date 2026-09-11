@@ -360,5 +360,10 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
   }
 
   apply(DEFAULTS);
-  return { apply, state };
+  // The loader disposes imported resources separately when replacing a vehicle.
+  const resources = new Set([cube, cylinder, coilGeometry, dark, silver, cyan, springPaint, orange, ...Object.values(capPaint)]);
+  return { apply, state, dispose() {
+    for (const resource of resources) resource.dispose();
+    resources.clear();
+  } };
 }

@@ -20,7 +20,7 @@
 .friend-stamp.current b { border-color: var(--friend); color: var(--ui-text); background: color-mix(in srgb, var(--friend) 15%, #242b27); }
 .friend-stamp.current small { color: var(--ui-text); }
 .friend-stamp.earned b { color: var(--ui-accent-ink); background: var(--ui-accent); border-color: var(--ui-accent); }
-#friend-dialog { --friend: #bbcfba; position: fixed; inset: 0; width: min(540px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 42px 32px 30px; border: 1px solid #ffffff2b; border-radius: 24px; background: #202726; color: var(--ui-text); text-align: center; overflow: auto; box-shadow: 0 24px 100px #0006; }
+#friend-dialog { --friend: #bbcfba; position: fixed; inset: var(--edge-top) var(--edge-right) var(--edge-bottom) var(--edge-left); margin: auto; width: min(540px, calc(100% - var(--edge-left) - var(--edge-right))); max-height: calc(100% - var(--edge-top) - var(--edge-bottom)); max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom)); padding: 42px 32px 30px; border: 1px solid #ffffff2b; border-radius: 24px; background: #202726; color: var(--ui-text); text-align: center; overflow: auto; overscroll-behavior: contain; box-shadow: 0 24px 100px #0006; }
 #friend-dialog::backdrop { background: #0e1718a6; }
 #friend-dialog h2 { margin: 14px 0; font-size: 30px; font-weight: 500; letter-spacing: -.8px; line-height: 1.2; }
 #friend-dialog p { font-size: 15px; color: #c9d0c8; line-height: 1.6; min-height: 48px; margin: 12px 0 24px; }
@@ -53,4 +53,8 @@
   #delivery-items .count-item { width: 48px; height: 64px; font-size: 34px; }
   #delivery-basket { gap: 4px; padding: 8px; }
   .basket-slot { width: 40px; flex-basis: 40px; font-size: 32px; }
+}
+@media (max-width: 360px) {
+  .map-card { display: none; }
+  #friend-hud { width: calc(100% - var(--edge-left) - var(--edge-right)); min-width: 0; }
 }

@@ -71,8 +71,9 @@ function fixture() {
   canvasParent.appendChild(canvas);
   canvasParent.appendChild(afterCanvas);
   const renderer = {
-    domElement: canvas, size: new THREE.Vector2(1180, 820), sizes: [], renders: 0,
+    domElement: canvas, size: new THREE.Vector2(1180, 820), sizes: [], renders: 0, pixelRatio: 1,
     getSize(out) { return out.copy(this.size); },
+    getPixelRatio() { return this.pixelRatio; },
     setSize(w, h, style) { assert.equal(style, false); this.size.set(w, h); this.sizes.push([w, h]); },
     setPixelRatio() { assert.fail("Preview must retain the game's pixel ratio"); },
     render(scene, camera) {
@@ -151,6 +152,249 @@ function assertFramed(f) {
   assert.ok(fill > 0.72, `Car fills the available view, not a miniature: ${fill} (${width}x${height}, ${preview.state().part})`);
   assert.ok(Math.abs(lowest) < 1e-6, `Actual spun tire vertices touch the pedestal: ${lowest}`);
 }
+
+test("restored environment lighting reaches the open garage without reopening it", () => {
+  const { preview, host, renderer, environment } = fixture();
+  preview.open(host);
+  preview.render(0);
+  assert.equal(renderer.scene.environment, environment);
+  assert.equal(renderer.renders, 1);
+  const restored = new THREE.Texture();
+  preview.setEnvironment(restored);
+  preview.render(0);
+  assert.equal(renderer.scene.environment, restored);
+  assert.equal(renderer.renders, 2);
+  preview.setEnvironment(restored);
+  preview.render(0);
+  assert.equal(renderer.renders, 2, "Unchanged environment keeps the settled preview idle");
+  preview.setEnvironment(null);
+  preview.render(0);
+  assert.equal(renderer.scene.environment, null);
+  assert.equal(renderer.renders, 3);
+  assert.equal(preview.state().active, true);
+  preview.close();
+});
+
+test("idle frames do not render, and a forced resume redraw is one-shot", () => {
+  const { preview, host, renderer } = fixture();
+  preview.render(0, true);
+  assert.equal(renderer.renders, 0, "Force does not render a closed preview");
+  preview.open(host);
+  preview.render();
+  assert.equal(renderer.renders, 1);
+  const settled = preview.state();
+  for (let i = 0; i < 120; i++) preview.render(1 / 60);
+  assert.equal(renderer.renders, 1);
+  preview.render(0, true);
+  assert.equal(renderer.renders, 2);
+  preview.render();
+  assert.equal(renderer.renders, 2);
+  assert.deepEqual(preview.state(), settled, "Force does not change the camera or start a transition");
+  preview.open(host);
+  preview.render();
+  assert.equal(renderer.renders, 3, "Opening invalidates even an already-open preview");
+  preview.close();
+  preview.render(1, true);
+  assert.equal(renderer.renders, 3);
+});
+
+test("customization redraws once and focus transitions render through their final frame", () => {
+  const f = fixture(), { preview, renderer } = f;
+  preview.open(f.host);
+  preview.render();
+  f.body.material.color.set(0x2a6fdb);
+  preview.focus("color", true);
+  f.rocket.scale.setScalar(1.5);
+  preview.focus("color", true);
+  assert.equal(renderer.renders, 1, "Edits coalesce until the caller renders");
+  assertFramed(f);
+  assert.equal(renderer.renders, 2);
+  assert.equal(f.body.material.color.getHex(), 0x2a6fdb);
+  preview.render(1);
+  assert.equal(renderer.renders, 2);
+  preview.focus("engine");
+  preview.render(0.125);
+  assert.equal(renderer.renders, 3);
+  assert.equal(preview.state().transitioning, true);
+  preview.render(0.125);
+  assert.equal(renderer.renders, 4, "The transition endpoint is rendered");
+  assert.equal(preview.state().transitioning, false);
+  preview.render(1);
+  assert.equal(renderer.renders, 4);
+  f.media.matches = true;
+  preview.focus("rocket");
+  preview.render();
+  assert.equal(renderer.renders, 5);
+  preview.turn();
+  preview.render();
+  assert.equal(renderer.renders, 6, "Reduced-motion turns still invalidate");
+  preview.render(1);
+  assert.equal(renderer.renders, 6);
+  preview.close();
+});
+
+test("duplicate resizes neither clear the shared canvas nor interrupt a drag or transition", () => {
+  const f = fixture(), { preview, renderer, host } = f;
+  preview.open(host);
+  preview.render();
+  const sizes = renderer.sizes.length;
+  fire(host, "pointerdown");
+  const dragging = preview.state();
+  preview.resize();
+  f.observers[0].trigger();
+  preview.render();
+  assert.equal(renderer.sizes.length, sizes);
+  assert.equal(renderer.renders, 1);
+  assert.deepEqual(preview.state(), dragging);
+  assert.equal(host.captured.size, 1);
+  preview.turn();
+  preview.render(0.125);
+  const transitioning = preview.state();
+  preview.resize();
+  f.observers[0].trigger();
+  assert.equal(renderer.sizes.length, sizes);
+  assert.deepEqual(preview.state(), transitioning);
+  preview.render(0.125);
+  assert.equal(preview.state().transitioning, false, "Duplicate resize does not restart the transition");
+  assert.equal(renderer.renders, 3);
+  preview.render(1);
+  assert.equal(renderer.renders, 3);
+  preview.close();
+});
+
+test("layout, shared-renderer size, and DPR-only resizes invalidate without redundant setSize calls", () => {
+  const f = fixture(), { preview, renderer, host } = f;
+  preview.open(host);
+  preview.render();
+  fire(host, "pointerdown");
+  host.clientWidth = 600;
+  f.observers[0].trigger();
+  assert.equal(preview.state().dragging, false);
+  assert.equal(host.captured.size, 0);
+  assert.equal(renderer.sizes.length, 2);
+  const resized = preview.state();
+  fire(host, "pointermove", { clientX: 200 });
+  assert.deepEqual(preview.state(), resized, "The old gesture cannot move the resized camera");
+  preview.render();
+  preview.resize();
+  preview.render();
+  assert.equal(renderer.renders, 2);
+  assert.equal(renderer.sizes.length, 2);
+
+  // The game's setPixelRatio resizes the drawing buffer without changing the CSS dimensions.
+  fire(host, "pointerdown");
+  const dragging = preview.state();
+  renderer.pixelRatio = 2;
+  renderer.setSize(host.clientWidth, host.clientHeight, false);
+  preview.resize();
+  preview.render();
+  assert.equal(renderer.renders, 3);
+  assert.equal(renderer.sizes.length, 3, "Preview does not resize an already-correct drawing buffer");
+  assert.deepEqual(preview.state(), dragging, "DPR-only changes preserve the gesture and camera");
+  f.observers[0].trigger();
+  preview.render();
+  assert.equal(renderer.renders, 3);
+  assert.equal(renderer.sizes.length, 3);
+
+  renderer.setSize(1180, 820, false);
+  preview.resize();
+  assert.deepEqual(renderer.size.toArray(), [host.clientWidth, host.clientHeight]);
+  assert.equal(renderer.sizes.length, 5, "Shared renderer size is checked even when host size is unchanged");
+  preview.render();
+  assert.equal(renderer.renders, 4);
+  preview.close();
+});
+
+test("opening replaces the road frame even when renderer and host dimensions already match", () => {
+  const { preview, renderer, host, road } = fixture();
+  host.clientWidth = renderer.size.x;
+  host.clientHeight = renderer.size.y;
+  renderer.render(road, new THREE.PerspectiveCamera());
+  for (let i = 0; i < 2; i++) {
+    const sizes = renderer.sizes.length, renders = renderer.renders;
+    preview.open(host);
+    preview.resize();
+    assert.equal(renderer.sizes.length, sizes, "Opening does not need to clear an already-sized canvas");
+    preview.render();
+    assert.notEqual(renderer.scene, road);
+    assert.equal(renderer.renders, renders + 1);
+    preview.render();
+    assert.equal(renderer.renders, renders + 1);
+    preview.close();
+    renderer.render(road, new THREE.PerspectiveCamera());
+  }
+});
+
+test("context loss releases drag and restoration redraws a settled preview with listener cleanup", () => {
+  const { preview, renderer, host, canvas } = fixture();
+  const listeners = canvas.listenerCount();
+  for (let i = 0; i < 2; i++) {
+    preview.open(host);
+    preview.render();
+    const renders = renderer.renders, settled = preview.state();
+    assert.equal(canvas.listenerCount(), listeners + 2);
+    fire(host, "pointerdown");
+    fire(canvas, "webglcontextlost");
+    assert.equal(preview.state().dragging, false);
+    assert.equal(host.captured.size, 0);
+    fire(host, "pointermove", { clientX: 200 });
+    assert.deepEqual(preview.state(), settled);
+    fire(canvas, "webglcontextrestored");
+    preview.render();
+    assert.equal(renderer.renders, renders + 1, "Restoration invalidates without an environment replacement");
+    preview.render(1);
+    assert.equal(renderer.renders, renders + 1);
+    preview.close();
+    assert.equal(canvas.listenerCount(), listeners);
+    fire(canvas, "webglcontextrestored");
+    preview.render(0, true);
+    assert.equal(renderer.renders, renders + 1);
+  }
+});
+
+test("drag only redraws camera changes and interrupts transitions without leaving idle work", () => {
+  const { preview, renderer, host, win } = fixture();
+  preview.open(host);
+  preview.render();
+  preview.turn();
+  preview.render(0.125);
+  fire(host, "pointerdown");
+  assert.equal(preview.state().transitioning, false);
+  fire(host, "pointermove");
+  fire(host, "pointermove", { pointerId: 2, clientX: 200 });
+  preview.render(1);
+  assert.equal(renderer.renders, 2, "Starting or holding a drag does not invalidate");
+  fire(host, "pointermove", { clientX: 150 });
+  fire(host, "pointermove", { clientX: 200 });
+  preview.render();
+  assert.equal(renderer.renders, 3, "Camera changes coalesce until the next frame");
+  preview.render(1);
+  assert.equal(renderer.renders, 3);
+  fire(host, "pointermove", { clientX: 200, clientY: 10000 });
+  preview.render();
+  assert.equal(renderer.renders, 4);
+  fire(host, "pointermove", { clientX: 200, clientY: 20000 });
+  preview.render();
+  assert.equal(renderer.renders, 4, "Dragging beyond the pitch limit does not invalidate");
+  fire(host, "pointermove", { clientX: 250, clientY: 20000 });
+  fire(win, "blur");
+  assert.equal(preview.state().dragging, false);
+  preview.render();
+  assert.equal(renderer.renders, 5, "Interrupting a drag preserves any pending camera redraw");
+  preview.render(1);
+  assert.equal(renderer.renders, 5);
+  preview.turn();
+  preview.close();
+  preview.render(1, true);
+  assert.equal(renderer.renders, 5);
+  preview.open(host);
+  preview.render();
+  assert.equal(renderer.renders, 6);
+  assert.equal(preview.state().transitioning, false);
+  preview.render(1);
+  assert.equal(renderer.renders, 6);
+  preview.close();
+});
 
 test("same visuals and canvas return to their original parents and order without losing edits", () => {
   const f = fixture(), { preview, car, driving, canvas, canvasParent, renderer } = f;
@@ -245,6 +489,7 @@ test("camera transitions finish in a quarter second, honor reduced motion, and n
   const initial = preview.state();
   for (let i = 0; i < 60; i++) preview.render(1 / 60);
   assert.deepEqual(preview.state(), initial);
+  assert.equal(f.renderer.renders, 1);
   preview.turn();
   preview.render(0.125);
   assert.ok(preview.state().angle > initial.angle && preview.state().angle < initial.angle + Math.PI / 2);
@@ -253,8 +498,10 @@ test("camera transitions finish in a quarter second, honor reduced motion, and n
   assert.ok(Math.abs(preview.state().angle - initial.angle - Math.PI / 2) < 0.001);
   assert.equal(preview.state().transitioning, false);
   const turned = preview.state();
+  const renders = f.renderer.renders;
   preview.render(10);
   assert.deepEqual(preview.state(), turned);
+  assert.equal(f.renderer.renders, renders);
   preview.open(f.host);
   assert.deepEqual(preview.state(), turned, "Repeated open retains the user's chosen orbit");
   preview.focus("engine");
@@ -279,7 +526,7 @@ test("primary drag releases on interruption and observers ignore zero or closed 
   const f = fixture(), { preview, host, renderer } = f;
   host.clientWidth = host.clientHeight = 0;
   preview.open(host);
-  preview.render(1);
+  preview.render(1, true);
   assert.equal(renderer.renders, 0);
   assert.deepEqual(renderer.size.toArray(), [1180, 820]);
   host.clientWidth = 600;
@@ -287,6 +534,21 @@ test("primary drag releases on interruption and observers ignore zero or closed 
   f.observers[0].trigger();
   assert.deepEqual(renderer.size.toArray(), [600, 400]);
   assert.equal(preview.state().camera.aspect, 1.5);
+  preview.render();
+  assert.equal(renderer.renders, 1);
+  fire(host, "pointerdown");
+  host.clientHeight = 0;
+  f.observers[0].trigger();
+  assert.equal(preview.state().dragging, false);
+  assert.equal(host.captured.size, 0);
+  preview.render(1, true);
+  assert.equal(renderer.renders, 1, "Force does not render a zero-size host");
+  assert.deepEqual(renderer.size.toArray(), [600, 400]);
+  host.clientHeight = 400;
+  f.observers[0].trigger();
+  preview.render();
+  assert.equal(renderer.renders, 2, "Restoring layout redraws even when renderer dimensions stayed the same");
+  assert.equal(renderer.sizes.length, 1);
   fire(host, "pointerdown", { isPrimary: false });
   assert.equal(preview.state().dragging, false);
   fire(host, "pointerdown");

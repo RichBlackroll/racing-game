@@ -13,27 +13,103 @@
     <link rel="stylesheet" href="modifier.css" />
     <link rel="stylesheet" href="tablet.css" />
     <link rel="stylesheet" href="experience.css" />
+    <link rel="stylesheet" href="cockpit.css" />
   </head>
   <body>
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
-      <div class="loading-topline"><span class="loading-brand">WILDRUN<span>.</span></span><span class="loading-edition">A LITTLE WORLD OF PLAY / 01</span></div>
+      <div class="loading-topline"><span class="loading-brand">WILDRUN<span>.</span></span></div>
       <div class="loading-main">
-        <div class="loading-copy">
-          <p class="loading-eyebrow">NEXT STOP / A NEW ADVENTURE</p>
-          <h2 id="loading-title">Somewhere fun.</h2>
-          <p id="loading-tagline">A little drive. A big adventure.</p>
-        </div>
+        <h2 id="loading-title">Pick a world!</h2>
         <div class="loading-art" aria-hidden="true">
           <div class="loading-orbit"><div class="loading-car"><svg viewBox="0 0 72 36" fill="none"><path d="M15 6h38l12 7v14H7V13l8-7Z" fill="currentColor"/><path d="m24 9-5 9h33l-7-9H24Z" fill="#172a25"/><path d="M34 9v9M9 23h54" stroke="#172a25" stroke-width="2"/><rect x="6" y="2" width="5" height="23" rx="2" fill="currentColor"/><circle cx="19" cy="27" r="7" fill="#172a25"/><circle cx="53" cy="27" r="7" fill="#172a25"/><circle cx="19" cy="27" r="3" fill="currentColor"/><circle cx="53" cy="27" r="3" fill="currentColor"/></svg></div></div>
           <div class="loading-landscape"><i></i><i></i><i></i></div>
           <span class="loading-spark loading-spark-one">+</span><span class="loading-spark loading-spark-two">+</span>
-          <span class="loading-loop-label">TAKING THE SCENIC ROUTE</span>
         </div>
       </div>
+      <section class="loading-destinations" aria-labelledby="loading-map-heading">
+        <h3 id="loading-map-heading" class="sr-only">Worlds</h3>
+        <div class="loading-maps">
+          <button type="button" class="loading-map" data-map="forest" aria-pressed="true">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 84Q42 32 93 64T180 45T240 56V110H0Z"/>
+              <path class="map-route" d="M-8 91C37 108 21 52 69 68S157 113 180 69S221 17 248 28"/>
+              <path class="map-landmark" d="m39 18-16 29h11v11h10V47h11Zm69 5L86 61h16v13h12V61h16Zm86-16-13 24h9v10h8V31h9Z"/>
+              <path class="map-detail" d="M144 26h21m-17 7h23M9 77h15"/>
+              <circle class="map-stop" cx="165" cy="89" r="5"/>
+            </svg>
+            <span class="loading-map-heading"><strong>Pine Valley</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <button type="button" class="loading-map" data-map="city" aria-pressed="false">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 83 48 64 93 84 147 62 193 75 240 55V110H0Z"/>
+              <path class="map-route" d="M-8 89h65V55h75v34h53V38h63"/>
+              <path class="map-landmark" d="M25 57V24h23v33Zm59-18V10h27v29Zm64 32V29h25v42Zm57 21V53h23v39Z"/>
+              <path class="map-window" d="M32 33h9m-9 9h9m50-23h13m-13 9h13m51 10h11m-11 10h11m-11 10h11m39 4h9m-9 10h9"/>
+              <circle class="map-stop" cx="132" cy="70" r="5"/>
+            </svg>
+            <span class="loading-map-heading"><strong>Downtown</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <button type="button" class="loading-map" data-map="stunt" aria-pressed="false">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 91 50 76 115 88 169 65 240 78V110H0Z"/>
+              <path class="map-route" d="M-8 91h72C98 91 74 28 120 28s22 63 60 63h68"/>
+              <path class="map-landmark" d="M25 69q27-3 37-32v32Zm142 0q15-6 30-32v32Z"/>
+              <path class="map-detail" d="m104 63 9-7-9-7m20 14 9-7-9-7M210 42V13m0 0h19l-7 8 7 8h-19"/>
+              <circle class="map-stop" cx="148" cy="49" r="5"/>
+            </svg>
+            <span class="loading-map-heading"><strong>Stunt Park</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <button type="button" class="loading-map" data-map="moon" aria-pressed="false">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 84Q62 49 123 71T240 61V110H0Z"/>
+              <path class="map-route" d="M-8 94c54-43 61 21 104-7s82-40 152-10"/>
+              <circle class="map-landmark" cx="181" cy="28" r="17"/>
+              <path class="map-window" d="m169 19 13 7-3 13m7-26-2 10 11 8"/>
+              <ellipse class="map-detail" cx="55" cy="65" rx="16" ry="7"/>
+              <ellipse class="map-detail" cx="141" cy="96" rx="12" ry="5"/>
+              <path class="map-detail" d="M40 19v8m-4-4h8m69 8v8m-4-4h8m103 9v8m-4-4h8"/>
+              <circle class="map-stop" cx="102" cy="83" r="5"/>
+            </svg>
+            <span class="loading-map-heading"><strong>Moon Run</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <button type="button" class="loading-map" data-map="amsterdam" aria-pressed="false">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 79Q55 69 112 80T240 77V110H0Z"/>
+              <path class="map-route" d="M-8 98Q20 88 48 98T104 98T160 98T216 98T272 98"/>
+              <path class="map-landmark" d="M18 73V34h5v-8h5v-8h8v8h5v8h5v39Zm35 0V31c7-2 9-7 10-15h3v-6h8v6h3c1 8 3 13 10 15v42Zm41 0V39h5v-8h5v-8h8v8h5v8h5v34Z"/>
+              <path class="map-window" d="M24 43h4m8 0h4M24 54h4m8 0h4M31 73V63M60 40h4m12 0h4M60 51h4m12 0h4M67 73V62M100 48h4m8 0h4M100 59h4m8 0h4M108 73v-7"/>
+              <path class="map-landmark" d="M111 84V74Q142 32 173 74V84H163V76Q142 47 121 76V84Z"/>
+              <path class="map-detail" d="M109 67Q142 25 175 67m-59-8v12m13-22v11m13-15v11m13-7v11m13-1v12M10 78h99m70 4h53M8 86q6-4 12 0t12 0M64 105q6-4 12 0t12 0M186 91q6-4 12 0t12 0"/>
+              <g class="map-detail"><circle cx="191" cy="73" r="8"/><circle cx="220" cy="73" r="8"/><path d="m191 73 10-16 5 16h-15m10-16h15l-10 16m14 0-7-25h7M197 57h8"/></g>
+            </svg>
+            <span class="loading-map-heading"><strong>Amsterdam</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <button type="button" class="loading-map" data-map="wellington" aria-pressed="false" aria-label="Wellington, New Zealand waterfront">
+            <svg class="loading-map-art" viewBox="0 0 240 110" fill="none" aria-hidden="true" focusable="false">
+              <path class="map-terrain" d="M0 64 24 45 52 54 87 32 110 51 134 40 156 65 185 49 215 56 240 44V110H0Z"/>
+              <path class="map-landmark" d="M20 79V64h34v15Zm3-17V50h28v12Zm3-14V36h22v12Zm4-15q10-12 15 0Zm40 46V18h22v61Zm35 0V26h7v-9h17v9h7v53Zm43 0V62l17-10 16 10v17Zm42 0V62h32l10 17Z"/>
+              <path class="map-window" d="M73 29h16m-16 9h16m-16 9h16m-16 9h16m-16 9h16M107 36h24m-24 9h24m-24 9h24m-24 9h24M24 69h26m-23-14h21m-19-13h16"/>
+              <path class="map-route" d="M-8 88h102l18 10h47l15-10h74"/>
+              <path class="map-detail" d="M13 102h44m127-3h25m-81 7h28M0 83h240"/>
+            </svg>
+            <span class="loading-map-heading"><strong>Wellington</strong><svg class="loading-map-check" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+      </section>
+      <div class="loading-launch">
+        <div class="loading-garage-card">
+          <button type="button" id="loading-garage" disabled aria-haspopup="dialog" aria-controls="modifier" aria-describedby="loading-status">
+            <svg class="loading-garage-art" viewBox="0 0 96 64" fill="none" aria-hidden="true" focusable="false"><path d="M10 41V29l15-5 9-13h30l11 15 11 5v10H10Z" fill="currentColor"/><path d="m39 16-7 11h34l-7-11H39Z" fill="#172a25"/><path d="M48 16v11" stroke="currentColor" stroke-width="2"/><circle cx="28" cy="41" r="10" fill="#172a25" stroke="currentColor" stroke-width="3"/><circle cx="70" cy="41" r="10" fill="#172a25" stroke="currentColor" stroke-width="3"/><circle cx="28" cy="41" r="3" fill="currentColor"/><circle cx="70" cy="41" r="3" fill="currentColor"/><circle cx="37" cy="60" r="3" fill="#ffd19c"/><circle cx="48" cy="60" r="3" fill="#ffb5c6"/><circle cx="59" cy="60" r="3" fill="#c4c2ff"/></svg>
+            <strong>My garage</strong>
+          </button>
+        </div>
+        <button type="button" id="loading-drive" disabled aria-describedby="loading-status"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4a1 1 0 0 1 1.5-.86l13 8a1 1 0 0 1 0 1.72l-13 8A1 1 0 0 1 7 20Z" fill="currentColor"/></svg><span id="loading-drive-label">Drive</span></button>
+      </div>
+      <p id="loading-storage" role="status" hidden></p>
       <div class="loading-bottom">
-        <div class="loading-status-row"><p id="loading-status" role="status" aria-live="polite">Waking up the engine...</p><span class="loading-signal" aria-hidden="true"><i></i><i></i><i></i></span></div>
-        <div class="loading-steps" aria-hidden="true"><span class="loading-step" data-state="current">01 / ATMOSPHERE</span><span class="loading-step">02 / WORLD</span><span class="loading-step">03 / YOUR RIDE</span><span class="loading-step">04 / LIGHTING</span><span class="loading-step">05 / LET'S PLAY</span></div>
-        <div class="loading-footnote"><p id="loading-note">Good things are just around the bend.</p><button id="loading-retry" hidden>Try again</button><noscript>JavaScript is needed to start your adventure. Please enable it and reload.</noscript></div>
+        <div class="loading-status-row"><p id="loading-status" role="status" aria-live="polite">Getting ready...</p><span class="loading-signal" aria-hidden="true"><i></i><i></i><i></i></span></div>
+        <div class="loading-steps" role="group" aria-label="Loading stages"><span class="loading-step"><span class="sr-only">Sky</span></span><span class="loading-step"><span class="sr-only">World</span></span><span class="loading-step"><span class="sr-only">Car</span></span><span class="loading-step"><span class="sr-only">Sunshine</span></span><span class="loading-step"><span class="sr-only">Friends</span></span></div>
+        <div class="loading-footnote"><p id="loading-note" role="status" hidden></p><button id="loading-retry" hidden>Try again</button><noscript>JavaScript is needed to play. Please enable it and reload.</noscript></div>
       </div>
     </section>
     <main id="game-ui" inert aria-busy="true" aria-label="Wildrun driving game">
@@ -61,6 +137,9 @@
     </header>
 
     <nav class="top" aria-label="Drive controls">
+      <button id="home" aria-label="Open maps and launch menu" title="Maps and my garage">
+        <svg class="icon" aria-hidden="true"><use href="#i-location" /></svg><span>Maps</span>
+      </button>
       <label class="location-select">
         <svg class="icon" aria-hidden="true"><use href="#i-location" /></svg>
         <span class="sr-only">Driving location</span>
@@ -69,10 +148,12 @@
           <option value="city">Downtown</option>
           <option value="stunt">Stunt Park</option>
           <option value="moon">Moon Run</option>
+          <option value="amsterdam">Amsterdam</option>
+          <option value="wellington">Wellington</option>
         </select>
       </label>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="configure" aria-label="Open car configurator" aria-controls="modifier" aria-expanded="false">
+      <button id="configure" aria-label="Open my garage" aria-haspopup="dialog" aria-controls="modifier" aria-expanded="false">
         <svg class="icon" aria-hidden="true"><use href="#i-tune" /></svg><span>Garage</span>
       </button>
       <button id="camera" aria-label="Change camera view" title="Change camera (C)">
@@ -83,6 +164,9 @@
       </button>
       <button id="pause" aria-pressed="false" title="Pause driving">
         <svg class="icon" aria-hidden="true"><use href="#i-pause" /></svg><span data-label>Pause</span>
+      </button>
+      <button id="sound" aria-label="Engine sound" aria-pressed="true" title="Engine sound">
+        <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Sound</span>
       </button>
     </nav>
 
@@ -147,11 +231,16 @@
       <div id="basket-label"></div>
       <button id="delivery-next" hidden>Next friend</button>
     </dialog>
-    <aside id="modifier" aria-label="Car configurator" hidden></aside>
+    <dialog id="modifier" aria-labelledby="mod-title"></dialog>
     <div id="error" role="alert">WebGL could not start. Please open this page in a browser with hardware acceleration enabled.</div>
     <a class="credits" href="CREDITS.md" target="_blank" rel="noopener">Model &amp; asset credits</a>
+    <aside id="map-attribution" hidden aria-label="Wellington map attribution">
+      Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+      / <a href="https://www.linz.govt.nz/copyright" target="_blank" rel="noopener">LINZ</a>
+      / <a href="WELLINGTON.md" target="_blank" rel="noopener">Map notes</a>
+    </aside>
     </main>
-    <script type="module" src="build/bootstrap.js?v=18" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
+    <script type="module" src="build/bootstrap.js?v=21" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
     <button id="loading-fallback" hidden onclick="location.reload()">Reload adventure</button>
   </body>
 </html>

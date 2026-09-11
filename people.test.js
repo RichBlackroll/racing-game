@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createPeopleField } from "./people.js";
+import { createAmsterdamCourse } from "./amsterdam-course.js";
 
-function makeField(count = 6) {
+function makeField(count = 6, terrain = null) {
   const scene = new THREE.Scene();
   const route = Array.from({ length: 240 }, (_, i) => {
     const t = (i / 240) * Math.PI * 2;
@@ -16,6 +17,7 @@ function makeField(count = 6) {
     roadDist: () => 99, // open field: everything is far from the road
     gravity: 9.82,
     count,
+    terrain,
     onChange() {},
   });
   return { field, route, scene };
@@ -129,4 +131,248 @@ test("reset restores everyone to standing at their origin", () => {
   assert.equal(st.tumbling + st.down + st.rising, 0);
   for (const p of st.positions) assert.ok(p.every(Number.isFinite));
   assert.deepEqual(st.positions, before);
+});
+
+for (const height of [-20, 20]) {
+  test(`walking hips and shoe soles follow local slopes at elevation ${height}`, () => {
+    const terrain = { halfSize: 200, heightAt: (x, z) => height + 0.16 * x + 0.08 * z };
+    const { field, scene } = makeField(3, terrain);
+    const origin = field.state().positions;
+    const feet = scene.getObjectByName("pedestrians/feet");
+    const matrix = new THREE.Matrix4(), corner = new THREE.Vector3();
+    const car = { position: new THREE.Vector3(-180, height, -180), heading: 0 };
+    function checkPose() {
+      for (const [x, y, z] of field.state().positions) {
+        const hips = y - terrain.heightAt(x, z);
+        assert.ok(hips > 0.9 && hips < 1.5, `local hip height ${hips}`);
+      }
+      for (let i = 0; i < feet.count; i++) {
+        feet.getMatrixAt(i, matrix);
+        for (const x of [-0.5, 0.5]) for (const y of [-0.5, 0.5]) for (const z of [-0.5, 0.5]) {
+          corner.set(x, y, z).applyMatrix4(matrix);
+          assert.ok(corner.y >= terrain.heightAt(corner.x, corner.z) + 0.075 - 1e-5, "the uphill shoe does not cut through the ground");
+        }
+      }
+    }
+    checkPose();
+    for (let i = 0; i < 240; i++) {
+      field.update(1 / 60, car, 0, i / 60);
+      checkPose();
+    }
+    assert.ok(Math.hypot(field.state().positions[0][0] - origin[0][0], field.state().positions[0][2] - origin[0][2]) > 2);
+    field.reset(car.position);
+    assert.deepEqual(field.state().positions, origin);
+    checkPose();
+  });
+
+  test(`ragdolls contact sloped terrain and recover at local height ${height}`, () => {
+    const terrain = { halfSize: 200, heightAt: (x, z) => height + 0.06 * x + 0.03 * z };
+    const { field, scene } = makeField(1, terrain);
+    const origin = field.state().positions;
+    const [x, , z] = origin[0];
+    const car = { position: new THREE.Vector3(x, terrain.heightAt(x, z), z), heading: Math.PI / 2 };
+    field.update(1 / 120, car, 20, 0);
+    assert.equal(field.state().hits, 1);
+    assert.equal(field.state().tumbling, 1);
+    car.position.set(-150, terrain.heightAt(-150, -150), -150);
+    let grounded = false, rising = false;
+    for (let i = 0; i < 2400; i++) {
+      field.update(1 / 120, car, 0, i / 120);
+      const state = field.state(), [px, py, pz] = state.positions[0];
+      const clearance = py - terrain.heightAt(px, pz);
+      assert.ok(clearance > 0.05, "ragdoll hips cannot fall through the terrain");
+      grounded ||= state.down > 0;
+      rising ||= state.rising > 0;
+      if (i % 60 === 0) for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
+    }
+    assert.ok(grounded && rising, "ground-relative thresholds allow the full recovery state machine");
+    assert.equal(field.state().walking, 1);
+    const [px, py, pz] = field.state().positions[0];
+    assert.ok(py - terrain.heightAt(px, pz) > 0.9);
+    assert.ok(py - terrain.heightAt(px, pz) < 1.5);
+    field.reset(car.position);
+    assert.deepEqual(field.state().positions, origin);
+    assert.equal(field.state().hits, 0);
+  });
+}
+
+test("an airborne car cannot hit or crush people underneath its XZ footprint", () => {
+  const terrain = { halfSize: 200, heightAt: () => -15 };
+  const { field } = makeField(1, terrain);
+  for (let i = 0; i < 120; i++) {
+    const [x, , z] = field.state().positions[0];
+    field.update(1 / 120, { position: new THREE.Vector3(x, -7, z), heading: 0 }, 20, i / 120);
+  }
+  assert.equal(field.state().hits, 0);
+  assert.equal(field.state().walking, 1);
+  assert.equal(field.state().crushed, 0);
+});
+
+test("people spawn and walk on the extended course beyond the old 300 m bounds", () => {
+  const terrain = { halfSize: 620, heightAt: (x, z) => 15 + x * 0.01 - z * 0.02 };
+  const route = Array.from({ length: 960 }, (_, i) => new THREE.Vector3(400 + i / 8, 0, 0));
+  const field = createPeopleField({ scene: new THREE.Scene(), route, terrain, count: 3, roadDist: () => 99 });
+  assert.equal(field.state().count, 3);
+  const car = new THREE.Vector3();
+  step(field, car, 0, 0, 10);
+  for (const [x, y, z] of field.state().positions) {
+    assert.ok(x > 380 && x < terrain.halfSize);
+    assert.ok(Math.abs(z) < terrain.halfSize);
+    assert.ok(y > terrain.heightAt(x, z));
+  }
+});
+
+function makeCanalField(count = 3, obstacles = []) {
+  const scene = new THREE.Scene();
+  const terrain = {
+    halfSize: 120,
+    heightAt: (_, z) => z >= 0 && z <= 10 ? -2 : 2.4,
+    isSafePosition(x, z, margin = 0) {
+      return Number.isFinite(x) && Number.isFinite(z)
+        && Math.abs(x) + margin <= this.halfSize && Math.abs(z) + margin <= this.halfSize
+        && (z + margin < 0 || z - margin > 10);
+    },
+  };
+  const route = Array.from({ length: 240 }, (_, i) => new THREE.Vector3(i / 4 - 30, 0, -12));
+  const field = createPeopleField({ scene, route, terrain, obstacles, count, roadDist: () => 99 });
+  return { field, terrain, route, scene };
+}
+
+test("opt-in walkers spawn beside long quays and never cross a canal during bounded long walks", () => {
+  const obstacles = [{ x: 0, z: -0.5, hx: 300, hz: 0.3 }];
+  const { field, terrain, route, scene } = makeCanalField(3, obstacles);
+  assert.equal(field.state().count, 3, "a narrow quay must not exclude a 300 m circle");
+  const origins = field.state().positions;
+  const car = { position: new THREE.Vector3(-110, 2.4, -110), heading: 0 };
+  const isSafePosition = terrain.isSafePosition;
+  let queries = [];
+  terrain.isSafePosition = function (x, z, margin) {
+    assert.ok(margin >= 0.45 && margin <= 0.65, "use pedestrian clearance, not a point");
+    queries.push([x, z]);
+    return isSafePosition.call(this, x, z, margin);
+  };
+  let moved = false, targetChecked = false;
+  for (let i = 0; i < 3600; i++) {
+    const before = field.state().positions;
+    queries = [];
+    const dt = i % 120 === 0 ? 10 : 1 / 60;
+    field.update(dt, car, 0, i / 60);
+    assert.ok(queries.length <= 45, "target retries per update are bounded");
+    targetChecked ||= queries.some(([x, z]) => before.every(p => Math.hypot(x - p[0], z - p[2]) > 1));
+    for (const [j, p] of field.state().positions.entries()) {
+      assert.ok(p.every(Number.isFinite));
+      assert.ok(isSafePosition.call(terrain, p[0], p[2], 0.6));
+      assert.ok(p[2] < 0, "a dry target across the canal is not a walkable shortcut");
+      assert.ok(p[1] > terrain.heightAt(p[0], p[2]));
+      const distance = Math.hypot(p[0] - before[j][0], p[2] - before[j][2]);
+      assert.ok(distance <= 2.2 * Math.min(dt, 0.05) + 1e-8, "long frames cannot jump the water");
+      moved ||= Math.hypot(p[0] - origins[j][0], p[2] - origins[j][2]) > 5;
+    }
+  }
+  assert.ok(moved && targetChecked, "walkers move and check new destinations, not just their current position");
+  field.reset(car.position);
+  assert.deepEqual(field.state().positions, origins);
+  for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
+
+  const legacy = createPeopleField({ scene: new THREE.Scene(), route, obstacles, count: 3,
+    terrain: { halfSize: terrain.halfSize, heightAt: terrain.heightAt }, roadDist: () => 99 });
+  assert.equal(legacy.state().count, 0, "without the API the legacy obstacle radius test is unchanged");
+});
+
+test("panic steps stop at a canal edge rather than fleeing into water", () => {
+  const { field, terrain } = makeCanalField(1);
+  const car = { position: new THREE.Vector3(), heading: 0 };
+  let panicked = false, blocked = false;
+  for (let i = 0; i < 600; i++) {
+    const before = field.state().positions[0];
+    car.position.set(before[0], 2.4, before[2] - 8);
+    field.update(1 / 120, car, 12, i / 120);
+    const state = field.state(), [x, y, z] = state.positions[0];
+    assert.ok(terrain.isSafePosition(x, z, 0.6));
+    assert.ok(Number.isFinite(y) && y > terrain.heightAt(x, z));
+    assert.ok(z < 0);
+    panicked ||= state.panicking === 1;
+    blocked ||= state.panicking === 1 && Math.hypot(x - before[0], z - before[2]) < 1e-10;
+  }
+  assert.ok(panicked && blocked, "a panicking pedestrian reaches the bank and blocks the unsafe step");
+  assert.equal(field.state().hits, 0, "blocking does not knock or reset the walker");
+});
+
+test("a canal-flung ragdoll returns to its own dry origin, then can get up on land and reset", () => {
+  const { field, terrain, scene } = makeCanalField(1);
+  const origins = field.state().positions;
+  const [x, , z] = origins[0];
+  const car = { position: new THREE.Vector3(x, 2.4, z), heading: 0 };
+  field.update(1 / 120, car, 35, 0);
+  assert.equal(field.state().tumbling, 1);
+  car.position.set(-110, 2.4, -110);
+  for (let i = 0; i < 240 && !field.state().walking; i++) {
+    field.update(1 / 120, car, 0, i / 120);
+    const [px, py, pz] = field.state().positions[0];
+    assert.ok(terrain.isSafePosition(px, pz, 0.6));
+    assert.ok(Number.isFinite(py));
+    for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
+  }
+  assert.equal(field.state().walking, 1);
+  assert.equal(field.state().hits, 1, "individual recovery does not clear field-wide hits");
+  assert.deepEqual(field.state().positions, origins);
+
+  car.position.set(x, 2.4, z);
+  car.heading = Math.PI / 2;
+  field.update(1 / 120, car, 20, 2);
+  assert.equal(field.state().tumbling, 1);
+  car.position.set(-110, 2.4, -110);
+  let down = false, rising = false;
+  for (let i = 0; i < 2400; i++) {
+    field.update(1 / 120, car, 0, 2 + i / 120);
+    const state = field.state(), [px, py, pz] = state.positions[0];
+    assert.ok(terrain.isSafePosition(px, pz, 0.6));
+    assert.ok(Number.isFinite(py));
+    down ||= state.down === 1;
+    rising ||= state.rising === 1;
+  }
+  assert.ok(down && rising, "safe land still uses the normal get-up sequence");
+  assert.equal(field.state().walking, 1);
+  field.reset(car.position);
+  assert.equal(field.state().hits, 0);
+  assert.deepEqual(field.state().positions, origins);
+  for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
+});
+
+test("unsafe spawn and wandering candidates exhaust bounded attempts without wet fallbacks", () => {
+  const { field, terrain, route } = makeCanalField(1);
+  const [x, , z] = field.state().positions[0];
+  let checks = 0;
+  terrain.isSafePosition = (px, pz, margin) => {
+    checks++;
+    return Math.hypot(px - x, pz - z) + margin < 0.8;
+  };
+  field.update(1 / 60, { position: new THREE.Vector3(-110, 2.4, -110), heading: 0 }, 0, 0);
+  assert.ok(checks >= 12 && checks <= 15);
+  assert.equal(field.state().positions[0][0], x);
+  assert.equal(field.state().positions[0][2], z);
+
+  checks = 0;
+  terrain.isSafePosition = () => { checks++; return false; };
+  const empty = createPeopleField({ scene: new THREE.Scene(), terrain, route, count: 3, roadDist: () => 99 });
+  assert.equal(empty.state().count, 0);
+  assert.ok(checks > 0 && checks <= 270);
+  empty.reset();
+  assert.deepEqual(empty.state().positions, []);
+});
+
+test("the real Amsterdam course supports a populated, dry pedestrian field", () => {
+  const terrain = createAmsterdamCourse(), scene = new THREE.Scene();
+  const field = createPeopleField({ scene, terrain, route: terrain.route, roadDist: terrain.roadDistance, count: 12 });
+  assert.equal(field.state().count, 12);
+  const pelvis = scene.getObjectByName("pedestrians/pelvis"), matrix = new THREE.Matrix4();
+  const car = { position: new THREE.Vector3(310, 2.4, -310), heading: 0 };
+  for (let i = 0; i < 600; i++) {
+    field.update(1 / 30, car, 0, i / 30);
+    for (let j = 0; j < field.state().count; j++) {
+      pelvis.getMatrixAt(j, matrix);
+      assert.ok(terrain.isSafePosition(matrix.elements[12], matrix.elements[14], 0.59));
+      assert.ok(matrix.elements.every(Number.isFinite));
+    }
+  }
 });

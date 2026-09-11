@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { rampShape } from "./jumps.js";
+import { createTerrainBody } from "./terrain-physics.js";
 
 const PALETTE = [0xff5f7a, 0xffc94d, 0x3db9f2, 0x7ee887];
 const WHITE = 0xfff4ec;
@@ -87,11 +88,13 @@ export function createPlaythings({
   ramps = [],
   roadDist = () => 0,
   gravity = 9.82,
+  terrain = null,
   kinds = {},
   onChange = () => {},
 }) {
   const order = ["ball", "block", "tire"].filter((k) => kinds[k]?.count);
   const toys = [];
+  const hasSafePosition = typeof terrain?.isSafePosition === "function";
   let seed = 2468;
   const rnd = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -121,14 +124,10 @@ export function createPlaythings({
   world.solver.iterations = 8;
   world.defaultContactMaterial.friction = 0.55;
   world.defaultContactMaterial.restitution = 0.25;
-  const floor = new CANNON.Body({
-    mass: 0,
+  const floor = createTerrainBody(terrain, {
     collisionFilterGroup: 1,
     collisionFilterMask: 3,
   });
-  floor.addShape(new CANNON.Plane());
-  floor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-  floor.position.y = 0.075;
   world.addBody(floor);
   // The car stays kinematic here, exactly like the cone field.
   const carBody = new CANNON.Body({
@@ -144,7 +143,7 @@ export function createPlaythings({
       collisionFilterGroup: 8,
       collisionFilterMask: 3,
     });
-    body.position.set(o.x, 1.5, o.z);
+    body.position.set(o.x, (o.y ?? terrain?.heightAt(o.x, o.z) ?? 0) + 1.5, o.z);
     body.addShape(
       o.hx !== undefined
         ? new CANNON.Box(new CANNON.Vec3(o.hx, 1.5, o.hz))
@@ -159,7 +158,7 @@ export function createPlaythings({
       collisionFilterMask: 3,
     });
     body.addShape(rampShape(ramp));
-    body.position.set(ramp.x, 0.075, ramp.z);
+    body.position.set(ramp.x, (ramp.y ?? 0) + 0.075, ramp.z);
     body.quaternion.setFromEuler(0, ramp.heading, 0);
     world.addBody(body);
   }
@@ -194,13 +193,16 @@ export function createPlaythings({
       const p = route[i], a = route[(i + 1) % route.length];
       let nx = a.z - p.z, nz = p.x - a.x;
       const len = Math.hypot(nx, nz);
+      if (hasSafePosition && len < 1e-6) continue;
       nx /= len;
       nz /= len;
       const dist = 9.5 + rnd() * (ramps.length ? 22 : 42);
       const side = rnd() < 0.5 ? 1 : -1;
       const x = p.x + nx * dist * side + (rnd() - 0.5) * 14;
       const z = p.z + nz * dist * side + (rnd() - 0.5) * 14;
-      if (Math.abs(x) > 320 || Math.abs(z) > 320) continue;
+      const bound = terrain ? terrain.halfSize - t.size : 320;
+      if (Math.abs(x) > bound || Math.abs(z) > bound) continue;
+      if (hasSafePosition && !terrain.isSafePosition(x, z, t.size)) continue;
       if (roadDist(x, z) < 9.5) continue;
       let onRamp = false;
       for (const ramp of ramps) {
@@ -215,7 +217,9 @@ export function createPlaythings({
       }
       if (onRamp) continue;
       if (
-        obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < (o.hx ?? o.r) + t.size + 1.5)
+        obstacles.some((o) => hasSafePosition && o.hx !== undefined
+          ? Math.hypot(Math.max(Math.abs(o.x - x) - o.hx, 0), Math.max(Math.abs(o.z - z) - o.hz, 0)) < t.size + 1.5
+          : Math.hypot(o.x - x, o.z - z) < (o.hx ?? o.r) + t.size + 1.5)
       )
         continue;
       return [x, z];
@@ -241,14 +245,14 @@ export function createPlaythings({
       material: new CANNON.Material({ friction: rule.friction, restitution: rule.restitution }),
     });
     body.addShape(rule.shape(t.size));
-    body.position.set(spot[0], rule.restY(t.size), spot[1]);
+    body.position.set(spot[0], (terrain?.heightAt(...spot) ?? 0) + rule.restY(t.size), spot[1]);
     body.addEventListener("collide", (event) => {
       if (event.body === carBody) hits++;
     });
     world.addBody(body);
     nodes.push({
       body,
-      origin: [spot[0], rule.restY(t.size), spot[1]],
+      origin: body.position.toArray(),
       group: groups.get(t.kind + "|" + t.colorIndex),
       instance: groups.get(t.kind + "|" + t.colorIndex).used++,
       kind: t.kind,
@@ -313,6 +317,23 @@ export function createPlaythings({
     }
   }
 
+  function resetNode(node) {
+    const b = node.body;
+    b.position.set(node.origin[0], node.origin[1], node.origin[2]);
+    b.previousPosition.copy(b.position);
+    b.interpolatedPosition.copy(b.position);
+    b.quaternion.set(0, 0, 0, 1);
+    b.previousQuaternion.copy(b.quaternion);
+    b.velocity.setZero();
+    b.angularVelocity.setZero();
+    b.force.setZero();
+    b.torque.setZero();
+    b.aabbNeedsUpdate = true;
+    b.sleep();
+    node.roll = 0;
+    node.lo = { x: 0, y: 0, z: 0, w: 1 };
+  }
+
   function reset(position = new THREE.Vector3(), heading = 0) {
     hits = 0;
     world.accumulator = 0;
@@ -321,22 +342,7 @@ export function createPlaythings({
     carBody.velocity.setZero();
     carBody.quaternion.setFromEuler(0, heading, 0);
     carBody.aabbNeedsUpdate = true;
-    nodes.forEach((node) => {
-      const b = node.body;
-      b.position.set(node.origin[0], node.origin[1], node.origin[2]);
-      b.previousPosition.copy(b.position);
-      b.interpolatedPosition.copy(b.position);
-      b.quaternion.set(0, 0, 0, 1);
-      b.previousQuaternion.copy(b.quaternion);
-      b.velocity.setZero();
-      b.angularVelocity.setZero();
-      b.force.setZero();
-      b.torque.setZero();
-      b.aabbNeedsUpdate = true;
-      b.sleep();
-      node.roll = 0;
-      node.lo = { x: 0, y: 0, z: 0, w: 1 };
-    });
+    nodes.forEach(resetNode);
     world.broadphase.dirty = true;
     sync(true);
   }
@@ -357,7 +363,7 @@ export function createPlaythings({
     );
     carBody.velocity.set(
       teleport ? 0 : (position.x - previous.x) / dt,
-      0,
+      teleport ? 0 : (position.y - previous.y) / dt,
       teleport ? 0 : (position.z - previous.z) / dt,
     );
     carBody.quaternion.setFromEuler(0, heading, 0);
@@ -365,12 +371,17 @@ export function createPlaythings({
     world.step(1 / 120, Math.min(dt, 0.05), 8);
     previous.copy(position);
     const step = Math.min(dt, 0.05);
-    for (const node of nodes)
+    for (const node of nodes) {
+      if (hasSafePosition && !terrain.isSafePosition(node.body.position.x, node.body.position.z, node.size)) {
+        resetNode(node);
+        world.broadphase.dirty = true;
+      }
       if (node.kind === "ball" && node.body.sleepState !== CANNON.Body.SLEEPING) {
         const vx = node.body.velocity.x,
           vz = node.body.velocity.z;
         node.roll += (Math.hypot(vx, vz) * step) / node.size;
       }
+    }
     sync();
   }
 
