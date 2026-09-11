@@ -143,6 +143,27 @@ test("main remains bootstrap-driven and toolbar updates preserve icons and label
   assert.match(source, /pauseButton\.querySelector\("\[data-label\]"\)/);
 });
 
+test("automatic map entry waits for a driving gesture before unlocking audio", () => {
+  const start = source.indexOf("  loading.complete(");
+  const registration = source.slice(start, source.indexOf("  requestAnimationFrame(frame);", start));
+  for (const [action, automatic] of [["drive", true], ["drive", false], ["garage", false]]) {
+    let enter, unlocks = 0, garages = 0;
+    const context = {
+      loading: { complete(callback) { enter = callback; } }, clearKeys() {},
+      performance: { now: () => 5000 }, last: 0, qualityStart: 0, fpsStart: 0,
+      qualityFrames: 10, fpsFrames: 10, resumeOnReturn: true, contextLost: false,
+      unlockAudio() { unlocks++; }, pauseGame(value) { context.paused = value; },
+      modifier: { open() { garages++; } },
+    };
+    runInNewContext(registration, context);
+    enter(action, { automatic });
+    assert.equal(unlocks, automatic ? 0 : 1);
+    assert.equal(context.paused, false);
+    assert.equal(garages, action === "garage" ? 1 : 0);
+    assert.equal(context.last, 5000);
+  }
+});
+
 test("driving steering consumes analog input but nonzero keyboard steering takes precedence", () => {
   // Exercise the production expression without constructing WebGL or loading the level.
   const expression = source.match(/\bturn =\s*([\s\S]*?),\s*offroad =/)[1];

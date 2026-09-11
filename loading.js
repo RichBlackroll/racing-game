@@ -13,12 +13,21 @@ export function createLoadingScreen(doc = document, win = window) {
   const storage = doc.getElementById("loading-storage");
   const steps = [...screen.querySelectorAll(".loading-step")];
   const maps = [...screen.querySelectorAll(".loading-map[data-map]")];
+  const worldNames = new Map(maps.map((map) => [map.dataset.map, map.querySelector("strong").textContent]));
   const session = createSession(win);
   const level = resolveLevel(win.location.search, session.value.level);
   const resuming = !!session.value.drives[level];
   let state = "loading", slowTimer, onEnter, loaded = false, entered = false;
   let phaseIndex = -1, phaseText = "Getting ready...", navigation = 0;
   let previousState, lastError;
+  const entryURL = new URL(win.location.href);
+  let launchLevel = entryURL.searchParams.get("launch") === "drive" && worldNames.has(entryURL.searchParams.get("level")) ? level : null;
+  let launchPainted = false, retryLevel = null;
+  if (entryURL.searchParams.get("launch") === "drive") {
+    entryURL.searchParams.delete("launch");
+    // Launch intent belongs to this navigation, not a later reload or history visit.
+    win.history.replaceState(win.history.state, "", entryURL.href);
+  }
   session.update({ level });
 
   function show(selectedLevel, nextState = "loading") {
@@ -26,11 +35,17 @@ export function createLoadingScreen(doc = document, win = window) {
     state = nextState;
     screen.dataset.level = selectedLevel;
     screen.dataset.state = state;
+    screen.dataset.mode = launchLevel ? "launch" : "home";
+    doc.documentElement.classList.remove("launch-requested");
     screen.hidden = false;
     ui.inert = true;
     ui.setAttribute("aria-busy", String(state !== "selecting"));
     doc.body.classList.remove("app-ready");
-    title.textContent = "Pick a world!";
+    title.textContent = launchLevel ? `Loading ${worldNames.get(selectedLevel)}` : "Pick a world!";
+    if (launchLevel) {
+      screen.scrollTop = 0;
+      title.focus({ preventScroll: true });
+    }
     note.textContent = "";
     note.hidden = true;
     storage.hidden = session.persistent;
@@ -43,7 +58,7 @@ export function createLoadingScreen(doc = document, win = window) {
       map.setAttribute("aria-pressed", String(selected));
     });
     steps.forEach((step, i) => {
-      step.dataset.state = state === "selecting" || (state === "loading" && i < phaseIndex) ? "done"
+      step.dataset.state = state === "selecting" || (loaded && selectedLevel === level) || (state === "loading" && i < phaseIndex) ? "done"
         : state === "loading" && i === phaseIndex ? "current" : "pending";
     });
     message.classList.toggle("sr-only", state === "selecting");
@@ -59,6 +74,7 @@ export function createLoadingScreen(doc = document, win = window) {
   }
 
   function unlock() {
+    win.clearTimeout(slowTimer);
     screen.hidden = true;
     state = "ready";
     screen.dataset.state = state;
@@ -72,26 +88,36 @@ export function createLoadingScreen(doc = document, win = window) {
     loaded = true;
     onEnter = callback;
     // A departing page can finish booting before it enters the back/forward cache.
-    if (state === "loading") show(level, "selecting");
+    if (state === "loading") {
+      if (launchLevel === level) {
+        if (launchPainted) enter("drive");
+      } else show(level, "selecting");
+    }
   }
 
   function home() {
     if (!loaded || state === "error" || state === "leaving") return;
+    navigation++;
+    launchLevel = retryLevel = null;
+    launchPainted = false;
     show(level, "selecting");
     drive.focus();
   }
 
   function enter(action) {
-    if (state !== "selecting") return;
+    if (state !== "selecting" && !(action === "drive" && state === "loading" && loaded && launchLevel === level && launchPainted)) return;
+    const automatic = state === "loading";
     entered = true;
     unlock();
     try {
       const focusTarget = doc.getElementById(doc.body.classList.contains("compact-ui") ? "drive-menu-toggle" : "configure");
       // The launch buttons are now hidden; dialogs need a visible return target.
       if (action === "garage") focusTarget.focus();
-      // Keep audio activation and dialog opening inside the trusted click, not a timer.
-      onEnter?.(action);
+      // Explicit Drive/Garage clicks keep activation; auto-entry can unlock audio on the first driving gesture.
+      onEnter?.(action, { automatic });
       if (action === "drive" && state === "ready" && !doc.querySelector("dialog[open]")) focusTarget.focus();
+      launchLevel = retryLevel = null;
+      launchPainted = false;
     } catch (error) {
       fail(error);
     }
@@ -100,11 +126,15 @@ export function createLoadingScreen(doc = document, win = window) {
   function fail(error) {
     win.clearTimeout(slowTimer);
     navigation++;
+    retryLevel = launchLevel;
+    launchLevel = null;
+    launchPainted = false;
     loaded = false;
     lastError = error;
     state = "error";
     screen.hidden = false;
     screen.dataset.state = state;
+    screen.dataset.mode = "home";
     ui.inert = true;
     ui.setAttribute("aria-busy", "false");
     doc.body.classList.remove("app-ready");
@@ -123,6 +153,10 @@ export function createLoadingScreen(doc = document, win = window) {
     if (state !== "leaving") previousState = state;
     screen.dataset.previousLevel = previousLevel;
     const selectedLevel = resolveLevel(url.search, session.value.level);
+    url.searchParams.set("launch", "drive");
+    launchLevel = selectedLevel;
+    retryLevel = null;
+    launchPainted = false;
     session.update({ level: selectedLevel });
     show(selectedLevel, "leaving");
     const request = ++navigation;
@@ -131,15 +165,37 @@ export function createLoadingScreen(doc = document, win = window) {
     if (request === navigation && state === "leaving") win.location.assign(url.href);
   }
 
-  maps.forEach((map) => map.addEventListener("click", () => {
-    if (map.dataset.map === screen.dataset.level) return;
+  async function play(selectedLevel) {
+    if (state === "ready") return;
+    if (selectedLevel === level && state !== "error" && previousState !== "error") {
+      const request = ++navigation;
+      launchLevel = level;
+      retryLevel = null;
+      launchPainted = false;
+      previousState = undefined;
+      session.update({ level });
+      show(level);
+      // Even a preloaded world gives the full-screen loader a paint before entry.
+      await new Promise((resolve) => win.requestAnimationFrame(() => win.setTimeout(resolve, 0)));
+      if (request !== navigation) return;
+      launchPainted = true;
+      if (loaded) enter("drive");
+      return;
+    }
     const url = new URL(win.location.href);
-    url.searchParams.set("level", map.dataset.map);
-    navigate(url, level).catch(fail);
-  }));
+    url.searchParams.set("level", selectedLevel);
+    await navigate(url, level);
+  }
+  maps.forEach((map) => map.addEventListener("click", () => { play(map.dataset.map).catch(fail); }));
   drive.addEventListener("click", () => enter("drive"));
   garage.addEventListener("click", () => enter("garage"));
-  retry.addEventListener("click", () => win.location.reload());
+  retry.addEventListener("click", () => {
+    if (retryLevel || launchLevel) {
+      const url = new URL(win.location.href);
+      url.searchParams.set("level", retryLevel || launchLevel);
+      navigate(url).catch(fail);
+    } else win.location.reload();
+  });
   function isolateShortcuts(event) {
     if (state === "ready") return;
     // Block window shortcuts, but preserve native button Enter/Space and tab navigation.
@@ -148,7 +204,17 @@ export function createLoadingScreen(doc = document, win = window) {
   }
   win.addEventListener("keydown", isolateShortcuts, true);
   win.addEventListener("keyup", isolateShortcuts, true);
+  win.addEventListener("pagehide", () => {
+    navigation++;
+    launchLevel = null;
+    launchPainted = false;
+  });
   win.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      navigation++;
+      launchLevel = null;
+      launchPainted = false;
+    }
     if (event.persisted && session.refresh()) {
       // A cached world must not overwrite a build edited on a more recent map.
       navigation++;
@@ -158,7 +224,7 @@ export function createLoadingScreen(doc = document, win = window) {
       win.location.replace(url.href);
       return;
     }
-    if (event.persisted && state === "leaving") {
+    if (event.persisted && (state === "leaving" || state === "loading")) {
       navigation++;
       session.update({ level });
       doc.getElementById("level").value = level;
@@ -168,7 +234,8 @@ export function createLoadingScreen(doc = document, win = window) {
       previousState = undefined;
     }
   });
-  show(level);
+  if (launchLevel) play(level).catch(fail);
+  else show(level);
 
   return {
     get level() { return level; },

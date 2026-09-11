@@ -4,8 +4,14 @@ Elios racing game.
 
 ## Launch and local session
 
-The loading screen shows all six maps and My garage while the world loads.
-When the real loading stages finish, choose Drive or open the configurator.
+The homepage shows all six maps and My garage while the initial world prepares.
+Clicking a map immediately opens its full-screen level loader and enters the drive
+when the world is ready, without a second Drive/Continue click. Clicking the loaded
+map reuses that world; a different map carries a one-shot launch intent through
+navigation. Ordinary visits and reloads still open the homepage. My garage remains
+available once the current car and world are ready.
+After automatic entry, the first driving gesture enables engine audio when the
+browser requires user activation; audio never adds another launch confirmation.
 Maps in the toolbar returns to this menu without discarding the current drive.
 
 The selected car, car parts, garage tab, last map, camera, engine sound and spoken-clue

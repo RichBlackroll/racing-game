@@ -46,10 +46,15 @@ test("all five existing friends have distinct valid builds, visible parts, and t
     assert.equal(rear.rotation.y, Math.PI, "rear text is not mirrored");
     assert.ok(front.position.z > 0 && rear.position.z < 0);
     assert.ok(sign.position.y + rear.position.y - .27 > (s.visuals.spoiler.topY ?? 0), "even the mega wing cannot hide the name");
+    const badge = car.getObjectByName("friend-name-badge");
+    assert.ok(badge.isSprite, "the distant name always faces the camera");
+    assert.equal(badge.material.map, front.material.map, "reuse the name texture without extra canvas work");
+    assert.ok(badge.position.y > front.position.y + .29, "badge clears the physical roof sign");
     let calls = 0, triangles = 0;
     car.updateMatrixWorld(true);
     car.traverseVisible(node => {
       assert.ok(node.matrixWorld.elements.every(Number.isFinite));
+      if (node.isSprite) { calls++; triangles += 2; return; }
       if (!node.isMesh) return;
       assert.ok(node.geometry, "every material batch merged successfully");
       assert.equal(node.castShadow, false, "moving cars never enter the static sun shadow");
@@ -179,8 +184,12 @@ test("racers pass a stopped player instead of queueing forever; map markers incl
   }
   assert.ok(field.state()[0].along > state.along + 40, "friend overtakes the stopped car");
   let markers = 0;
-  field.drawMap({ beginPath() {}, arc(x, z) { assert.ok(Number.isFinite(x + z)); markers++; }, fill() {}, stroke() {} }, .2);
+  const outlines = [];
+  field.drawMap({ beginPath() {}, arc(x, z, radius) {
+    assert.ok(Number.isFinite(x + z)); assert.ok(radius >= 5); markers++;
+  }, fill() {}, stroke() { outlines.push([this.strokeStyle, this.lineWidth]); } }, .2);
   assert.equal(markers, 5);
+  assert.deepEqual(outlines, friends.flatMap(() => [["#18212b", 4], ["#fff", 2]]));
 });
 
 test("production integration updates only during driving, resets the crew and exposes moving collisions", async () => {

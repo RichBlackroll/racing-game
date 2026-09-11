@@ -232,6 +232,19 @@ button { transition: background 180ms, border-color 180ms, box-shadow 180ms, tra
   .top .location-select, .top .toolbar-divider { display: none; }
   .top { max-width: none; }
 }
+/* A chosen map takes over the viewport instead of returning to a second launch gate. */
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) :is(.loading-destinations, .loading-launch) { display: none; }
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-main { flex: 1; flex-direction: column-reverse; justify-content: center; gap: 32px; width: min(720px, 100%); margin: auto; padding-block: 24px; }
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) #loading-title { max-width: 15ch; font-size: clamp(32px, 5vw, 64px); text-align: center; outline: none; }
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-art { width: clamp(128px, 24dvh, 240px); margin: 0; }
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-orbit { animation: scenic-lap 3s linear infinite; }
+:is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-bottom { margin: 16px auto 0; }
+.launch-requested #loading-title { visibility: hidden; }
+@media (max-height: 560px) and (orientation: landscape) {
+  :is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-main { flex-direction: row; gap: 24px; padding-block: 12px; }
+  :is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) .loading-art { width: 88px; }
+  :is(#loading-screen[data-mode="launch"], .launch-requested #loading-screen) #loading-title { max-width: 12ch; font-size: 32px; }
+}
 @media (prefers-reduced-motion: reduce) {
   #loading-screen, #game-ui *, #game-ui *::backdrop, #loading-screen * { animation: none !important; transition: none !important; }
   .top button:hover, #loading-screen button:not(:disabled):is(:hover, :active), #loading-screen button:hover svg, button:not(:disabled):active { transform: none; }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createModifierCar } from "./modifier-car.js";
+import { createFriendLabel } from "./friend-label.js";
 
 // A lightweight road car uses the real garage parts, without five more GLTFs.
 export function createFriendRacerCar(friend, config) {
@@ -76,6 +77,9 @@ export function createFriendRacerCar(friend, config) {
     face.name = `name-${side === 1 ? "front" : "rear"}`;
     face.position.set(0, signCenter, side * .216); face.rotation.y = side === 1 ? 0 : Math.PI; sign.add(face);
   }
+  const badge = createFriendLabel(texture);
+  badge.position.set(0, signCenter + .95, 0);
+  sign.add(badge);
 
   // Freeze configured parts into material batches; only the four wheels animate.
   function batch(root, excluded = new Set()) {

@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="data:," />
     <title>WILDRUN — A little drive. A big adventure.</title>
+    <script>if (new URLSearchParams(location.search).get("launch") === "drive") document.documentElement.classList.add("launch-requested");</script>
     <link rel="stylesheet" href="ui.css" />
     <link rel="stylesheet" href="friends.css" />
     <link rel="stylesheet" href="modifier.css" />
@@ -21,7 +22,7 @@
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
       <div class="loading-topline"><span class="loading-brand">WILDRUN<span>.</span></span></div>
       <div class="loading-main">
-        <h2 id="loading-title">Pick a world!</h2>
+        <h2 id="loading-title" tabindex="-1">Pick a world!</h2>
         <div class="loading-art" aria-hidden="true">
           <div class="loading-orbit"><div class="loading-car"><svg viewBox="0 0 72 36" fill="none"><path d="M15 6h38l12 7v14H7V13l8-7Z" fill="currentColor"/><path d="m24 9-5 9h33l-7-9H24Z" fill="#172a25"/><path d="M34 9v9M9 23h54" stroke="#172a25" stroke-width="2"/><rect x="6" y="2" width="5" height="23" rx="2" fill="currentColor"/><circle cx="19" cy="27" r="7" fill="#172a25"/><circle cx="53" cy="27" r="7" fill="#172a25"/><circle cx="19" cy="27" r="3" fill="currentColor"/><circle cx="53" cy="27" r="3" fill="currentColor"/></svg></div></div>
           <div class="loading-landscape"><i></i><i></i><i></i></div>

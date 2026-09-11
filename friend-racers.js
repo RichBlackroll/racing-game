@@ -248,8 +248,9 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     update, reset,
     drawMap(ctx, scale) {
       for (const r of racers) {
-        ctx.fillStyle = r.friend.color; ctx.strokeStyle = "#18212b"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(r.car.position.x * scale, -r.car.position.z * scale, r.mode.startsWith("race") ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = r.friend.color; ctx.strokeStyle = "#18212b"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(r.car.position.x * scale, -r.car.position.z * scale, r.mode.startsWith("race") ? 6 : 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
       }
     },
     state: () => racers.map(r => ({ name: r.friend.name, config: { ...r.friend.config }, position: r.car.position.toArray(),

@@ -1158,11 +1158,11 @@ export async function main(loading) {
   drawMap();
   renderFrame();
   if (contextLost) interruptGame();
-  loading.complete((action) => {
+  loading.complete((action, { automatic }) => {
     clearKeys();
     last = qualityStart = fpsStart = performance.now();
     qualityFrames = fpsFrames = 0;
-    unlockAudio();
+    if (!automatic) unlockAudio();
     resumeOnReturn = false;
     if (contextLost) resumeOnReturn = true;
     else pauseGame(false);

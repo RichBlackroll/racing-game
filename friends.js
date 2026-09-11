@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createFriendLabel } from "./friend-label.js";
 
 export const friends = [
   { name: "Vincent", color: "#f36b74", shape: "ball", count: 1, symbol: "●" },
@@ -58,7 +59,8 @@ export function createFriendAdventure({ scene, route, onChange, onStop, session 
   labelCanvas.width = 512; labelCanvas.height = 128;
   const labelTexture = new THREE.CanvasTexture(labelCanvas);
   labelTexture.colorSpace = THREE.SRGBColorSpace;
-  add(new THREE.PlaneGeometry(4.4, 1.1), new THREE.MeshBasicMaterial({ map: labelTexture, side: THREE.DoubleSide }), 0, 3.7, 0);
+  const label = createFriendLabel(labelTexture, 144);
+  label.position.set(0, 3.7, 0); marker.add(label);
   const previous = new THREE.Vector3();
   let hasPrevious = false, awaitingExit = false;
   const stampNodes = friends.map((friend) => {

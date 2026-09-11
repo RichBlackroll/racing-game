@@ -4,8 +4,10 @@ import { readFileSync } from "node:fs";
 import { createLoadingScreen } from "./loading.js";
 import { createSession } from "./session.js";
 
-function fixture(search = "", { savedLevel, savedDrive, persistent = true, reducedMotion = false } = {}) {
-  const elements = new Map(), timers = new Map(), saved = new Map();
+const worlds = { forest: "Pine Valley", city: "Downtown", stunt: "Stunt Park", moon: "Moon Run", amsterdam: "Amsterdam", wellington: "Wellington" };
+
+function fixture(search = "", { savedLevel, savedDrive, persistent = true, reducedMotion = false, historyState = null } = {}) {
+  const elements = new Map(), timers = new Map(), saved = new Map(), frames = [];
   function createClassList() {
     const classes = new Set();
     return {
@@ -23,6 +25,7 @@ function fixture(search = "", { savedLevel, savedDrive, persistent = true, reduc
   const steps = Array.from({ length: 5 }, () => ({ dataset: {}, classList: createClassList() }));
   const doc = {
     activeElement: null,
+    documentElement: { classList: createClassList() },
     body: { classList: createClassList() },
     querySelectorAll: () => [...elements.values()].filter((element) => element.open),
     querySelector() { return this.querySelectorAll()[0] || null; },
@@ -33,7 +36,7 @@ function fixture(search = "", { savedLevel, savedDrive, persistent = true, reduc
           dataset: {}, hidden: false, disabled: false, textContent: "", attributes: {},
           classList: createClassList(),
           setAttribute(name, value) { this.attributes[name] = value; },
-          focus() { doc.activeElement = this; },
+          focus(options) { doc.activeElement = this; this.focusOptions = options; },
           close() { this.open = false; },
           closest: (selector) => selector === "#loading-screen" && (id.startsWith("loading-") || id.startsWith("map-")) ? doc.getElementById("loading-screen") : null,
           querySelector: () => null,
@@ -45,18 +48,36 @@ function fixture(search = "", { savedLevel, savedDrive, persistent = true, reduc
     },
   };
   const get = (id) => doc.getElementById(id);
-  const maps = ["forest", "city", "stunt", "moon", "amsterdam", "wellington"].map((level) => {
+  const maps = Object.entries(worlds).map(([level, textContent]) => {
     const map = get(`map-${level}`);
     map.dataset.map = level;
+    map.querySelector = (selector) => selector === "strong" ? { textContent } : null;
     return map;
   });
   get("loading-screen").querySelectorAll = (selector) => selector === ".loading-step" ? steps : selector === ".loading-map[data-map]" ? maps : [];
+  const url = new URL(search, "https://example.com/play/");
+  if (!url.hash) url.hash = "#ride";
+  if (url.searchParams.get("launch") === "drive") doc.documentElement.classList.add("launch-requested");
   const win = new EventTarget();
   Object.assign(win, {
-    location: { search, href: `https://example.com/play/${search}#ride`, assign(url) { this.assigned = url; }, replace(url) { this.replaced = url; }, reload() { this.reloaded = true; } },
+    location: {
+      search: url.search, hash: url.hash, href: url.href, assignments: [],
+      assign(url) { this.assignments.push(url); this.assigned = url; },
+      replace(url) { this.replaced = url; },
+      reload() { this.reloaded = true; },
+    },
+    history: {
+      state: historyState, replacements: [],
+      replaceState(state, title, url) {
+        this.state = state;
+        this.replacements.push({ state, title, url });
+        const next = new URL(url, win.location.href);
+        Object.assign(win.location, { href: next.href, search: next.search, hash: next.hash });
+      },
+    },
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
-    requestAnimationFrame(callback) { callback(); },
+    requestAnimationFrame(callback) { frames.push(callback); },
     matchMedia: () => ({ matches: reducedMotion }),
   });
   const localStorage = {
@@ -76,10 +97,14 @@ function fixture(search = "", { savedLevel, savedDrive, persistent = true, reduc
       if (timer.delay === delay) { timers.delete(id); timer.callback(); }
     }
   }
+  function frame() {
+    for (const callback of frames.splice(0)) callback();
+  }
   async function paint() {
+    frame();
     tick(0);
-    await Promise.resolve();
-    await Promise.resolve();
+    // Drain nested navigation promises and their error handlers after the paint task.
+    await new Promise(setImmediate);
   }
   function pageshow(persisted = true) {
     const event = new Event("pageshow");
@@ -94,7 +119,7 @@ function fixture(search = "", { savedLevel, savedDrive, persistent = true, reduc
     return event;
   }
   const click = (id) => get(id).dispatchEvent(new Event("click"));
-  return { loading, doc, win, steps, maps, tick, paint, pageshow, press, click, get };
+  return { loading, doc, win, steps, maps, tick, frame, paint, pageshow, press, click, get };
 }
 
 test("startup resolves each map and unknown levels safely; all cards stay available during loading", () => {
@@ -143,15 +168,18 @@ test("unavailable storage shows a short warning without blocking launch", () => 
   assert.equal(get("loading-drive").disabled, false);
 });
 
-test("a saved drive offers Continue on a fresh page without automatically starting", () => {
-  const { loading, get } = fixture("", { savedDrive: { x: 20, z: 30, heading: 1, checkpoint: 2, lap: 1 } });
+test("a saved drive offers Continue on a fresh page without automatically starting", async () => {
+  const { loading, get, paint } = fixture("", { savedDrive: { x: 20, z: 30, heading: 1, checkpoint: 2, lap: 1 } });
   assert.equal(get("loading-drive-label").textContent, "Continue");
   loading.complete(() => assert.fail("A saved session still needs a launch gesture"));
+  await paint();
+  assert.equal(get("loading-screen").dataset.state, "selecting");
+  assert.equal(get("loading-screen").dataset.mode, "home");
   assert.equal(get("loading-drive-label").textContent, "Continue");
   assert.equal(loading.active, true);
 });
 
-test("Amsterdam resumes only its own saved drive and reselecting it does not navigate", async () => {
+test("Amsterdam resumes only its own saved drive and a current-map click enters without navigation or Continue", async () => {
   const savedDrive = { x: 140, z: -90, heading: 2, checkpoint: 4, lap: 3, lapSeconds: 30, bestLap: 150 };
   for (const [search, expected, label] of [["", "amsterdam", "Continue"], ["?level=amsterdam", "amsterdam", "Continue"], ["?level=unknown", "amsterdam", "Continue"], ["?level=city", "city", "Drive"]]) {
     const { loading, get, win, click, paint } = fixture(search, { savedLevel: "amsterdam", savedDrive });
@@ -162,13 +190,15 @@ test("Amsterdam resumes only its own saved drive and reselecting it does not nav
     let entered = 0;
     loading.complete(() => { entered++; });
     click(`map-${expected}`);
+    assert.equal(get("loading-screen").dataset.mode, "launch");
+    assert.equal(get("loading-screen").dataset.state, "loading");
+    assert.equal(entered, 0);
     await paint();
     assert.equal(win.location.assigned, undefined);
-    assert.equal(get("loading-screen").dataset.state, "selecting");
+    assert.equal(get("loading-screen").dataset.state, "ready");
     assert.equal(get("loading-drive-label").textContent, label);
-    assert.equal(entered, 0);
-    click("loading-drive");
     assert.equal(entered, 1);
+    assert.deepEqual(createSession(win).value.drives, { amsterdam: savedDrive });
   }
 });
 
@@ -188,20 +218,21 @@ test("only real phases advance stages and yield a paint", async () => {
 
 test("completion stays in the selecting hub indefinitely, including reduced motion", async () => {
   for (const reducedMotion of [false, true]) {
-    const { loading, get, doc, tick, steps, click } = fixture("?level=moon", { reducedMotion });
+    const { loading, get, doc, tick, paint, steps, click } = fixture("?level=moon", { reducedMotion });
     let entered = 0;
     click("loading-drive");
     click("loading-garage");
     assert.equal(loading.active, true);
     loading.complete(() => { entered++; });
     loading.complete(() => assert.fail("A duplicate completion replaced the callback"));
-    tick(0);
+    await paint();
     tick(650);
     tick(30000);
     await loading.phase(1, "A late phase must not replace readiness");
     assert.equal(entered, 0);
     assert.equal(loading.active, true);
     assert.equal(get("loading-screen").dataset.state, "selecting");
+    assert.equal(get("loading-screen").dataset.mode, "home");
     assert.equal(get("loading-screen").hidden, false);
     assert.equal(get("loading-title").textContent, "Pick a world!");
     assert.equal(get("game-ui").inert, true);
@@ -221,6 +252,105 @@ test("completion stays in the selecting hub indefinitely, including reduced moti
     click("loading-drive");
     click("loading-garage");
     assert.equal(entered, 1);
+  }
+});
+
+for (const order of ["already ready", "complete before frame", "complete between frame and task", "complete after paint"]) {
+  test(`current-map clicks enter exactly once after loading and paint: ${order}`, async () => {
+    for (const [level, name] of Object.entries(worlds)) {
+      const { loading, get, doc, win, steps, click, tick, frame, paint } = fixture(`?level=${level}`);
+      const actions = [];
+      const complete = () => loading.complete((action) => actions.push(action));
+      if (order === "already ready") complete();
+      get("loading-screen").scrollTop = 240;
+      click(`map-${level}`);
+      assert.equal(get("loading-screen").dataset.mode, "launch");
+      assert.equal(get("loading-screen").dataset.state, "loading");
+      assert.equal(get("loading-screen").hidden, false);
+      assert.equal(get("loading-screen").scrollTop, 0);
+      assert.equal(get("loading-title").textContent, `Loading ${name}`);
+      assert.equal(doc.activeElement, get("loading-title"));
+      assert.deepEqual(get("loading-title").focusOptions, { preventScroll: true });
+      assert.equal(get("game-ui").inert, true);
+      assert.equal(get("game-ui").attributes["aria-busy"], "true");
+      assert.equal(get("loading-drive").disabled, true);
+      assert.equal(get("loading-garage").disabled, true);
+      assert.ok(steps.every((step) => step.dataset.state === (order === "already ready" ? "done" : "pending")));
+      if (order === "complete before frame") complete();
+      tick(0);
+      await new Promise(setImmediate);
+      assert.deepEqual(actions, [], "a timer without an animation frame cannot launch");
+      frame();
+      if (order === "complete between frame and task") complete();
+      await new Promise(setImmediate);
+      assert.deepEqual(actions, [], "the animation frame must be followed by a paint task");
+      assert.equal(loading.active, true);
+      await paint();
+      if (order === "complete after paint") {
+        assert.deepEqual(actions, [], "painting cannot launch an unfinished world");
+        assert.equal(get("loading-screen").dataset.state, "loading");
+        complete();
+      }
+      assert.deepEqual(actions, ["drive"]);
+      assert.equal(loading.active, false);
+      assert.equal(get("loading-screen").dataset.state, "ready");
+      assert.equal(get("loading-screen").hidden, true);
+      assert.equal(get("game-ui").inert, false);
+      assert.equal(get("game-ui").attributes["aria-busy"], "false");
+      assert.equal(doc.body.classList.contains("app-ready"), true);
+      assert.equal(doc.activeElement, get("configure"));
+      loading.complete(() => actions.push("duplicate"));
+      await loading.phase(4, "Late progress");
+      click(`map-${level}`);
+      click("loading-drive");
+      click("loading-garage");
+      await paint();
+      tick(30000);
+      assert.deepEqual(actions, ["drive"]);
+      assert.deepEqual(win.location.assignments, []);
+      assert.equal(get("loading-retry").hidden, true);
+      assert.equal(get("loading-note").hidden, true);
+    }
+  });
+}
+
+test("invalid launch markers or levels never autoplay, even with a saved drive", async () => {
+  for (const search of [
+    "?level=city", "?level=city&launch=", "?level=city&launch=garage", "?level=city&launch=Drive", "?level=city&launch=true",
+    "?launch=drive", "?level=&launch=drive", "?level=unknown&launch=drive", "?level=toString&launch=drive", "?level=__proto__&launch=drive",
+  ]) {
+    const historyState = { position: 7 };
+    const { loading, get, win, doc, paint, tick } = fixture(`${search}&mode=fast#saved`, {
+      savedLevel: "moon", savedDrive: { x: 20, z: 30, heading: 1, checkpoint: 2, lap: 1 }, historyState,
+    });
+    const actions = [];
+    const expected = new URL(`https://example.com/play/${search}&mode=fast#saved`);
+    const consumed = expected.searchParams.get("launch") === "drive";
+    if (consumed) expected.searchParams.delete("launch");
+    assert.equal(win.location.href, expected.href);
+    assert.equal(win.history.replacements.length, consumed ? 1 : 0);
+    assert.equal(win.history.state, historyState);
+    assert.equal(doc.documentElement.classList.contains("launch-requested"), false);
+    loading.complete((action) => actions.push(action));
+    await paint();
+    tick(30000);
+    assert.deepEqual(actions, [], search);
+    assert.equal(get("loading-screen").dataset.mode, "home");
+    assert.equal(get("loading-screen").dataset.state, "selecting");
+    assert.equal(get("loading-title").textContent, "Pick a world!");
+    assert.equal(get("game-ui").inert, true);
+    assert.deepEqual(win.location.assignments, []);
+  }
+});
+
+test("entry distinguishes automatic launches from trusted Drive and Garage clicks", async () => {
+  for (const [id, action, automatic] of [["map-forest", "drive", true], ["loading-drive", "drive", false], ["loading-garage", "garage", false]]) {
+    const { loading, click, paint } = fixture();
+    const calls = [];
+    loading.complete((...args) => calls.push(args));
+    click(id);
+    await paint();
+    assert.deepEqual(calls, [[action, { automatic }]]);
   }
 });
 
@@ -246,8 +376,9 @@ test("Drive unlocks immediately, calls onEnter synchronously, and focuses the ga
 
 test("Garage unlocks before its synchronous callback and never steals dialog focus", () => {
   const { loading, get, doc, click } = fixture();
-  let called = false;
+  let called = false, insideClick = false;
   loading.complete((action) => {
+    assert.equal(insideClick, true);
     assert.equal(action, "garage");
     assert.equal(loading.active, false);
     assert.equal(get("game-ui").inert, false);
@@ -256,7 +387,9 @@ test("Garage unlocks before its synchronous callback and never steals dialog foc
     get("paint").focus();
     called = true;
   });
+  insideClick = true;
   click("loading-garage");
+  insideClick = false;
   assert.equal(called, true);
   assert.equal(doc.activeElement, get("paint"));
 });
@@ -316,7 +449,7 @@ test("home restores the loaded map without a prior slow note and preserves the l
 });
 
 test("failure disables both launch actions, closes dialogs, and cannot be bypassed by complete or home", async () => {
-  const { loading, get, doc, click, tick } = fixture();
+  const { loading, get, doc, win, click, tick } = fixture();
   let entered = 0;
   loading.complete(() => { entered++; });
   assert.equal(get("loading-status").classList.contains("sr-only"), true);
@@ -344,6 +477,8 @@ test("failure disables both launch actions, closes dialogs, and cannot be bypass
   assert.equal(get("modifier").open, false);
   assert.equal(get("loading-drive").disabled, true);
   assert.equal(get("loading-garage").disabled, true);
+  click("loading-retry");
+  assert.equal(win.location.reloaded, true);
 });
 
 test("launch callback failures return to the failure hub and remove the ready UI", () => {
@@ -377,45 +512,163 @@ test("slow loads offer retry without fabricated progress or enabling launch", ()
   assert.equal(win.location.reloaded, true);
 });
 
-test("all other map cards navigate during loading, preserve URL details, and remember the choice", async () => {
-  for (const selected of ["forest", "city", "stunt", "moon", "amsterdam", "wellington"]) {
-    const original = selected === "forest" ? "moon" : "forest";
-    const { loading, get, win, paint, click, maps } = fixture(`?level=${original}&mode=fast`);
-    click(`map-${selected}`);
-    assert.equal(get("loading-screen").dataset.state, "leaving");
-    assert.equal(get("loading-screen").dataset.level, selected);
-    assert.equal(get("loading-title").textContent, "Pick a world!");
-    assert.equal(get("loading-status").textContent, "Opening world...");
-    assert.equal(get("loading-status").classList.contains("sr-only"), false);
-    for (const map of maps) {
-      assert.equal(map.attributes["aria-pressed"], String(map.dataset.map === selected));
+test("all six map destinations auto-enter once, consume launch, and preserve URL, history, and saved progress with or without storage", async () => {
+  const savedDrive = { x: 140, z: -90, heading: 2, checkpoint: 4, lap: 3, lapSeconds: 30, bestLap: 150 };
+  for (const persistent of [true, false]) {
+    for (const [selected, name] of Object.entries(worlds)) {
+      const original = selected === "forest" ? "moon" : "forest";
+      const { loading, get, win, frame, paint, click, maps } = fixture(`?level=${original}&mode=fast&tag=a&tag=b#route`, { persistent });
+      click(`map-${selected}`);
+      assert.equal(get("loading-screen").dataset.state, "leaving");
+      assert.equal(get("loading-screen").dataset.mode, "launch");
+      assert.equal(get("loading-screen").dataset.level, selected);
+      assert.equal(get("loading-title").textContent, `Loading ${name}`);
+      assert.equal(get("loading-status").textContent, "Opening world...");
+      assert.equal(get("loading-status").classList.contains("sr-only"), false);
+      for (const map of maps) {
+        assert.equal(map.attributes["aria-pressed"], String(map.dataset.map === selected));
+      }
+      assert.equal(get("loading-drive").disabled, true);
+      assert.equal(get("loading-garage").disabled, true);
+      assert.equal(win.location.assigned, undefined);
+      assert.equal(createSession(win).value.level, selected);
+      assert.equal(loading.level, original);
+      assert.ok(maps.every((map) => !map.disabled && !map.hidden));
+      frame();
+      await new Promise(setImmediate);
+      assert.deepEqual(win.location.assignments, [], "navigation must wait for the post-frame paint task");
+      await paint();
+      const target = `https://example.com/play/?level=${selected}&mode=fast&tag=a&tag=b&launch=drive#route`;
+      assert.deepEqual(win.location.assignments, [target]);
+
+      const historyState = { position: 3, from: original };
+      const destination = fixture(target, { persistent, savedLevel: selected, savedDrive: persistent ? savedDrive : undefined, historyState });
+      const cleanURL = `https://example.com/play/?level=${selected}&mode=fast&tag=a&tag=b#route`;
+      assert.equal(destination.loading.level, selected);
+      assert.equal(destination.get("loading-screen").dataset.mode, "launch");
+      assert.equal(destination.get("loading-title").textContent, `Loading ${name}`);
+      assert.equal(destination.doc.activeElement, destination.get("loading-title"));
+      assert.equal(destination.doc.documentElement.classList.contains("launch-requested"), false);
+      assert.deepEqual(destination.win.history.replacements, [{ state: historyState, title: "", url: cleanURL }]);
+      assert.equal(destination.win.history.state, historyState);
+      assert.equal(destination.win.location.href, cleanURL);
+      assert.equal(destination.win.location.search, `?level=${selected}&mode=fast&tag=a&tag=b`);
+      assert.equal(destination.win.location.hash, "#route");
+      assert.equal(destination.get("loading-storage").hidden, persistent);
+      const actions = [];
+      destination.pageshow(false);
+      if (!persistent) {
+        await destination.paint();
+        assert.equal(destination.get("loading-screen").dataset.state, "loading");
+        assert.equal(destination.get("game-ui").inert, true);
+      }
+      destination.loading.complete((action) => actions.push(action));
+      if (persistent) {
+        assert.deepEqual(actions, []);
+        assert.equal(destination.get("loading-screen").dataset.state, "loading");
+      }
+      await destination.paint();
+      destination.loading.complete(() => actions.push("duplicate"));
+      await destination.paint();
+      assert.deepEqual(actions, ["drive"]);
+      assert.equal(destination.get("loading-screen").hidden, true);
+      assert.equal(destination.get("loading-screen").dataset.state, "ready");
+      assert.equal(destination.get("game-ui").inert, false);
+      assert.equal(destination.doc.activeElement, destination.get("configure"));
+      assert.deepEqual(createSession(destination.win).value.drives, persistent ? { [selected]: savedDrive } : {});
+      assert.deepEqual(destination.win.location.assignments, []);
+
+      const reload = fixture(destination.win.location.href, { persistent });
+      reload.loading.complete((action) => actions.push(`reload:${action}`));
+      await reload.paint();
+      assert.deepEqual(actions, ["drive"], "the consumed URL must not autoplay on a later visit");
+      assert.equal(reload.get("loading-screen").dataset.state, "selecting");
+      assert.equal(reload.get("loading-screen").dataset.mode, "home");
     }
-    assert.equal(get("loading-drive").disabled, true);
-    assert.equal(get("loading-garage").disabled, true);
-    assert.equal(win.location.assigned, undefined);
-    assert.equal(createSession(win).value.level, selected);
-    assert.equal(loading.level, original);
-    assert.ok(maps.every((map) => !map.disabled && !map.hidden));
-    await paint();
-    assert.equal(win.location.assigned, `https://example.com/play/?level=${selected}&mode=fast#ride`);
   }
 });
 
-test("the selected card does not reload; rapid map choices only navigate to the latest selection", async () => {
-  const { get, win, paint, click } = fixture();
+test("rapid choices cancel pending current-map entry and navigate only to the latest selection", async () => {
+  const { loading, get, win, paint, click } = fixture();
+  const actions = [];
+  loading.complete((action) => actions.push(action));
   click("map-forest");
-  await paint();
-  assert.equal(win.location.assigned, undefined);
   click("map-city");
   click("map-moon");
   await paint();
-  assert.equal(win.location.assigned, "https://example.com/play/?level=moon#ride");
+  assert.deepEqual(actions, []);
+  assert.deepEqual(win.location.assignments, ["https://example.com/play/?level=moon&launch=drive#ride"]);
   assert.equal(get("loading-screen").dataset.level, "moon");
+  assert.equal(get("loading-screen").dataset.mode, "launch");
+});
+
+test("repeated current-map clicks restart the paint gate and enter only once", async () => {
+  const { loading, click, frame, tick, paint, win } = fixture();
+  const actions = [];
+  loading.complete((action) => actions.push(action));
+  click("map-forest");
+  frame();
+  click("map-forest");
+  tick(0);
+  await Promise.resolve();
+  assert.deepEqual(actions, [], "the superseded paint must not enter the latest choice");
+  await paint();
+  assert.deepEqual(actions, ["drive"]);
+  assert.deepEqual(win.location.assignments, []);
+});
+
+for (const ready of [true, false]) {
+  test(`returning to the actual current map cancels other pending navigation (${ready ? "ready" : "unfinished"})`, async () => {
+    const { loading, get, click, paint, win } = fixture("?level=forest&mode=fast");
+    const actions = [];
+    if (ready) loading.complete((action) => actions.push(action));
+    click("map-moon");
+    click("map-city");
+    click("map-forest");
+    assert.equal(get("loading-screen").dataset.state, "loading");
+    assert.equal(get("loading-screen").dataset.level, "forest");
+    assert.equal(get("loading-title").textContent, "Loading Pine Valley");
+    assert.equal(get("map-forest").attributes["aria-pressed"], "true");
+    await paint();
+    if (!ready) {
+      assert.deepEqual(actions, []);
+      loading.complete((action) => actions.push(action));
+    }
+    assert.deepEqual(actions, ["drive"]);
+    assert.deepEqual(win.location.assignments, []);
+    assert.equal(get("loading-screen").dataset.state, "ready");
+    assert.equal(createSession(win).value.level, "forest", "the canceled destination must not remain the saved map");
+  });
+}
+
+test("failure and home cancel deferred current-map or destination entry", async () => {
+  for (const marker of ["", "&launch=drive"]) {
+    for (const cancel of ["fail", "home"]) {
+      const { loading, get, doc, win, click, paint } = fixture(`?level=city${marker}`);
+      const actions = [];
+      loading.complete((action) => actions.push(action));
+      if (!marker) click("map-city");
+      loading[cancel](new Error("Graphics lost."));
+      loading.complete(() => actions.push("late"));
+      await paint();
+      assert.deepEqual(actions, []);
+      assert.deepEqual(win.location.assignments, []);
+      assert.equal(get("loading-screen").dataset.mode, "home");
+      assert.equal(get("loading-screen").dataset.state, cancel === "fail" ? "error" : "selecting");
+      assert.equal(get("game-ui").inert, true);
+      assert.equal(doc.activeElement, get(cancel === "fail" ? "loading-retry" : "loading-drive"));
+      if (cancel === "home") {
+        click("loading-drive");
+        assert.deepEqual(actions, ["drive"], "canceling auto-entry must retain the explicit launch callback");
+      }
+    }
+  }
 });
 
 test("map navigation failures are caught and expose retry instead of launching", async () => {
-  const { loading, get, win, paint, click } = fixture();
+  const { loading, get, win, paint, click } = fixture("?level=forest&mode=fast");
   loading.complete(() => assert.fail("Failed navigation must not launch"));
+  const assign = win.location.assign;
   win.location.assign = () => { throw new Error("Navigation blocked."); };
   click("map-city");
   await paint();
@@ -427,6 +680,11 @@ test("map navigation failures are caught and expose retry instead of launching",
   assert.equal(get("loading-garage").disabled, true);
   assert.equal(get("loading-retry").hidden, false);
   assert.equal(loading.active, true);
+  win.location.assign = assign;
+  click("loading-retry");
+  await paint();
+  assert.deepEqual(win.location.assignments, ["https://example.com/play/?level=city&mode=fast&launch=drive#ride"]);
+  assert.equal(win.location.reloaded, undefined);
 });
 
 test("fail cancels navigation that is still waiting to paint", async () => {
@@ -438,6 +696,105 @@ test("fail cancels navigation that is still waiting to paint", async () => {
   assert.equal(win.location.assigned, undefined);
 });
 
+for (const reason of ["error", "slow"]) {
+  test(`${reason} Retry reloads the desired map with launch, not the source or consumed URL`, async () => {
+    for (const [selected, marker] of [["forest", ""], ["city", ""], ["forest", "&launch=drive"]]) {
+      const { loading, get, win, click, tick, paint } = fixture(`?level=forest&mode=fast${marker}`);
+      const actions = [];
+      if (!marker) click(`map-${selected}`);
+      if (reason === "error") loading.fail(new Error("World failed."));
+      else tick(30000);
+      assert.equal(get("loading-retry").hidden, false);
+      click("loading-retry");
+      assert.equal(get("loading-screen").dataset.level, selected);
+      assert.equal(get("loading-screen").dataset.mode, "launch");
+      assert.equal(get("loading-screen").dataset.state, "leaving");
+      assert.equal(get("loading-drive").disabled, true);
+      loading.complete((action) => actions.push(action));
+      await paint();
+      assert.deepEqual(actions, []);
+      assert.deepEqual(win.location.assignments, [`https://example.com/play/?level=${selected}&mode=fast&launch=drive#ride`]);
+      assert.equal(win.location.reloaded, undefined);
+    }
+  });
+}
+
+test("slow Retry honors a newer map choice rather than an earlier failed launch", async () => {
+  const { loading, get, win, click, tick, paint } = fixture("?level=forest&mode=fast");
+  click("map-moon");
+  loading.fail(new Error("World failed."));
+  click("map-city");
+  tick(30000);
+  assert.equal(get("loading-screen").dataset.level, "city");
+  assert.equal(get("loading-retry").hidden, false);
+  click("loading-retry");
+  await paint();
+  assert.deepEqual(win.location.assignments, ["https://example.com/play/?level=city&mode=fast&launch=drive#ride"]);
+});
+
+test("a failed current-map card reloads with launch instead of reviving the failed world", async () => {
+  const { loading, get, win, click, paint } = fixture("?level=forest&mode=fast");
+  const actions = [];
+  loading.complete((action) => actions.push(action));
+  loading.fail(new Error("World failed."));
+  click("map-forest");
+  loading.complete(() => actions.push("late"));
+  click("loading-drive");
+  click("loading-garage");
+  await paint();
+  assert.deepEqual(actions, []);
+  assert.equal(get("loading-screen").dataset.state, "leaving");
+  assert.equal(get("game-ui").inert, true);
+  assert.deepEqual(win.location.assignments, ["https://example.com/play/?level=forest&mode=fast&launch=drive#ride"]);
+});
+
+test("automatic entry callback failures return focus to Retry and retain the launch target", async () => {
+  const { loading, get, doc, win, click, paint } = fixture("?level=moon&launch=drive");
+  let calls = 0;
+  loading.complete(() => { calls++; throw new Error("Graphics paused."); });
+  await paint();
+  assert.equal(calls, 1);
+  assert.equal(get("loading-screen").dataset.state, "error");
+  assert.equal(get("loading-screen").dataset.mode, "home");
+  assert.equal(get("loading-note").textContent, "Graphics paused.");
+  assert.equal(get("game-ui").inert, true);
+  assert.equal(doc.body.classList.contains("app-ready"), false);
+  assert.equal(doc.activeElement, get("loading-retry"));
+  click("loading-retry");
+  await paint();
+  assert.equal(calls, 1);
+  assert.deepEqual(win.location.assignments, ["https://example.com/play/?level=moon&launch=drive#ride"]);
+});
+
+test("pagehide and persisted pageshow cancel deferred entry, including unfinished destination loads", async () => {
+  for (const event of ["pagehide", "pageshow"]) {
+    for (const ready of [true, false]) {
+      for (const marker of ["", "&launch=drive"]) {
+        const { loading, get, doc, win, click, paint, pageshow } = fixture(`?level=city${marker}`);
+        const actions = [];
+        if (ready) loading.complete((action) => actions.push(action));
+        if (!marker) click("map-city");
+        if (event === "pagehide") win.dispatchEvent(new Event("pagehide"));
+        else pageshow();
+        await paint();
+        assert.deepEqual(actions, [], "entry must stay canceled even before a hidden page is restored");
+        if (event === "pagehide") pageshow();
+        if (!ready) loading.complete((action) => actions.push(action));
+        await paint();
+        assert.deepEqual(actions, []);
+        assert.deepEqual(win.location.assignments, []);
+        assert.equal(get("loading-screen").dataset.state, "selecting");
+        assert.equal(get("loading-screen").dataset.mode, "home");
+        assert.equal(get("loading-screen").dataset.level, "city");
+        assert.equal(get("game-ui").inert, true);
+        if (ready) assert.equal(doc.activeElement, get("loading-drive"));
+        click("loading-drive");
+        assert.deepEqual(actions, ["drive"]);
+      }
+    }
+  }
+});
+
 test("BFcache restores a loaded current-map launch hub, not driving or the departing selection", async () => {
   const { loading, get, win, paint, pageshow, click, doc, tick } = fixture("?level=city");
   const actions = [];
@@ -445,7 +802,7 @@ test("BFcache restores a loaded current-map launch hub, not driving or the depar
   click("loading-drive");
   const url = new URL("https://example.com/?level=moon&mode=fast#play");
   const navigation = loading.navigate(url, "city");
-  assert.equal(get("loading-title").textContent, "Pick a world!");
+  assert.equal(get("loading-title").textContent, "Loading Moon Run");
   assert.equal(get("loading-status").textContent, "Opening world...");
   assert.equal(get("loading-status").classList.contains("sr-only"), false);
   assert.equal(get("game-ui").inert, true);
@@ -474,17 +831,22 @@ test("BFcache restores a loaded current-map launch hub, not driving or the depar
   assert.deepEqual(actions, ["drive", "drive"]);
 });
 
-test("a cached page reloads its original map when another page has saved newer session data", () => {
-  const { loading, win, pageshow, click, get } = fixture();
-  loading.complete(() => {});
-  click("loading-drive");
-  const newer = createSession({ localStorage: win.localStorage });
-  newer.update({ level: "moon", config: { ...newer.value.config, engine: "eight" } });
-  pageshow();
-  assert.equal(win.location.replaced, "https://example.com/play/?level=forest#ride");
-  assert.equal(get("game-ui").inert, true);
-  assert.equal(loading.active, true, "stale pagehide must not overwrite a newer drive");
-  assert.equal(createSession({ localStorage: win.localStorage }).value.config.engine, "eight");
+test("a cached page reloads its original map with newer session data, canceling any deferred launch", async () => {
+  for (const marker of ["", "?level=forest&launch=drive"]) {
+    const { loading, win, pageshow, click, get, paint } = fixture(marker);
+    const actions = [];
+    loading.complete((action) => actions.push(action));
+    if (!marker) click("loading-drive");
+    const newer = createSession({ localStorage: win.localStorage });
+    newer.update({ level: "moon", config: { ...newer.value.config, engine: "eight" } });
+    pageshow();
+    await paint();
+    assert.deepEqual(actions, marker ? [] : ["drive"]);
+    assert.equal(win.location.replaced, "https://example.com/play/?level=forest#ride");
+    assert.equal(get("game-ui").inert, true);
+    assert.equal(loading.active, true, "stale pagehide must not overwrite a newer drive");
+    assert.equal(createSession({ localStorage: win.localStorage }).value.config.engine, "eight");
+  }
 });
 
 test("BFcache during unfinished loading restores honest current-map progress and disabled actions", async () => {
@@ -559,6 +921,41 @@ test("global keydown and keyup shortcuts are isolated until explicit launch and 
   assert.equal(received, 2);
 });
 
+test("automatic entry isolates keyboard input until paint and focuses visible controls, including reduced motion", async () => {
+  for (const reducedMotion of [false, true]) {
+    for (const compact of [false, true]) {
+      const { loading, win, doc, get, click, press, frame, paint } = fixture("?level=forest", { reducedMotion });
+      doc.body.classList.toggle("compact-ui", compact);
+      let received = 0;
+      const actions = [];
+      win.addEventListener("keydown", () => { received++; });
+      win.addEventListener("keyup", () => { received++; });
+      loading.complete((action) => actions.push(action));
+      click("map-forest");
+      frame();
+      assert.equal(doc.activeElement, get("loading-title"));
+      for (const type of ["keydown", "keyup"]) {
+        for (const key of ["w", "c", "r", " ", "Shift", "Escape"]) assert.equal(press(key, win, type).defaultPrevented, true);
+        for (const key of ["Enter", " ", "Tab"]) assert.equal(press(key, get("map-forest"), type).defaultPrevented, false);
+        assert.equal(press("Tab", win, type).defaultPrevented, false);
+      }
+      assert.equal(received, 0);
+      assert.deepEqual(actions, []);
+      await paint();
+      assert.deepEqual(actions, ["drive"], "reduced motion must not introduce another click or animation gate");
+      assert.equal(get("loading-screen").hidden, true);
+      assert.equal(doc.activeElement, get(compact ? "drive-menu-toggle" : "configure"));
+      assert.equal(press("w").defaultPrevented, false);
+      assert.equal(press("w", win, "keyup").defaultPrevented, false);
+      assert.equal(received, 2);
+      loading.home();
+      assert.equal(doc.activeElement, get("loading-drive"));
+      assert.equal(press("w").defaultPrevented, true);
+      assert.equal(received, 2);
+    }
+  }
+});
+
 test("native button Enter/Space and Tab keep their default behavior without reaching game shortcuts", () => {
   const { loading, win, get, press } = fixture();
   let received = 0;
@@ -607,7 +1004,7 @@ test("markup provides six inline illustrated map buttons, gated launch actions, 
 test("homepage markup omits fine copy, starts with empty hidden notices, and keeps stage text screen-reader-only", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const homepage = html.slice(html.indexOf('<section id="loading-screen"'), html.indexOf('<main id="game-ui"'));
-  assert.match(homepage, /<h2\b[^>]*id="loading-title"[^>]*>Pick a world!<\/h2>/);
+  assert.match(homepage, /<h2\b[^>]*id="loading-title"[^>]*tabindex="-1"[^>]*>Pick a world!<\/h2>/);
   assert.doesNotMatch(homepage, /loading-tagline|loading-edition|loading-eyebrow|loading-loop-label|data-map-state/);
   assert.doesNotMatch(homepage, /A LITTLE WORLD OF PLAY|NEXT STOP|TAKING THE SCENIC ROUTE|A little drive\. A big adventure\.|Good things are just around the bend\.|Paint, wheels &amp; engine|Saved on this device/);
   for (const id of ["loading-note", "loading-storage"]) {
