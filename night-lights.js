@@ -103,7 +103,28 @@ export function createNightLighting({ scene, tablet = false }) {
     scene.add(light, light.target);
     return light;
   }
-  for (let i = 0; i < 2; i++) headlights.push(spot(`night/player-headlight-${i}`, tablet ? 512 : 1024, 85, Math.PI / 7));
+  // A wide, softly dipped beam avoids two white circles immediately under the car.
+  // Share one small linear-light cookie across both lamps and all vehicle swaps.
+  const pixels = new Uint8Array(64 * 64 * 4);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    const u = (x + 0.5) / 64, v = (y + 0.5) / 64;
+    const horizontal = 1 - THREE.MathUtils.smoothstep(Math.abs(u - 0.5), 0.22, 0.48);
+    const vertical = THREE.MathUtils.smoothstep(v, 0.12, 0.43)
+      * (1 - THREE.MathUtils.smoothstep(v, 0.53, 0.72));
+    const index = (y * 64 + x) * 4;
+    pixels[index] = pixels[index + 1] = pixels[index + 2] = Math.round(255 * horizontal * vertical);
+    pixels[index + 3] = 255;
+  }
+  const headlightMap = new THREE.DataTexture(pixels, 64, 64);
+  headlightMap.name = "night/dipped-headlight-beam";
+  headlightMap.minFilter = headlightMap.magFilter = THREE.LinearFilter;
+  headlightMap.needsUpdate = true;
+  for (let i = 0; i < 2; i++) {
+    const light = spot(`night/player-headlight-${i}`, tablet ? 512 : 1024, 85, Math.PI / 7);
+    light.map = headlightMap;
+    light.penumbra = 0.85;
+    headlights.push(light);
+  }
   // Small pooled shadow maps keep street illumination from leaking through
   // buildings without allocating an actual light or shadow map per fixture.
   for (let i = 0; i < (tablet ? 2 : 4); i++) streets.push({
@@ -143,7 +164,7 @@ export function createNightLighting({ scene, tablet = false }) {
     if (body) body.updateWorldMatrix(true, false);
     for (let i = 0; i < headlights.length; i++) {
       const light = headlights[i], position = lensPositions[i];
-      light.intensity = body && car && position ? 900 * nightValue : 0;
+      light.intensity = body && car && position ? 650 * nightValue : 0;
       if (body && position) {
         light.position.copy(position).applyMatrix4(body.matrixWorld).applyMatrix4(inverseScene);
         light.target.position.copy(position).add(beam)
@@ -198,6 +219,7 @@ export function createNightLighting({ scene, tablet = false }) {
       light.intensity = 0; light.shadow.needsUpdate = false;
       light.removeFromParent(); light.target.removeFromParent(); light.dispose();
     }
+    headlightMap.dispose();
     headlights.length = 0; streets.length = 0; anchors.length = 0; candidates.length = 0;
     desired.clear(); assigned.clear(); lensPositions = []; body = currentModel = currentCar = null;
   }

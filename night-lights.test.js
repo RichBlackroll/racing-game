@@ -184,6 +184,33 @@ test("static descriptors transform once from group-local space and malformed des
   night.dispose(); clearScene(f.scene);
 });
 
+test("headlights share a soft dipped-beam map, retain distance and shadowing, and dispose it once", () => {
+  const f = fixture(), night = createNightLighting(f), heads = lights(f.scene, "night/player");
+  const map = heads[0].map;
+  assert.equal(heads[1].map, map);
+  assert.equal(map.isDataTexture, true);
+  assert.equal(map.colorSpace, THREE.NoColorSpace);
+  assert.equal(map.minFilter, THREE.LinearFilter);
+  const brightness = (x, y) => map.image.data[(y * 64 + x) * 4];
+  assert.equal(brightness(32, 32), 255);
+  assert.equal(brightness(32, 0), 0);
+  assert.equal(brightness(32, 63), 0);
+  assert.equal(brightness(0, 32), 0);
+  assert.ok(brightness(32, 16) > 0 && brightness(32, 16) < 128, "near-road hotspot is attenuated");
+  night.update({ ...f, night: 1 });
+  for (const light of heads) {
+    assert.equal(light.intensity, 650);
+    assert.equal(light.distance, 85);
+    assert.equal(light.castShadow, true);
+    assert.ok(light.penumbra > 0.8);
+  }
+  let disposals = 0;
+  map.addEventListener("dispose", () => { disposals++; });
+  night.dispose(); night.dispose();
+  assert.equal(disposals, 1);
+  clearScene(f.scene);
+});
+
 test("street pool fades before reassignment, holds ties, has finite reach and never changes its budget", () => {
   const f = fixture(true), group = new THREE.Group(); f.scene.add(group);
   group.userData.nightLights = [0, 4, 40, 44].map(x => ({ position: [x, 6, 0], color: 0xffcc88, intensity: 100, distance: 30 }));
@@ -410,7 +437,7 @@ test("occupied-room shader composes existing hooks and masks emission for instan
 test("world builders publish fixture anchors and night-only bindings while retaining geometry-only budgets", t => {
   for (const tablet of [false, true]) for (const level of ["city", "amsterdam", "wellington"]) {
     const scene = new THREE.Scene(), course = level === "wellington" ? createWellingtonCourse() : createCourse(level);
-    const args = { scene, tablet, course, terrain: course, level };
+    const obstacles = [], args = { scene, tablet, course, terrain: course, level, obstacles };
     const world = level === "city" ? createArchitecture(args) : level === "amsterdam" ? createAmsterdamWorld(args) : createWellingtonWorld(args);
     const bindings = new Set();
     let actualLights = 0;
@@ -419,6 +446,7 @@ test("world builders publish fixture anchors and night-only bindings while retai
       if (object.material?.userData.nightIntensity > 0) bindings.add(object.material);
     });
     assert.equal(actualLights, 0); assert.ok(bindings.size > 0);
+    assert.ok(obstacles.every(o => !/light|lamp|lantern/.test(o.kind ?? "")), "street lamps never enter shared physics obstacles");
     assert.ok([...bindings].every(m => m.emissiveIntensity === 0 && m.emissive.getHex() !== 0));
     const anchors = world.group.userData.nightLights;
     assert.ok(anchors.length > 20, `${level}: fixtures exist`);

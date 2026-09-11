@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { retroreflectiveMaterial } from "./road-reflectors.js";
 
 export function createCourseDetails({ scene, course, obstacles }) {
   const group = new THREE.Group();
@@ -45,7 +46,8 @@ export function createCourseDetails({ scene, course, obstacles }) {
     }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     const boards = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.4, .7),
-      new THREE.MeshStandardMaterial({ map: texture, roughness: .6, side: THREE.DoubleSide }), selected.length);
+      retroreflectiveMaterial(new THREE.MeshStandardMaterial({ map: texture, roughness: .6, side: THREE.DoubleSide })), selected.length);
+    boards.receiveShadow = true;
     selected.forEach((sign, i) => {
       dummy.position.set(sign.x, sign.y + 2.05, sign.z); dummy.rotation.set(0, sign.heading, 0); dummy.updateMatrix();
       boards.setMatrixAt(i, dummy.matrix);

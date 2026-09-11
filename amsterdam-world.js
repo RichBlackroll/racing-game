@@ -712,7 +712,6 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       { color: 0x2a4135, name: "lantern-corner-frame" });
     k.cone("metal", x, 5.09, z, .35, .28, { color: 0x2a4135, name: "lantern-roof" });
     k.sphere("metal", x, 5.3, z, .075, .12, .075, { color: 0x2a4135, name: "lantern-finial" });
-    k.solid("lamp-post", x, z, .3, .3, 4.8);
   }
 
   function bench(k, x, z) {

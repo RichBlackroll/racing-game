@@ -2,6 +2,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createRampCourse, createLevelScenery } from "./levels.js";
 import { createCourse } from "./course.js";
 import { createCourseDetails, createCourseHUD } from "./course-details.js";
+import { createRoadsideLights } from "./roadside-lights.js";
 import { sampleDrivingSurface } from "./driving-terrain.js";
 import { createArchitecture } from "./architecture.js";
 import { createLandscape } from "./world.js";
@@ -300,6 +301,7 @@ export async function main(loading) {
   const landscape = waterfront ? { group: waterfront.landscapeGroup, animate: waterfront.animate }
     : createLandscape({ scene, ground, level, roadDist, route, obstacles, treeInfo, buildingInfo, tablet: device.tablet, terrain: course, clearings: landmarks.clearings });
   createCourseDetails({ scene, course, obstacles });
+  const roadside = createRoadsideLights({ scene, course, level, obstacles, clearings: landmarks.clearings ?? [] });
   const ramps = hasRamps ? createRampCourse(scene, route, isMoon) : [];
   if (isMoon) createLevelScenery(scene, true, roadDist, obstacles, course, landmarks.clearings);
   let moonEnvironment;
@@ -319,7 +321,7 @@ export async function main(loading) {
     proxy.position.set(b.x, b.y + b.h / 2, b.z);
     proxy.rotation.y = b.rotation ?? 0;
     return proxy;
-  }) : scene.children.filter((object) => object !== landscape.group && object !== ground && object !== routeMesh);
+  }) : scene.children.filter((object) => object !== landscape.group && object !== roadside.group && object !== ground && object !== routeMesh);
   const atmosphere = createAtmosphere({ scene, renderer, camera, level, tablet: device.tablet });
   const jumpPhysics = hasRamps ? createJumpPhysics(ramps, isMoon ? 3.2 : 9.82, course) : null;
   // Local licensed car models and their adaptations are credited in CREDITS.md.
@@ -1220,6 +1222,7 @@ export async function main(loading) {
       daylight: daylight.state().daylight, night: daylight.state().night, stars: daylight.state().stars,
       sunDirection: daylight.state().sunDirection.toArray(), moonDirection: daylight.state().moonDirection.toArray() },
     nightLighting: nightLighting.state(),
+    roadside: roadside.counts,
     course: { length: course.length, elevation: course.elevation, samples: route.length,
       groundHeight: heightAt(car.position.x, car.position.z), pitch: surfacePose.pitch,
       bank: surfacePose.roll, grade: surfacePose.grade, progress: course.nearest(car.position.x, car.position.z).along / course.length },

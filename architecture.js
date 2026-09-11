@@ -289,7 +289,6 @@ export function createArchitecture({ scene, level, obstacles = [], buildingInfo 
     box("light", x + inward * 0.65, 5.942, z, 1.0, 0.025, 0.12, `${feature}/recess`);
     group.userData.nightLights.push({ position: [x + inward * 0.65, heightAt(x + inward * 0.65, z) + 5.9, z],
       color: 0xffc588, intensity: 95, distance: 24 });
-    collider(`${owner}/${feature}`, "light", x, z, 0.12, 0.18, 6.1);
     counts.lights++;
   }
 

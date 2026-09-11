@@ -118,8 +118,22 @@ coordinates moving sun and moon lights, sky colors, ambient light, exposure and
 reflection intensity. Texel-snapped local shadow maps follow the car, including
 moving vehicles, people and props; ground contact occlusion remains directionless.
 `night-lights.js` fades occupied windows, street lamps and vehicle lenses at dusk.
-Two scene-owned headlights illuminate the road even in cockpit view, and a bounded
-pool of nearby streetlights casts shadows (four on desktop, two on tablet).
+Two scene-owned headlights with soft dipped-beam patterns illuminate the road even
+in cockpit view, and a bounded pool of nearby streetlights casts shadows (four on
+desktop, two on tablet).
+`roadside-lights.js` adds warm hanging lanterns, solar-capped guide posts and
+drive-over cat's-eyes along the routes. Lunar fixtures use silver housings and
+cool light; existing urban lamps and landmark access paths retain their space.
+Lantern pools use the same shadow-light budget, while small guide lenses glow
+at dusk without allocating a light per post. All hardware remains visible by day.
+Roadside lights, guide posts and city street lamps are non-colliding scenery:
+driving through a lamp never causes a bounce or a speed penalty.
+Chevron signs and road reflectors return real, shadowed headlight illumination
+toward the driver through `road-reflectors.js`, rather than glowing in darkness.
+Run `node --test roadside-lights.test.js road-reflectors.test.js` for placement,
+lighting budgets and reflective-material checks. The reflector test also supports
+an optional WebGL run via `ROAD_REFLECTORS_PLAYWRIGHT` (an installed Playwright
+module path) and `ROAD_REFLECTORS_CHROME` (a Chrome executable path).
 Time advances only during active driving, not in menus, pause or background tabs;
 choosing another time while paused still redraws the lighting immediately.
 A half-float HDR

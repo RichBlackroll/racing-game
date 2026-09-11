@@ -143,7 +143,6 @@ test("solid street furniture and trunks have exact colliders; buildings stop the
       if (!name.startsWith(`${o.name}/`)) continue;
       if (o.kind === "tree" && !name.endsWith("/trunk")) continue;
       if (o.kind === "planter" && !name.endsWith("/vessel")) continue;
-      if (o.kind === "light" && !name.endsWith("/mast")) continue;
       solid.union(bounds);
     }
     assert.equal(solid.isEmpty(), false, o.name);
