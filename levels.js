@@ -103,6 +103,7 @@ export function createLevelScenery(scene,moon,roadDist,obstacles,terrain,clearin
   const earthTexture=new THREE.CanvasTexture(canvas);earthTexture.colorSpace=THREE.SRGBColorSpace;
   const earth=new THREE.Mesh(new THREE.SphereGeometry(20,40,24),new THREE.MeshStandardMaterial({map:earthTexture,roughness:1,emissive:0x07354b,emissiveIntensity:0.2,fog:false}));
   // Earth stays a world-space sky landmark, not a terrain-grounded prop.
+  earth.userData.celestial = true;
   earth.position.set(180,terrain?105:25,145);earth.rotation.z=0.25;scene.add(earth);
   const silver=new THREE.MeshStandardMaterial({color:0xe7eaf0,roughness:0.5,metalness:0.25});
   const solar=new THREE.MeshStandardMaterial({color:0x246aba,roughness:0.35,metalness:0.3,side:THREE.DoubleSide});

@@ -53,6 +53,7 @@ export function prepareVehicleModel(model, id) {
   const vehicle = getVehicle(id), tesla = vehicle.id === "tesla";
   const car = new THREE.Group();
   car.name = vehicle.id;
+  car.userData.nightVehicle = true;
   const paint = new THREE.MeshStandardMaterial({
     name: "vehicle-paint", color: 0xc60920, metalness: 0.12, roughness: 0.26, side: THREE.DoubleSide,
   });
@@ -88,7 +89,8 @@ export function prepareVehicleModel(model, id) {
 
     // Bake transforms and batch materials, keeping each wheel corner independent.
     const parts = new Map();
-    let painted = false;
+    const headlightBounds = [new THREE.Box3(), new THREE.Box3()], point = new THREE.Vector3();
+    let painted = false, porscheHeadlight;
     model.traverse((object) => {
       if (!object.isMesh) return;
       let material = object.material;
@@ -108,7 +110,8 @@ export function prepareVehicleModel(model, id) {
         if (tesla ? ["Material.002", "Material.007"].includes(name) : name.includes("RED_GLASS")) {
           material.color.set(0x9e0010);
           material.emissive.set(0xff0310);
-          material.emissiveIntensity = 1.3;
+          material.emissiveIntensity = 0;
+          Object.assign(material.userData, { nightIntensity: 1.3, brakeIntensity: 3, nightRole: "taillight" });
           material.transparent = false;
           material.opacity = 1;
         }
@@ -117,10 +120,9 @@ export function prepareVehicleModel(model, id) {
           material.color.set(0xd7e8f4);
           material.metalness = 0.25;
           material.roughness = 0.16;
-          if (name === "LED_PHARE") {
-            material.emissive.set(0xe2f5ff);
-            material.emissiveIntensity = 1.1;
-          }
+          material.emissive.set(0xe2f5ff);
+          material.emissiveIntensity = 0;
+          Object.assign(material.userData, { nightIntensity: name === "LED_PHARE" ? 1.8 : 0.6, nightRole: "headlight" });
         }
         if (tesla && ["Material.003", "Material.011", "Material.012"].includes(name)) {
           material.metalness = 0.8;
@@ -133,8 +135,6 @@ export function prepareVehicleModel(model, id) {
       geometry.computeBoundingBox();
       const center = geometry.boundingBox.getCenter(new THREE.Vector3());
       const isWheel = tesla ? object.name.startsWith("wheel") : name.includes("_Wheel1A_");
-      const key = material.uuid + (isWheel ? `:${Math.sign(center.x)}:${Math.sign(center.z)}` : ":body");
-      if (!parts.has(key)) parts.set(key, { material, geometries: [], isWheel });
       if (geometry.index) {
         const indexed = geometry;
         geometry = indexed.toNonIndexed();
@@ -148,7 +148,42 @@ export function prepareVehicleModel(model, id) {
       if (!geometry.attributes.normal) geometry.computeVertexNormals();
       if (!geometry.attributes.uv) geometry.setAttribute("uv",
         new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2));
-      parts.get(key).geometries.push(geometry);
+      const pieces = [];
+      if (!tesla && name.includes("LightA_Material")) {
+        // This atlas also covers rear/reversing lamps. Split front triangles once,
+        // rather than turning the entire shared light atlas into white emission.
+        if (!porscheHeadlight) {
+          porscheHeadlight = material.clone();
+          porscheHeadlight.name = `${name}/headlights`;
+          porscheHeadlight.emissive.set(0xe2f5ff); porscheHeadlight.emissiveIntensity = 0;
+          Object.assign(porscheHeadlight.userData, { nightIntensity: 1.5, nightRole: "headlight" });
+          resources.add(porscheHeadlight);
+        }
+        const front = [], other = [], positions = geometry.attributes.position;
+        for (let i = 0; i < positions.count; i += 3) {
+          const indices = (positions.getZ(i) + positions.getZ(i + 1) + positions.getZ(i + 2)) / 3 > 1.2 ? front : other;
+          indices.push(i, i + 1, i + 2);
+        }
+        for (const [indices, mat] of [[front, porscheHeadlight], [other, material]]) {
+          if (!indices.length) continue;
+          geometry.setIndex(indices);
+          const piece = geometry.toNonIndexed(); temporary.add(piece);
+          pieces.push({ geometry: piece, material: mat });
+        }
+        geometry.dispose(); temporary.delete(geometry);
+      } else pieces.push({ geometry, material });
+      for (const piece of pieces) {
+        const key = piece.material.uuid + (isWheel ? `:${Math.sign(center.x)}:${Math.sign(center.z)}` : ":body");
+        if (!parts.has(key)) parts.set(key, { material: piece.material, geometries: [], isWheel });
+        parts.get(key).geometries.push(piece.geometry);
+        if (piece.material.userData.nightRole === "headlight") {
+          const positions = piece.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            point.fromBufferAttribute(positions, i);
+            headlightBounds[point.x < 0 ? 0 : 1].expandByPoint(point);
+          }
+        }
+      }
     });
     const wheels = [];
     for (const { material, geometries, isWheel } of parts.values()) {
@@ -194,6 +229,9 @@ export function prepareVehicleModel(model, id) {
       new THREE.MeshStandardMaterial({ color: 0xffedaf, emissive: 0xffcc56, emissiveIntensity: 15, roughness: 0.85 }), flame, 0, 0, -1.08);
     inner.rotation.x = -Math.PI / 2;
     visuals = createModifierCar({ car, wheels, paint, rocket });
+    car.userData.headlights = headlightBounds.map((bounds, i) => bounds.isEmpty()
+      ? [i === 0 ? -0.73 : 0.73, 0.74, 2.3]
+      : [bounds.getCenter(point).x, point.y, bounds.max.z + 0.06]);
     disposeResources(sourceResources, resources);
     return { vehicle, car, wheels, paint, rocket, housing, flame, visuals, dispose };
   } catch (error) {

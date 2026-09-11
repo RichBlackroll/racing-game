@@ -9,6 +9,9 @@ import { createWellingtonWorld } from "./wellington-world.js";
 import { createAmsterdamGroundGeometry, createAmsterdamWorld } from "./amsterdam-world.js";
 import { createLandmarks } from "./landmarks.js";
 import { createAtmosphere } from "./atmosphere.js";
+import { createDaylight, enableGeometryShadows } from "./daylight.js";
+import { createNightLighting } from "./night-lights.js";
+import { createTimeControls } from "./time-controls.js";
 import { createFinishLine } from "./finish-line.js";
 import { createJumpPhysics } from "./jumps.js";
 import { createConeField } from "./cones.js";
@@ -157,22 +160,7 @@ export async function main(loading) {
     );
   }
   groundTex.colorSpace = THREE.SRGBColorSpace;
-  const sun = new THREE.DirectionalLight(isMoon ? 0xffffff : 0xffe1ae, isMoon ? 3.2 : 3.1);
-  sun.position.set(-course.halfSize * 1.25, course.halfSize * 1.1, -course.halfSize * .86);
-  if (isWellington) sun.position.z *= -1;
-  sun.castShadow = true;
-  sun.shadow.mapSize.setScalar(device.tablet ? 2048 : 4096);
-  Object.assign(sun.shadow.camera, {
-    left: -course.halfSize - 40,
-    right: course.halfSize + 40,
-    top: course.halfSize + 40,
-    bottom: -course.halfSize - 40,
-    far: course.halfSize * 4,
-  });
-  sun.shadow.bias = -0.0002;
-  sun.shadow.normalBias = 0.12;
-  scene.add(sun, sun.target);
-  scene.add(new THREE.HemisphereLight(0xc4dce5, isMoon ? 0x545967 : 0x555b43, isMoon ? 1 : 0.85));
+  const daylight = createDaylight({ scene, renderer, level, tablet: device.tablet });
   const mat = (color, extra = {}) =>
     new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra });
   function mesh(geo, material, parent = scene, x = 0, y = 0, z = 0) {
@@ -396,11 +384,6 @@ export async function main(loading) {
   }
   boostButton.onclick = activateBoost;
 
-  const fill = new THREE.RectAreaLight(0xffe6d2, 3, 12, 12);
-  fill.position.set(-12, 10, 108);
-  fill.lookAt(car.position);
-  scene.add(fill);
-
   await loading.phase(3, isMoon ? "Hanging the Earth in the sky..." : "Letting a little sunshine in...");
   // Ground occlusion is baked once; scenery keeps its physical materials.
   let bakedShadow, carShadow;
@@ -430,32 +413,9 @@ export async function main(loading) {
   }
   for (const t of treeInfo) {
     oval(t.x, t.z, t.w * 1.4, t.w * 1.4, 0, 0.4);
-    for (let n = 1; n <= 5; n++) {
-      let f = n / 5;
-      oval(
-        t.x + t.h * 0.8 * f,
-        t.z + t.h * 0.6 * f,
-        t.w * (1.1 - f * 0.65),
-        t.w * (1.1 - f * 0.65),
-        0,
-        0.22,
-      );
-    }
   }
-  for (const b of buildingInfo) {
-    ctx.save();
-    ctx.fillStyle = "rgba(21,32,40,.3)";
-    ctx.beginPath();
-    const dx = b.h * 0.8,
-      dz = b.h * 0.6;
-    ctx.moveTo(px(b.x - b.w / 2), px(b.z - b.d / 2));
-    ctx.lineTo(px(b.x + b.w / 2), px(b.z - b.d / 2));
-    ctx.lineTo(px(b.x + b.w / 2 + dx), px(b.z + b.d / 2 + dz));
-    ctx.lineTo(px(b.x - b.w / 2 + dx), px(b.z + b.d / 2 + dz));
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
+  // Contact occlusion is directionless; long shadows now come from the moving lights.
+  for (const b of buildingInfo) oval(b.x, b.z, b.w * 0.55, b.d * 0.55, b.rotation ?? 0, 0.22);
   for (const o of obstacles)
     if (o.hx === undefined) oval(o.x, o.z, o.r * 2, o.r * 2, 0, 0.3);
   bakedShadow = new THREE.CanvasTexture(atlas);
@@ -475,16 +435,6 @@ export async function main(loading) {
     geo.setAttribute("uv1", new THREE.BufferAttribute(uv1, 2));
     o.material.aoMap = bakedShadow;
     o.material.aoMapIntensity = 1;
-    const prepareSurface = o.material.onBeforeCompile;
-    const surfaceKey = o.material.customProgramCacheKey();
-    o.material.onBeforeCompile = (shader, gl) => {
-      prepareSurface.call(o.material, shader, gl);
-      shader.fragmentShader = shader.fragmentShader.replace("#include <aomap_fragment>", `
-        #include <aomap_fragment>
-        reflectedLight.directDiffuse *= mix(vec3(1.0), texture2D(aoMap, vAoMapUv).rgb, 0.35);
-      `);
-    };
-    o.material.customProgramCacheKey = () => surfaceKey + "/ground-occlusion";
   }
   // A soft, inexpensive contact shadow follows the moving car.
   const contact = canvasTex(128, (c, z) => {
@@ -534,6 +484,7 @@ export async function main(loading) {
     frameMs = 0,
     fpsFrames = 0,
     fpsStart = performance.now();
+  let lastLightingTick;
   function renderFrame() {
     frameCount++;
     fpsFrames++;
@@ -559,6 +510,13 @@ export async function main(loading) {
     carShadow.geometry.computeBoundingSphere();
     carShadow.material.opacity = Math.max(.18, 1 - clearance * .065);
     landscape.animate(performance.now() / 1000);
+    const lightState = daylight.update(car.position);
+    nightLighting.update({ night: lightState.night, car, vehicleModel,
+      braking: !!(keys.s || keys.arrowdown || keys[" "]), snap: paused || loading.active,
+      dt: lastLightingTick === undefined ? 0 : (tick - lastLightingTick) / 1000 });
+    lastLightingTick = tick;
+    atmosphere.setDaylight(lightState);
+    timeControls.update();
     const inside = camMode === 2;
     cockpit.setActive(inside);
     cockpit.update({ speed, steer, travel, handbrake: !!keys[" "], boosting, recovering,
@@ -969,6 +927,10 @@ export async function main(loading) {
     if (loading.active || (paused && !modifier.active) || document.hidden || contextLost || (adventure.busy() && !modifier.active)) {
       audio.silence();
       last = now;
+      if (sceneDirty && gameReady && !loading.active && !modifier.active && !document.hidden && !contextLost) {
+        renderFrame();
+        sceneDirty = false;
+      }
       return;
     }
     // Rendering deadlines are separate from the actual elapsed physics time.
@@ -979,6 +941,7 @@ export async function main(loading) {
       garagePreview.render(dt);
       return;
     }
+    daylight.advance(dt);
     if (device.tablet) {
       qualityFrames++;
       if (now - qualityStart >= 3000) {
@@ -1170,8 +1133,9 @@ export async function main(loading) {
     camera.lookAt(target);
   }
   await loading.phase(4, "Calling your friends. You're almost there...");
-  // Only static scenery enters the cached sun shadow; the car uses contact AO.
-  car.traverse((object) => { if (object.isMesh) object.castShadow = false; });
+  enableGeometryShadows(scene);
+  const nightLighting = createNightLighting({ scene, tablet: device.tablet });
+  const timeControls = createTimeControls({ daylight, onChange: () => { sceneDirty = true; } });
   renderer.shadowMap.needsUpdate = true;
   updateCamera(1);
   gameReady = true;
@@ -1237,6 +1201,11 @@ export async function main(loading) {
     carModel: vehicleModel.vehicle.name,
     vehicle: vehicleModel.vehicle.id,
     level,
+    timeOfDay: { hour: daylight.state().hour, period: daylight.state().period,
+      running: daylight.state().running, cycleMinutes: daylight.state().cycleMinutes,
+      daylight: daylight.state().daylight, night: daylight.state().night, stars: daylight.state().stars,
+      sunDirection: daylight.state().sunDirection.toArray(), moonDirection: daylight.state().moonDirection.toArray() },
+    nightLighting: nightLighting.state(),
     course: { length: course.length, elevation: course.elevation, samples: route.length,
       groundHeight: heightAt(car.position.x, car.position.z), pitch: surfacePose.pitch,
       bank: surfacePose.roll, grade: surfacePose.grade, progress: course.nearest(car.position.x, car.position.z).along / course.length },

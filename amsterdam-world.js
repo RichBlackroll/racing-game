@@ -31,6 +31,7 @@ export function createAmsterdamGroundGeometry() {
 export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingInfo = [], treeInfo = [], tablet = false }) {
   const group = new THREE.Group(), decoration = new THREE.Group();
   group.name = "amsterdam/architecture";
+  group.userData.nightLights = [];
   decoration.name = "amsterdam/landscape";
   scene.add(group, decoration);
   const counts = { houses: 0, buildings: 0, bridges: 0, bicycles: 0, houseboats: 0, tourBoats: 0,
@@ -49,7 +50,8 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
     materials[name].name = `amsterdam/${name}`;
   }
   materials.light.emissive.set(0xffc786);
-  materials.light.emissiveIntensity = .8;
+  materials.light.emissiveIntensity = 0;
+  materials.light.userData.nightIntensity = 1.2;
   materials.glass.envMapIntensity = 1.2;
   materials.masonry.onBeforeCompile = shader => {
     shader.vertexShader = "varying vec3 vBrickPosition; varying vec3 vBrickNormal;\n" + shader.vertexShader;
@@ -130,6 +132,7 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
     const mesh = new THREE.Mesh(geometry, materials[batch.material]);
     mesh.name = `${batch.node.name}/${batch.material}-${batch.node.children.length}`;
     mesh.castShadow = !["sign", "street", "light"].includes(batch.material);
+    if (!mesh.castShadow) mesh.userData.castShadow = false;
     mesh.receiveShadow = true;
     mesh.userData.parts = batch.parts;
     batch.node.add(mesh);
@@ -358,6 +361,7 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       const geometry = new THREE.PlaneGeometry(xMax - canal.xMin, canal.zMax - canal.zMin).rotateX(-Math.PI / 2);
       const water = new THREE.Mesh(geometry, waterMaterial);
       water.name = `amsterdam/water/${canal.name}`;
+      water.userData.castShadow = false;
       water.position.set((canal.xMin + xMax) / 2, AMSTERDAM.waterY, (canal.zMin + canal.zMax) / 2);
       decoration.add(water);
     }
@@ -697,6 +701,10 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
 
   function lamp(k, x, z) {
     counts.lights++;
+    // The pooled downlight sits just outside the opaque post and below the glazing.
+    const point = coordinates(x + .28, z);
+    group.userData.nightLights.push({ position: [point.x, AMSTERDAM.landY + 4.35, point.z],
+      color: 0xffc786, intensity: 75, distance: 22 });
     k.cylinder("metal", x, .22, z, .19, .44, { color: 0x2b4438, name: "lantern-cast-iron-base" });
     k.cylinder("metal", x, 2.45, z, .073, 4.8, { color: 0x2b4438, name: "historic-street-lamp" });
     k.box("light", x, 4.68, z, .38, .54, .38, { color: 0xe5cfa0, name: "warm-lantern-glazing" });

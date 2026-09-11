@@ -11,8 +11,10 @@ export function createFriendRacerCar(friend, config) {
   const dark = new THREE.MeshStandardMaterial({ color: 0x18212b, roughness: .65 });
   const glass = new THREE.MeshStandardMaterial({ color: 0x314b60, roughness: .16, metalness: .6 });
   const silver = new THREE.MeshStandardMaterial({ color: 0xd9e1e6, roughness: .3, metalness: .7 });
-  const light = new THREE.MeshBasicMaterial({ color: 0xffedbd });
-  const red = new THREE.MeshBasicMaterial({ color: 0xff352d });
+  const light = new THREE.MeshStandardMaterial({ color: 0xffedbd, emissive: 0xffedbd, emissiveIntensity: 0 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xff352d, emissive: 0xff180e, emissiveIntensity: 0 });
+  light.userData.nightIntensity = 1.8;
+  red.userData.nightIntensity = 1.3;
   const cube = new RoundedBoxGeometry(1, 1, 1, 1, .12);
   function box(parent, material, size, position) {
     const mesh = new THREE.Mesh(cube, material);
@@ -56,7 +58,7 @@ export function createFriendRacerCar(friend, config) {
   const mountHeight = Math.max(.13, (visuals.spoiler.topY ?? 0) + .08 - sign.position.y);
   const signCenter = mountHeight + .29;
   for (const x of [-.56, .56]) box(sign, dark, [.12, mountHeight, .28], [x, mountHeight / 2, 0]);
-  box(sign, light, [1.85, .58, .42], [0, signCenter, 0]);
+  box(sign, new THREE.MeshBasicMaterial({ color: 0xffedbd }), [1.85, .58, .42], [0, signCenter, 0]);
   const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 160;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#fff2bd"; ctx.fillRect(0, 0, 512, 160);

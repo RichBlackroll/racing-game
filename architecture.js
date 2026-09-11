@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { occupiedWindowEmission } from "./night-lights.js";
 
 /**
  * Standalone scenery builder. Appends to the supplied collision/shadow arrays;
@@ -23,6 +24,7 @@ export function createArchitecture({ scene, level, obstacles = [], buildingInfo 
   };
   const group = new THREE.Group();
   group.name = `architecture/${level}`;
+  group.userData.nightLights = [];
   scene.add(group);
   const standard = (name, color, roughness, metalness = 0) => {
     const material = new THREE.MeshStandardMaterial({ color, roughness, metalness, vertexColors: true });
@@ -47,7 +49,9 @@ export function createArchitecture({ scene, level, obstacles = [], buildingInfo 
     }),
   };
   materials.light.emissive.set(0xffc588);
-  materials.light.emissiveIntensity = 2.1;
+  materials.light.emissiveIntensity = 0;
+  materials.light.userData.nightIntensity = 2.1;
+  occupiedWindowEmission(materials.glass);
 
   // All prototypes use the same non-indexed attribute layout. Batches are local
   // to a district, capped at 60k vertices, and use one material without groups.
@@ -283,6 +287,8 @@ export function createArchitecture({ scene, level, obstacles = [], buildingInfo 
     box("bronze", x, 3.15, z, 0.12, 5.82, 0.18, `${feature}/mast`);
     box("bronze", x + inward * 0.6, 6.02, z, 1.32, 0.14, 0.24, `${feature}/head`);
     box("light", x + inward * 0.65, 5.942, z, 1.0, 0.025, 0.12, `${feature}/recess`);
+    group.userData.nightLights.push({ position: [x + inward * 0.65, heightAt(x + inward * 0.65, z) + 5.9, z],
+      color: 0xffc588, intensity: 95, distance: 24 });
     collider(`${owner}/${feature}`, "light", x, z, 0.12, 0.18, 6.1);
     counts.lights++;
   }

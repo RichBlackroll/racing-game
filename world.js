@@ -115,6 +115,7 @@ export function createLandscape({ scene, ground, level, roadDist, route, obstacl
     water.rotation.x = -Math.PI / 2;
     water.position.set(boundary + 810, -0.15, -120);
     water.name = "landscape/distant-tidal-water";
+    water.userData.castShadow = false;
     group.add(water);
   }
 
@@ -284,6 +285,8 @@ export function createLandscape({ scene, ground, level, roadDist, route, obstacl
     mesh.boundingSphere.radius += 1;
     mesh.receiveShadow = true;
     mesh.castShadow = !name.startsWith("meadow");
+    // Thousands of grass cards receive the changing light without shadow-map overdraw.
+    if (!mesh.castShadow) mesh.userData.castShadow = false;
     group.add(mesh);
   }
   return {

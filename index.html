@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="tablet.css" />
     <link rel="stylesheet" href="experience.css" />
     <link rel="stylesheet" href="cockpit.css" />
+    <link rel="stylesheet" href="time-controls.css" />
   </head>
   <body>
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
@@ -168,6 +169,33 @@
       <button id="sound" aria-label="Engine sound" aria-pressed="true" title="Engine sound">
         <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Sound</span>
       </button>
+      <div id="time-controls">
+        <button type="button" id="time-toggle" disabled aria-expanded="false" aria-controls="time-panel" aria-haspopup="dialog" title="Time of day">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+          <span class="sr-only">Time of day, </span><span id="time-clock">16:30</span>
+        </button>
+        <section id="time-panel" role="dialog" aria-modal="false" aria-labelledby="time-title" hidden>
+          <div class="time-heading">
+            <div><h2 id="time-title">Time of day</h2><p id="time-period">Golden hour</p></div>
+            <button type="button" id="time-close" aria-label="Close time controls"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+          </div>
+          <div class="time-range-label"><label for="time-range">Game time</label><span id="time-reading" aria-hidden="true">16:30</span></div>
+          <input id="time-range" type="range" min="0" max="1439" step="1" value="990" aria-valuetext="16:30 game time" />
+          <div class="time-scale" aria-hidden="true"><span>00:00</span><span>12:00</span><span>23:59</span></div>
+          <div class="time-presets" role="group" aria-label="Time presets">
+            <button type="button" data-time-hour="6"><span>Dawn</span><small>06:00</small></button>
+            <button type="button" data-time-hour="12"><span>Day</span><small>12:00</small></button>
+            <button type="button" data-time-hour="17.5"><span>Golden hour</span><small>17:30</small></button>
+            <button type="button" data-time-hour="22"><span>Night</span><small>22:00</small></button>
+          </div>
+          <div class="time-cycle-row">
+            <button type="button" id="time-running" aria-label="Auto cycle" aria-pressed="true" aria-describedby="time-cycle-hint"><span>Auto cycle</span><span id="time-running-state" aria-hidden="true">Running</span></button>
+            <label class="time-speed-label" for="time-cycle-speed">Minutes / day<select id="time-cycle-speed"><option value="3">3 min</option><option value="12" selected>12 min</option><option value="30">30 min</option></select></label>
+          </div>
+          <p id="time-cycle-hint">Freeze the sky, not your drive.</p>
+          <p id="time-lights">Night lighting: 0%</p>
+        </section>
+      </div>
     </nav>
 
     <div class="badge"><span class="dot"></span> PINE VALLEY / FREE DRIVE</div>

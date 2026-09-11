@@ -197,7 +197,7 @@ export function decorateMoonLandmarks(kit) {
     for (const x of [-6, 0, 6]) {
       s.torus(C.silver, x, y + 5, -14, 4.02, 0.1, 0, HALF_PI);
       s.box(C.teal, x, y + 5, -10.05, 3.5, 2.4, 0.2);
-      s.box(C.glass, x, y + 5, -9.91, 2.9, 1.8, 0.12);
+      s.window(C.glass, x, y + 5, -9.91, 2.9, 1.8, 0.12);
     }
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
@@ -269,7 +269,7 @@ export function decorateMoonLandmarks(kit) {
     s.cylinder(C.cream, -24, ty + 2.5, -3, 1.7, 1.7, 5);
     s.sphere(C.teal, -24, ty + 5, -3, 1.7, 0.6, 1.7);
     s.torus(C.coral, -24, ty + 1, -3, 1.72, 0.12, HALF_PI);
-    s.box(C.glass, -24, ty + 2.8, -1.28, 0.45, 2.6, 0.1);
+    s.window(C.glass, -24, ty + 2.8, -1.28, 0.45, 2.6, 0.1);
     s.beam(C.teal, [-24, ty + 1.4, -3], [-21, ty + 1.4, -3], 0.2);
     s.cylinder(C.yellow, -21, ty + 1.5, -3, 0.5, 0.5, 0.18);
     s.solid(-22.7, -3, 3, 1.8, 5.6, ty);
@@ -375,7 +375,7 @@ export function decorateMoonLandmarks(kit) {
     s.box(C.coral, -20, by + 1.1, 13.04, 8, 0.45, 0.12);
     for (const wx of [-22.3, -17.7]) {
       s.box(C.teal, wx, by + 4.8, 13.08, 2.5, 2, 0.15);
-      s.box(C.glass, wx, by + 4.8, 13.2, 2, 1.5, 0.12);
+      s.window(C.glass, wx, by + 4.8, 13.2, 2, 1.5, 0.12);
     }
     s.box(C.teal, -20, by + 2, 13.1, 1.8, 4, 0.18);
     s.box(C.yellow, -19.4, by + 2, 13.24, 0.16, 0.45, 0.12);
@@ -512,7 +512,7 @@ export function decorateStuntLandmarks(kit) {
     s.box(C.cream, -22, by + 3, 12, 6, 6, 6);
     s.cone(C.coral, -22, by + 7.2, 12, 4.4, 2.4);
     s.box(C.teal, -22, by + 3.9, 15.04, 4.7, 2.2, 0.15);
-    s.box(C.glass, -22, by + 4, 15.16, 4, 1.6, 0.1);
+    s.window(C.glass, -22, by + 4, 15.16, 4, 1.6, 0.1);
     s.box(C.yellow, -22, by + 2.7, 15.35, 5, 0.25, 0.8);
     for (const x of [-24, -22, -20]) s.box(C.coral, x, by + 1.1, 15.06, 0.8, 2, 0.12);
     s.solid(-22, 12.25, 3, 3.5, 6, by);
@@ -534,7 +534,7 @@ export function decorateStuntLandmarks(kit) {
     const by = s.foundation(C.teal, -12, -7, 7, 19, 0.35);
     s.box(C.cream, -12, by + 5.3, -7, 7, 10.6, 19);
     s.box(C.teal, -12, by + 3, 2.58, 2.5, 6, 0.16);
-    s.box(C.glass, -12, by + 4.4, 2.7, 1.8, 1.8, 0.12);
+    s.window(C.glass, -12, by + 4.4, 2.7, 1.8, 1.8, 0.12);
     s.box(C.coral, -8.43, by + 8, -7, 0.14, 0.7, 18);
     s.solid(-12, -7, 3.5, 9.7, 10.6, by);
 

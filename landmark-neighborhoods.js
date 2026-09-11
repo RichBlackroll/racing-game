@@ -7,7 +7,7 @@ const HALF_PI = Math.PI / 2;
 
 function windowFrame(s, x, y, z, w = 1.6, h = 1.7) {
   s.box(C.cream, x, y, z, w + 0.28, h + 0.28, 0.2);
-  s.box(C.mist, x, y, z + 0.13, w, h, 0.08);
+  s.window(C.mist, x, y, z + 0.13, w, h, 0.08);
   s.box(C.cream, x, y, z + 0.2, 0.1, h, 0.08);
   s.box(C.cream, x, y, z + 0.2, w, 0.1, 0.08);
 }

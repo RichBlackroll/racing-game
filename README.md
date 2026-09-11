@@ -19,6 +19,44 @@ or full storage keeps the game playable but cannot retain choices across reloads
 `session.js` owns `wildrun-session-v1` in localStorage. It does not sync devices.
 An explicit valid `?level=` link overrides the last map saved on this device.
 
+## Time of day
+
+The toolbar clock shows live 24-hour game time, not your device's local time.
+Tap it to open a compact Time of day panel. On narrow phones the clock sits
+beside the brand, or just below the toolbar on short portrait screens, keeping
+the driving buttons at full touch size. The panel scrolls on short screens;
+closing it leaves steering and pedals unobstructed.
+
+- Drag Game time, or use its arrow keys, Home and End, to choose any minute.
+- Dawn (06:00), Day (12:00), Golden hour (17:30), and Night (22:00) jump immediately.
+- Auto cycle toggles Running/Frozen. Freezing holds the time without pausing the car;
+  choosing a time or preset does not automatically freeze the cycle.
+- Minutes / day selects 3, 12, or 30 real minutes per full game day.
+- Night lighting shows the current night-lighting blend, not a separate lights switch.
+- Escape or Close returns focus to the clock. Clicking outside or tabbing out closes
+  the panel. Keys used inside the controls do not steer, reset, or boost the car.
+  The updating clock is not a live screen-reader announcement.
+
+The daylight controller defaults to 16:30 and a 12-minute day, running unless
+prefers-reduced-motion is enabled. A valid saved choice overrides these defaults.
+Time controls save only your chosen time, auto-cycle setting, and day length in
+`wildrun-time-controls-v1`, separate from the driving session. Slider selections
+save when committed, not on every animation frame. Changing speed or freezing later
+does not replace your saved time with the automatically advanced clock. Invalid
+settings fall back to controller defaults; unavailable storage leaves controls usable.
+
+Day/night skies, planets, and aurora are stylized scenery, not an astronomical
+simulation: game time does not predict real planetary positions, seasons, or aurora.
+
+`time-controls.js` exports `createTimeControls({ daylight, onChange })`, returning
+`{ update(), dispose() }`. The caller supplies the daylight controller, marks the scene
+dirty in `onChange`, calls `update()` each render, and calls `dispose()` at teardown.
+The controls never advance time or own a render loop. They consume `state()` with
+`{ hour, daylight, night, period, running, cycleMinutes }` and the setters
+`setHour(number)`, `setRunning(boolean)`, and `setCycleMinutes(number)`.
+Run `node --test time-controls.test.js` for settings validation, persistence,
+keyboard isolation, focus, dismissal, and lifecycle checks using a lightweight DOM mock.
+
 ## Mobile browsers and touch screens
 
 Both portrait and landscape layouts have separate steering, accelerator/brake,
@@ -37,7 +75,7 @@ iPad (including Safari's desktop identity) and coarse-pointer phones use the sam
 renderer with reduced scenery detail. Tablet rendering caps the drawing buffer at
 1.2 million pixels, targets at most 60 updates per second, and adjusts resolution
 after sustained slow frames. Normal and roughness ground downloads are skipped.
-The iPad profile uses smaller occlusion and static shadow maps, fewer vegetation
+The iPad profile uses smaller occlusion and dynamic shadow maps, fewer vegetation
 instances and facade details, and disables multisample AA.
 The frame limiter preserves its timing remainder on 90/120/144 Hz displays without
 accelerating physics. The garage renders only after changes or during camera
@@ -61,9 +99,16 @@ Serve this folder with `python3 -m http.server 8765`, then open http://localhost
   and handbrake indicator, with dashboard trim, vents, and windshield pillars.
 - R: reset the car and boost.
 
-Rendering retains physically based materials, HDR reflections, and one cached
-sun-shadow map. Ground occlusion is baked separately; the moving car uses a soft
-contact shadow, so no shadow map is regenerated per frame. A half-float HDR
+Rendering retains physically based materials and HDR reflections. `daylight.js`
+coordinates moving sun and moon lights, sky colors, ambient light, exposure and
+reflection intensity. Texel-snapped local shadow maps follow the car, including
+moving vehicles, people and props; ground contact occlusion remains directionless.
+`night-lights.js` fades occupied windows, street lamps and vehicle lenses at dusk.
+Two scene-owned headlights illuminate the road even in cockpit view, and a bounded
+pool of nearby streetlights casts shadows (four on desktop, two on tablet).
+Time advances only during active driving, not in menus, pause or background tabs;
+choosing another time while paused still redraws the lighting immediately.
+A half-float HDR
 resolve adds restrained highlight bloom, color grading, and vignette, with a
 direct-render fallback on devices without the required render-target support.
 
@@ -71,8 +116,11 @@ direct-render fallback on devices without the required render-target support.
 `world.js` plants conifers, meadow grass, and weathered stone on those hills,
 with continuous mountain/coastal relief beyond them. `architecture.js` builds the city's stepped glass/travertine
 facades and planted terraces, forest visitor pavilions, and stunt-park canopy.
-`atmosphere.js` supplies the procedural sky, sun glow, aerial haze, and pollen;
-reduced-motion preferences stop decorative wind, water, cloud, and pollen motion.
+`atmosphere.js` and `celestial-sky.js` supply sun glow, aerial haze, cirrus, pollen,
+stars, a dusty Milky Way, a cratered moon, stylized planets (including ringed Saturn),
+and green/teal/violet aurora curtains. Moon Run retains its black vacuum sky and
+Earth landmark, without an atmospheric aurora or a second moon.
+Reduced-motion preferences stop decorative wind, water, cloud, aurora and pollen motion.
 Road surfaces, four-point chassis grounding, cameras, buildings, and scenery all
 sample the same elevations. `terrain-physics.js` supplies matching Cannon
 heightfields for cones, toys, pedestrians, and ramp flight. Run `npm test` for

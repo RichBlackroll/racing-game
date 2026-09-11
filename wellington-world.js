@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { occupiedWindowEmission } from "./night-lights.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { WELLINGTON, isWellingtonLand } from "./wellington-layout.js";
 
@@ -148,8 +149,9 @@ export function createWellingtonWorld({ scene, course, obstacles = [], buildingI
   const heightAt = (x, z) => course.heightAt(x, z);
   const group = new THREE.Group(), landscapeGroup = new THREE.Group();
   group.name = "wellington/world"; landscapeGroup.name = "wellington/landscape";
+  group.userData.nightLights = [];
   scene.add(group, landscapeGroup);
-  const counts = { sites: 0, landmarks: 0, buildings: 0, urbanBuildings: 0, trees: 0, colliders: 0,
+  const counts = { sites: 0, landmarks: 0, buildings: 0, urbanBuildings: 0, trees: 0, lights: 0, colliders: 0,
     parts: 0, meshes: 0, triangles: 0, instances: 0, drawCalls: 0, terrainTriangles: 0, labels: 0, wharves: WELLINGTON.wharves.length };
   const sites = WELLINGTON.landmarks.map(p => ({ id: p.id, name: p.name, x: p.x, z: p.z,
     radius: Math.hypot(p.w, p.d) / 2, access: [], ...(p.type === "wharenui" ? { interior: "tepapa" } : {}) }));
@@ -163,7 +165,12 @@ export function createWellingtonWorld({ scene, course, obstacles = [], buildingI
     glass: material("blue-green-glazing", 0x6d9b9f, 0.2, 0.55), gold: material("takina-bronze", 0xba944a, 0.35, 0.65),
     copper: material("aged-copper", 0x586e61, 0.55, 0.45), blue: material("boathouse-blue", 0x477d9b),
     roof: material("slate-roof", 0x596568), foliage: material("pohutukawa-foliage", 0x416b51),
+    light: material("street-lamp-lenses", 0xffe1b2, 0.35),
   };
+  occupiedWindowEmission(materials.glass);
+  materials.light.emissive.set(0xffcf91);
+  materials.light.emissiveIntensity = 0;
+  materials.light.userData.nightIntensity = 1.8;
   function mesh(name, geometry, mat, parent = group) {
     const object = new THREE.Mesh(geometry, mat); object.name = `wellington/${name}`;
     object.receiveShadow = true; parent.add(object); return object;
@@ -199,6 +206,7 @@ export function createWellingtonWorld({ scene, course, obstacles = [], buildingI
   waterMaterial.customProgramCacheKey = () => "wellington-harbour-v1";
   const water = mesh("harbour-water", new THREE.PlaneGeometry(16000, 16000).rotateX(-Math.PI / 2), waterMaterial, landscapeGroup);
   water.position.y = WELLINGTON.waterY; water.receiveShadow = false;
+  water.userData.castShadow = false;
   // A single asymmetric eastern shore, not a mountain ring. These are scenic
   // silhouettes beyond the georeferenced playable square, not a claimed DEM.
   const hillVertices = [], hillIndices = [], columns = tablet ? 64 : 96, rows = tablet ? 10 : 16;
@@ -476,6 +484,25 @@ export function createWellingtonWorld({ scene, course, obstacles = [], buildingI
     obstacles.push({ x, y, z, r: 0.35, height: h, kind: "tree" }); counts.colliders++; counts.trees++;
     instance("box", "dark", x, y + h * 0.3, z, 0.5, h * 0.6, 0.5);
     instance("leaf", "foliage", x, y + h * 0.72, z, h * 0.48, h * 0.33, h * 0.45);
+  }
+  // Slender decorative fixtures share existing instancing cells. Keep them off
+  // the driving corridor, intersections, water and mapped landmark grounds.
+  for (const street of streets) {
+    const dx = street.b.x - street.a.x, dz = street.b.z - street.a.z, length = Math.hypot(dx, dz);
+    const nx = -dz / length, nz = dx / length, rotation = Math.atan2(nx, nz);
+    for (let along = 18, i = 0; along < length - 18; along += 48, i++) {
+      const side = i % 2 ? -1 : 1, offset = side * (street.width / 2 + 1.2);
+      const x = street.a.x + dx * along / length + nx * offset;
+      const z = street.a.z + dz * along / length + nz * offset;
+      if (!isWellingtonLand(x, z, 0.8) || !clearLandmark(x, z, 0.5) || course.nearest(x, z).distance < 9.5
+        || streets.some(s => segmentDistance(x, z, s.a, s.b) < s.width / 2 + 0.8)) continue;
+      const y = heightAt(x, z), lx = x - nx * side * 0.6, lz = z - nz * side * 0.6;
+      instance("box", "dark", x, y + 3.5, z, 0.14, 7, 0.14);
+      instance("box", "dark", lx, y + 7, lz, 0.36, 0.16, 1.5, 0xffffff, rotation);
+      instance("box", "light", lx, y + 6.91, lz, 0.28, 0.025, 1.25, 0xffffff, rotation);
+      group.userData.nightLights.push({ position: [lx, y + 6.86, lz], color: 0xffcf91, intensity: 130, distance: 30 });
+      counts.lights++;
+    }
   }
   for (const [mat, batch] of batches) {
     const geometry = mergeGeometries(batch.geometries, false); batch.geometries.forEach(g => g.dispose());

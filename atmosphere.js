@@ -1,8 +1,9 @@
 import * as THREE from "three";
+import { createCelestialSky } from "./celestial-sky.js";
 
 /**
  * Create after level scenery; set camera.far >= 1400 and updateProjectionMatrix().
- * Replace renderer.render(scene, camera) with atmosphere.render(timeSeconds).
+ * Call setDaylight(controllerState) before each render(timeSeconds).
  * resize() follows the caller's setSize/setPixelRatio (including adaptive budgets);
  * render() also checks dimensions. dispose() before replacing the level.
  * Owns a full-canvas render, not a composer pass; leaves exposure/environment alone.
@@ -16,7 +17,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
   const horizon = new THREE.Color(waterfront ? 0xb7d4dd : amsterdam ? 0xc5d2ce : 0xbfc5bc);
   // A softer density than the near-field fog keeps 250-650 m ridges in the haze.
   const fog = moon ? null : new THREE.FogExp2(horizon, waterfront ? 0.00016 : amsterdam ? 0.0015 : forest ? 0.0016 : 0.0025);
-  if (fog) scene.fog = fog;
+  scene.fog = fog;
 
   const motionQuery = typeof window !== "undefined" && window.matchMedia
     ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -27,94 +28,9 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
   let animationTime = 0;
   let previousTime;
   let disposed = false;
-  let sky = null;
+  const celestial = createCelestialSky({ scene, level, tablet });
+  const { sky } = celestial;
   let pollen = null;
-
-  if (!moon) {
-    sky = new THREE.Mesh(
-      new THREE.SphereGeometry(900, 48, 24),
-      new THREE.ShaderMaterial({
-        name: "AtmosphereSkyMaterial",
-        side: THREE.BackSide,
-        depthWrite: false,
-        depthTest: false,
-        fog: false,
-        uniforms: {
-          uTime: { value: 0 },
-          uHorizon: { value: horizon },
-          uZenith: { value: new THREE.Color(waterfront ? 0x5289b1 : 0x567b84) },
-          uSun: { value: new THREE.Vector3(-0.55, 0.48, waterfront ? 0.38 : -0.38).normalize() },
-        },
-        vertexShader: /* glsl */ `
-          varying vec3 vDirection;
-          void main() {
-            vDirection = position;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            gl_Position.z = gl_Position.w;
-          }
-        `,
-        fragmentShader: /* glsl */ `
-          uniform float uTime;
-          uniform vec3 uHorizon;
-          uniform vec3 uZenith;
-          uniform vec3 uSun;
-          varying vec3 vDirection;
-
-          float hash(vec2 p) {
-            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-          }
-          float noise(vec2 p) {
-            vec2 i = floor(p), f = fract(p);
-            f = f * f * (3.0 - 2.0 * f);
-            return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-                       mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
-          }
-          void main() {
-            vec3 d = normalize(vDirection);
-            float elevation = max(d.y, 0.0);
-            float mu = clamp(dot(d, uSun), -1.0, 1.0);
-            // Optical path length grows at grazing angles; blue scatters first.
-            float airMass = 1.0 / sqrt(elevation * elevation + 0.025);
-            vec3 transmission = exp(-vec3(0.20, 0.29, 0.40) * (airMass - 0.988));
-            transmission *= smoothstep(0.0, 0.18, elevation);
-            vec3 color = mix(uHorizon, uZenith, transmission);
-            color = mix(uHorizon * 0.91, color, smoothstep(-0.18, 0.04, d.y));
-            float rayleigh = 0.75 * (1.0 + mu * mu);
-            color += vec3(0.025, 0.045, 0.055) * rayleigh * elevation;
-            float sunward = pow(max(mu, 0.0), 3.0);
-            color += vec3(0.19, 0.105, 0.035) * sunward * exp(-elevation * 2.3);
-            // A restrained forward-scattering lobe plus a broad aureole.
-            float mie = 0.065 / pow(max(1.0 + 0.76 * 0.76 - 1.52 * mu, 0.05), 1.5);
-            color += vec3(1.0, 0.73, 0.43) * (mie * 0.17 + 0.10 * pow(max(mu, 0.0), 8.0));
-
-            // Stretched, gently sheared cirrus filaments, not an isotropic fBm field.
-            vec2 p = d.xz / max(d.y + 0.22, 0.12);
-            p = mat2(0.87, -0.49, 0.49, 0.87) * p;
-            p += vec2(uTime * 0.0018, uTime * 0.0005);
-            float bend = noise(p * vec2(0.65, 1.7));
-            vec2 stretched = vec2(p.x * 0.85, p.y * 15.0 + bend * 3.0);
-            float fibers = noise(stretched) * 0.7 + noise(stretched * vec2(1.8, 2.1)) * 0.3;
-            float coverage = smoothstep(0.40, 0.77, noise(p * vec2(0.4, 1.3) + 19.0));
-            float clouds = smoothstep(0.49, 0.77, fibers) * coverage;
-            clouds *= smoothstep(0.04, 0.24, d.y) * (1.0 - smoothstep(0.80, 1.0, d.y));
-            color = mix(color, vec3(0.95, 0.90, 0.77) + sunward * vec3(0.22, 0.12, 0.03), clouds * 0.18);
-
-            float sunAngle = acos(mu);
-            float edge = max(fwidth(sunAngle), 0.0003);
-            float disk = 1.0 - smoothstep(0.00465 - edge, 0.00465 + edge, sunAngle);
-            color += vec3(12.0, 9.6, 6.4) * disk * (1.0 - clouds * 0.35);
-            gl_FragColor = vec4(color, 1.0);
-            #include <tonemapping_fragment>
-            #include <colorspace_fragment>
-          }
-        `,
-      }),
-    );
-    sky.name = "AtmosphereSky";
-    sky.renderOrder = -1000;
-    sky.frustumCulled = false;
-    scene.add(sky);
-  }
 
   if (forest || level === "stunt") {
     const count = tablet ? (forest ? 80 : 40) : (forest ? 200 : 100);
@@ -144,19 +60,21 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
         uEye: { value: eye },
         uHeight: { value: 1 },
         uPixelRatio: { value: 1 },
+        uDaylight: { value: 1 },
       },
       vertexShader: /* glsl */ `
         uniform float uTime;
         uniform vec3 uEye;
         uniform float uHeight;
         uniform float uPixelRatio;
+        uniform float uDaylight;
         attribute float aSeed;
         varying float vOpacity;
         void main() {
           vec3 p = position;
           p.x += uTime * (0.11 + aSeed * 0.07);
           p.z += uTime * 0.045;
-           p.y += uEye.y - 3.0 + sin(uTime * 0.32 + aSeed * 30.0) * 0.35;
+          p.y += uEye.y - 3.0 + sin(uTime * 0.32 + aSeed * 30.0) * 0.35;
           vec2 offset = mod(p.xz - uEye.xz + 32.0, 64.0) - 32.0;
           p.xz = uEye.xz + offset;
           vec4 view = viewMatrix * vec4(p, 1.0);
@@ -165,6 +83,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
           vOpacity *= smoothstep(2.0, 6.0, distanceToEye);
           vOpacity *= 1.0 - smoothstep(12.0, 24.0, abs(p.y - uEye.y));
           vOpacity *= 0.12 + aSeed * 0.12;
+          vOpacity *= uDaylight;
           gl_Position = projectionMatrix * view;
           gl_PointSize = clamp(0.027 * uHeight * projectionMatrix[1][1] / max(-view.z, 0.1),
                                1.0, 2.5 * uPixelRatio);
@@ -272,6 +191,19 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
     resolveScene.add(resolve);
   }
 
+  function setDaylight(state) {
+    if (disposed || !state) return;
+    celestial.update({ state });
+    if (fog && state.horizon?.isColor) fog.color.copy(state.horizon);
+    const night = sky.material.uniforms.uNight.value;
+    if (resolve) resolve.material.uniforms.uBloom.value = moon ? 0.025 + night * 0.015 : 0.065 + night * 0.04;
+    if (pollen) {
+      const light = sky.material.uniforms.uDaylight.value * (1 - night);
+      pollen.material.uniforms.uDaylight.value = light;
+      pollen.visible = light > 0.001;
+    }
+  }
+
   function resize() {
     if (disposed) return;
     renderer.getDrawingBufferSize(bufferSize);
@@ -299,11 +231,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
       previousTime = timeSeconds;
     }
     camera.getWorldPosition(eye);
-    if (sky) {
-      sky.position.copy(eye);
-      scene.worldToLocal(sky.position);
-      sky.material.uniforms.uTime.value = animationTime;
-    }
+    celestial.update({ time: animationTime, eye });
     if (pollen) pollen.material.uniforms.uTime.value = animationTime;
     if (!target) {
       renderer.render(scene, camera);
@@ -344,16 +272,17 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
   function dispose() {
     if (disposed) return;
     disposed = true;
-    for (const object of [sky, pollen, resolve]) {
+    celestial.dispose();
+    for (const object of [pollen, resolve]) {
       if (!object) continue;
       object.removeFromParent();
       object.geometry.dispose();
       object.material.dispose();
     }
     target?.dispose();
-    if (fog && scene.fog === fog) scene.fog = previousFog;
+    if (scene.fog === fog) scene.fog = previousFog;
   }
 
   resize();
-  return { render, resize, dispose, sky, pollen };
+  return { setDaylight, render, resize, dispose, sky, pollen };
 }

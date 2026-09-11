@@ -21,11 +21,23 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
   const counts = { sites: 0, parts: 0, meshes: 0, triangles: 0 };
   const transform = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0);
   const detail = tablet ? 12 : 20;
-  const colorMaterial = color => {
+  const colorMaterial = (color, night = false) => {
     if (!materials.has(color)) materials.set(color, new THREE.MeshStandardMaterial({
       color, roughness: 0.66, metalness: level === "moon" ? 0.2 : 0.08,
     }));
-    return materials.get(color);
+    const material = materials.get(color);
+    if (night && material.userData.nightIntensity === undefined) {
+      material.emissive.set(0xffcf91); material.emissiveIntensity = 0;
+      material.userData.nightIntensity = 1.1;
+      material.onBeforeCompile = shader => {
+        shader.vertexShader = "attribute float nightEmission; varying float vNightEmission;\n" + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvNightEmission = nightEmission;");
+        shader.fragmentShader = "varying float vNightEmission;\n" + shader.fragmentShader;
+        shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vNightEmission;");
+      };
+      material.customProgramCacheKey = () => "landmark-selected-panes-v1";
+    }
+    return material;
   };
   const blocked = (x, z, margin) => obstacles.some(o => o.hx === undefined
     ? Math.hypot(x - o.x, z - o.z) < o.r + margin
@@ -58,6 +70,7 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
     sites.push(record);
     clearings.push({ x, z, radius: radius + 3 });
     const batches = new Map(), plazas = [];
+    let windowIndex = 0, emittingWindow = false;
     const ground = (px, pz) => terrain.heightAt(x + px, z + pz) - y;
 
     function emit(color, geometry, px = 0, py = 0, pz = 0, rx = 0, ry = 0, rz = 0) {
@@ -68,6 +81,10 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
       }
       geometry.deleteAttribute("uv");
       geometry.clearGroups();
+      // A per-pane mask preserves the single shared batch for each palette color.
+      geometry.setAttribute("nightEmission", new THREE.Float32BufferAttribute(
+        new Float32Array(geometry.attributes.position.count).fill(emittingWindow ? 1 : 0), 1));
+      if (emittingWindow) colorMaterial(color, true);
       transform.position.set(px, py, pz);
       transform.rotation.set(rx, ry, rz);
       transform.scale.setScalar(1);
@@ -109,6 +126,11 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
     }
     const s = {
       ground, box, solid, label,
+      window(color, ...args) {
+        emittingWindow = windowIndex++ % 3 === 0;
+        box(color, ...args);
+        emittingWindow = false;
+      },
       cylinder: (c, px, py, pz, rt, rb, h, ...rotation) => emit(c, new THREE.CylinderGeometry(rt, rb, h, detail), px, py, pz, ...rotation),
       cone: (c, px, py, pz, r, h, ...rotation) => emit(c, new THREE.ConeGeometry(r, h, detail), px, py, pz, ...rotation),
       sphere: (c, px, py, pz, sx, sy = sx, sz = sx) => emit(c, new THREE.SphereGeometry(1, detail, tablet ? 8 : 12).scale(sx, sy, sz), px, py, pz),
