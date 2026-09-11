@@ -1,0 +1,95 @@
+/* Compact driving keeps the road clear; secondary UI lives in a paused menu. */
+.compact-ui { --ui-gap: 12px; --edge-left: max(var(--ui-gap), env(safe-area-inset-left)); --edge-right: max(var(--ui-gap), env(safe-area-inset-right)); --edge-top: max(var(--ui-gap), env(safe-area-inset-top)); --edge-bottom: max(var(--ui-gap), env(safe-area-inset-bottom)); }
+.compact-ui .brand { display: none; }
+#mobile-toolbar { position: fixed; z-index: 4; top: var(--edge-top); right: var(--edge-right); display: flex; gap: 6px; }
+#mobile-toolbar button { min-width: 44px; height: 44px; padding: 10px; background: var(--ui-surface); box-shadow: var(--ui-shadow); }
+#mobile-toolbar #pause > span { display: none; }
+.compact-ui #game-ui > #friend-hud {
+  top: var(--edge-top); left: var(--edge-left); width: min(260px, calc(100% - var(--edge-left) - var(--edge-right) - 144px));
+  min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  pointer-events: none; text-shadow: 0 1px 4px #101b24, 0 1px 12px #101b24;
+}
+.compact-ui #game-ui > #friend-hud :is(.friend-heading small, button, #friend-dots, #friend-crew) { display: none; }
+.compact-ui #game-ui > #friend-hud #friend-title { margin: 0; font-size: 14px; line-height: 1.3; letter-spacing: -.2px; }
+.compact-ui #game-ui > #friend-hud #friend-clue { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 5px 0 0; font-size: 11px; line-height: 1.4; color: var(--ui-text); }
+.compact-ui .bottom { top: calc(var(--edge-top) + 50px); bottom: auto; left: auto; right: var(--edge-right); transform: none; }
+.compact-ui .bottom .controls { display: none; }
+.compact-ui .bottom .speed { width: auto; padding: 5px 8px; border-radius: 8px; background: #1c2323c9; }
+.compact-ui .speed :is(.instrument-label, .bar) { display: none; }
+.compact-ui .speed .speed-reading { margin: 0; gap: 7px; }
+.compact-ui .speed .speed-meta { flex-direction: row; gap: 5px; }
+.compact-ui .speed #speed { font-size: 22px; letter-spacing: -1px; }
+.compact-ui .speed #gear { min-width: 18px; height: 18px; font-size: 10px; }
+.compact-ui .speed .unit { font-size: 7px; }
+
+.compact-ui.touch-device { --steering-size: 112px; --pedal-width: 58px; --pedal-height: 82px; --drive-bottom: calc(var(--edge-bottom) + 10px); }
+.compact-ui .steering-control, .compact-ui .pedal-control { gap: 0; padding: 0; }
+.compact-ui :is(.steering-control, .pedal-control) > .instrument-label, .compact-ui .steering-hint, .compact-ui .pedal-go small { display: none; }
+.compact-ui #steering-pad { background: #1c2323b8; box-shadow: none; }
+.compact-ui #steering-pad::before { inset: 16px; }
+.compact-ui .steering-thumb { width: 46px; height: 46px; margin: -23px; }
+.compact-ui .pedals { gap: 8px; }
+.compact-ui.touch-device .pedal { gap: 4px; padding: 8px 4px; border-radius: 14px; box-shadow: none; }
+.compact-ui .pedal .icon { width: 20px; height: 20px; margin: 0; }
+.compact-ui .pedal > span { font-size: 12px; }
+.compact-ui .pedal small { font-size: 7px; }
+.compact-ui.touch-device .pedal-brake { height: var(--pedal-height); background: #1c2323c9; }
+.compact-ui.touch-device #handbrake, .compact-ui.touch-device #boost { min-height: 44px; height: 44px; bottom: calc(var(--drive-bottom) + var(--steering-size) + 8px); padding: 8px; }
+.compact-ui.touch-device #handbrake { left: var(--edge-left); width: 44px; }
+.compact-ui.touch-device #handbrake > span { display: none; }
+.compact-ui.touch-device #boost { width: calc(var(--pedal-width) * 2 + 8px); bottom: calc(var(--drive-bottom) + var(--pedal-height) + 8px); }
+.compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 88px); bottom: auto; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(360px, calc(100% - var(--edge-left) - var(--edge-right))); padding: 6px 10px; font-size: 11px; }
+
+#drive-menu { position: fixed; inset: var(--edge-top) var(--edge-right) var(--edge-bottom) var(--edge-left); width: min(520px, calc(100% - var(--edge-left) - var(--edge-right))); max-width: none; max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom)); margin: 0 auto auto; padding: 18px; overflow: auto; overscroll-behavior: contain; color: var(--ui-text); background: #1c2323; border: 1px solid var(--ui-border); border-radius: 18px; }
+#drive-menu::backdrop { background: #101b246b; }
+.drive-menu-heading { position: sticky; top: -18px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -18px -18px 16px; padding: 18px; background: #1c2323; }
+.drive-menu-heading h2 { margin: 0; font-size: 20px; font-weight: 500; }
+.drive-menu-heading p { margin: 6px 0 0; color: var(--ui-muted); font-size: 11px; }
+#drive-menu-close { flex: 0 0 44px; padding: 10px; }
+.compact-ui #drive-menu :is(.top, #friend-hud, .map-card) { animation: none; }
+.compact-ui #drive-menu .top { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: none; padding: 0; border: 0; background: none; box-shadow: none; }
+.compact-ui #drive-menu .top > button { justify-content: flex-start; padding: 10px 12px; background: var(--ui-raised); border-color: var(--ui-border); }
+.compact-ui #drive-menu .top :is(.toolbar-label, #home > span, #configure > span) { display: inline; }
+.compact-ui #drive-menu .top :is(.location-select, .toolbar-divider, kbd) { display: none; }
+.compact-ui #drive-menu #time-controls { grid-column: 1 / -1; width: auto; }
+.compact-ui #drive-menu #time-toggle { position: static; width: 100%; justify-content: flex-start; background: var(--ui-raised); border-color: var(--ui-border); box-shadow: none; }
+.compact-ui #drive-menu #time-toggle .sr-only { position: static; width: auto; height: auto; clip-path: none; overflow: visible; white-space: normal; margin-right: auto; }
+.compact-ui #drive-menu #time-panel { position: static; width: 100%; max-width: none; max-height: none; margin-top: 8px; }
+#drive-menu-info { display: grid; gap: 8px; margin-top: 16px; }
+#drive-menu-info > details { min-width: 0; padding: 0 12px; border: 1px solid var(--ui-border); border-radius: 12px; }
+#drive-menu-info summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; gap: 12px; cursor: pointer; }
+#drive-menu-info summary::-webkit-details-marker { display: none; }
+#drive-menu-info summary::after { content: "+"; color: var(--ui-accent); font-size: 20px; }
+#drive-menu-info details[open] > summary::after { content: "-"; }
+#drive-menu-info summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+#drive-menu-info details[open] { padding-bottom: 12px; }
+.compact-ui #drive-menu #friend-hud { position: static; width: 100%; min-width: 0; padding: 14px; }
+.compact-ui #drive-menu #friend-hud .friend-heading small { display: block; }
+.compact-ui #drive-menu #friend-dots { display: flex; }
+.compact-ui #drive-menu #friend-crew { display: grid; }
+.compact-ui #drive-menu .map-card { display: block; position: static; width: min(100%, 240px); margin: auto; }
+.compact-ui #drive-menu .map-caption { display: flex; }
+.compact-ui #drive-menu .credits { position: static; display: inline-block; transform: none; white-space: normal; padding: 12px 0 0; }
+.touch-device.wellington .credits { bottom: max(22px, calc(env(safe-area-inset-bottom) + 17px)); }
+.compact-ui #map-attribution { left: var(--edge-left); right: var(--edge-right); transform: none; width: max-content; max-width: calc(100% - var(--edge-left) - var(--edge-right)); margin-inline: auto; white-space: normal; }
+
+/* The ornamental cabin must not add a second tall control area on phones. */
+.compact-ui.touch-device #cockpit { --dash-height: calc(var(--drive-bottom) + 94px); }
+.compact-ui .cockpit-wheel, .compact-ui .cockpit-vent, .compact-ui .cockpit-passenger-label, .compact-ui .cockpit-roof, .compact-ui .cockpit-dash { display: none; }
+.compact-ui .cockpit-instruments { display: none; }
+.compact-ui.cockpit-view .speed { position: static; height: auto; overflow: visible; clip-path: none; }
+.compact-ui .cockpit-pillar { width: 24px; }
+.compact-ui .cockpit-mirror { top: auto; bottom: calc(var(--drive-bottom, 22px) + 12px); width: 110px; height: 44px; padding: 5px; }
+.compact-ui .cockpit-mirror::before, .compact-ui .cockpit-mirror span { display: none; }
+@media (orientation: portrait) {
+  .compact-ui .cockpit-mirror { top: calc(var(--edge-top) + 88px); bottom: auto; }
+  .compact-ui.cockpit-view #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 140px); }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .compact-ui.touch-device { --steering-size: 100px; --pedal-width: 56px; --pedal-height: 76px; --drive-bottom: var(--edge-bottom); }
+  .compact-ui.touch-device #handbrake { left: calc(var(--edge-left) + var(--steering-size) + 8px); bottom: var(--drive-bottom); width: 44px; }
+  .compact-ui.touch-device #handbrake > span { display: none; }
+  .compact-ui #game-ui > #friend-hud { width: min(300px, calc(100% - 180px)); }
+  .compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 76px); max-width: 50%; }
+}
+.compact-ui.touch-device.wellington { --drive-bottom: calc(var(--edge-bottom) + 24px); }

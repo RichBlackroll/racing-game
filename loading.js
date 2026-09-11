@@ -86,9 +86,12 @@ export function createLoadingScreen(doc = document, win = window) {
     entered = true;
     unlock();
     try {
+      const focusTarget = doc.getElementById(doc.body.classList.contains("compact-ui") ? "drive-menu-toggle" : "configure");
+      // The launch buttons are now hidden; dialogs need a visible return target.
+      if (action === "garage") focusTarget.focus();
       // Keep audio activation and dialog opening inside the trusted click, not a timer.
       onEnter?.(action);
-      if (action === "drive" && state === "ready" && !doc.querySelector("dialog[open]")) doc.getElementById("configure").focus();
+      if (action === "drive" && state === "ready" && !doc.querySelector("dialog[open]")) focusTarget.focus();
     } catch (error) {
       fail(error);
     }

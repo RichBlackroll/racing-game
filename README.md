@@ -22,10 +22,9 @@ An explicit valid `?level=` link overrides the last map saved on this device.
 ## Time of day
 
 The toolbar clock shows live 24-hour game time, not your device's local time.
-Tap it to open a compact Time of day panel. On narrow phones the clock sits
-beside the brand, or just below the toolbar on short portrait screens, keeping
-the driving buttons at full touch size. The panel scrolls on short screens;
-closing it leaves steering and pedals unobstructed.
+Tap it to open a compact Time of day panel. On compact screens, open Menu first:
+the clock and its controls stay inside the scrollable, paused drive menu rather
+than covering the road or pedals. Desktop keeps the toolbar clock.
 
 - Drag Game time, or use its arrow keys, Home and End, to choose any minute.
 - Dawn (06:00), Day (12:00), Golden hour (17:30), and Night (22:00) jump immediately.
@@ -71,6 +70,15 @@ the control layout release them safely. Resizing a paused drive redraws the view
 without advancing the car. Compact phone layouts keep the HUD clear of controls,
 and narrow garage tab strips scroll horizontally instead of shrinking touch targets.
 
+On touch devices (including landscape tablets), or at widths up to 900px or heights
+up to 600px, driving shows just a short objective, Menu, Pause/Resume, a small speed
+readout, and the driving controls. Menu contains
+Maps, Garage, Camera, Reset, Sound, Time of day, the full adventure, route map, and
+asset credits. Adventure details, route map, and time controls start collapsed each
+time Menu opens. It pauses the car and clears held pedals; closing resumes only if
+the drive was not already manually paused. Inside view keeps the rear-view mirror
+and compact speed readout without the full-width dashboard or ornamental instruments.
+
 iPad (including Safari's desktop identity) and coarse-pointer phones use the same cinematic world
 renderer with reduced scenery detail. Tablet rendering caps the drawing buffer at
 1.2 million pixels, targets at most 60 updates per second, and adjusts resolution
@@ -81,7 +89,7 @@ The frame limiter preserves its timing remainder on 90/120/144 Hz displays witho
 accelerating physics. The garage renders only after changes or during camera
 transitions, avoiding continuous GPU work while choosing parts.
 
-Run `node --test tablet.test.js game-lifecycle.test.js modifier-preview.test.js`
+Run `node --test tablet.test.js mobile-ui.test.js game-lifecycle.test.js modifier-preview.test.js`
 for device detection, rendering budgets, frame pacing, resize, garage-idle, and
 multi-touch interruption checks. Chromium and WebKit mobile emulation cover small
 phones, portrait/landscape rotation, paused resizing, and garage interactions.

@@ -12,6 +12,7 @@ import { createAtmosphere } from "./atmosphere.js";
 import { createDaylight, enableGeometryShadows } from "./daylight.js";
 import { createNightLighting } from "./night-lights.js";
 import { createTimeControls } from "./time-controls.js";
+import { createMobileUI } from "./mobile-ui.js";
 import { createFinishLine } from "./finish-line.js";
 import { createJumpPhysics } from "./jumps.js";
 import { createConeField } from "./cones.js";
@@ -721,7 +722,7 @@ export async function main(loading) {
   document.getElementById("reset").onclick = () => reset();
   addEventListener("keydown", (e) => {
     if (e.target?.closest?.("select,input,textarea")) return;
-    if (modifier.active || adventure.busy()) return;
+    if (modifier.active || adventure.busy() || mobileUI.active) return;
     let k = e.key.toLowerCase();
     if (!e.repeat && k === "shift") activateBoost();
     if (!e.repeat && k === "r") reset();
@@ -1136,6 +1137,19 @@ export async function main(loading) {
   enableGeometryShadows(scene);
   const nightLighting = createNightLighting({ scene, tablet: device.tablet });
   const timeControls = createTimeControls({ daylight, onChange: () => { sceneDirty = true; } });
+  let resumeAfterMenu = false;
+  const mobileUI = createMobileUI({ onOpenChange(open) {
+    if (open) {
+      resumeAfterMenu = !paused || resumeOnReturn;
+      resumeOnReturn = false;
+      pauseGame(true);
+      drawMap();
+    } else if (resumeAfterMenu) {
+      resumeAfterMenu = false;
+      if (document.hidden || contextLost) resumeOnReturn = true;
+      else if (!loading.active) pauseGame(false);
+    }
+  } });
   renderer.shadowMap.needsUpdate = true;
   updateCamera(1);
   gameReady = true;

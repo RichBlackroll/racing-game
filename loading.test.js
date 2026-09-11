@@ -251,6 +251,7 @@ test("Garage unlocks before its synchronous callback and never steals dialog foc
     assert.equal(action, "garage");
     assert.equal(loading.active, false);
     assert.equal(get("game-ui").inert, false);
+    assert.equal(doc.activeElement, get("configure"), "garage returns to a visible control, not the hidden launcher");
     get("modifier").open = true;
     get("paint").focus();
     called = true;
@@ -258,6 +259,22 @@ test("Garage unlocks before its synchronous callback and never steals dialog foc
   click("loading-garage");
   assert.equal(called, true);
   assert.equal(doc.activeElement, get("paint"));
+});
+
+test("compact launch focuses Menu and uses it as the garage's focus-return target", () => {
+  for (const action of ["drive", "garage"]) {
+    const { loading, get, doc, click } = fixture();
+    doc.body.classList.add("compact-ui");
+    loading.complete(() => {
+      if (action === "garage") {
+        assert.equal(doc.activeElement, get("drive-menu-toggle"));
+        get("modifier").open = true;
+        get("paint").focus();
+      }
+    });
+    click(`loading-${action}`);
+    assert.equal(doc.activeElement, get(action === "garage" ? "paint" : "drive-menu-toggle"));
+  }
 });
 
 test("completion does not move focus away from a map being explored", () => {

@@ -338,6 +338,74 @@ test("close, toggle, outside pointer/click, and tab-out dismiss without stealing
   assert.equal(f.writes.length + f.changes.length, 0);
 });
 
+test("preset taps survive Safari moving range focus to the ancestor mobile dialog", () => {
+  const f = fixture();
+  const dialog = new Element("dialog", f.doc);
+  dialog.setAttribute("id", "drive-menu");
+  const nav = new Element("nav", dialog);
+  nav.setAttribute("class", "top");
+  const root = f.get("time-controls");
+  root.parent.children.splice(root.parent.children.indexOf(root), 1);
+  root.parent = nav;
+  nav.children.push(root);
+  f.click("time-toggle");
+  assert.equal(f.doc.activeElement, f.get("time-range"));
+
+  const preset = f.presets[3];
+  preset.emit("pointerdown");
+  dialog.focus(); // Safari taps do not focus buttons, even inside a native dialog.
+  assert.equal(f.get("time-panel").hidden, false, "Focusout must not hide the pending click target");
+  preset.emit("pointerup");
+  assert.equal(f.get("time-panel").hidden, false);
+  preset.emit("click");
+  assert.equal(f.doc.activeElement, dialog);
+  assert.equal(f.get("time-toggle").getAttribute("aria-expanded"), "true");
+  assert.equal(f.get("time-range").value, "1320");
+  assert.equal(preset.dataset.selected, "true");
+  assert.deepEqual(f.calls, [["hour", 22]]);
+  assert.equal(f.changes.length, 1);
+  assert.equal(f.changes[0].hour, 22);
+  assert.equal(f.writes.length, 1);
+  assert.deepEqual(JSON.parse(f.values.get(key)), { ...defaults, hour: 22 });
+});
+
+test("document pointer release and cancellation restore keyboard tab-out dismissal", () => {
+  for (const end of ["pointerup", "pointercancel"]) {
+    const f = fixture();
+    const outside = new Element("button", f.doc);
+    f.click("time-toggle");
+    f.presets[0].emit("pointerdown");
+    outside.focus();
+    assert.equal(f.get("time-panel").hidden, false);
+    outside.emit(end);
+    f.get("time-range").focus();
+    f.get("time-range").emit("keydown", { key: "Tab" });
+    outside.focus();
+    assert.equal(f.get("time-panel").hidden, true, end);
+    assert.equal(f.doc.activeElement, outside);
+    assert.equal(f.writes.length + f.changes.length, 0);
+  }
+});
+
+test("Escape and outside dismissal reset an unfinished internal pointer gesture", () => {
+  for (const dismiss of ["Escape", "pointerdown", "click"]) {
+    const f = fixture();
+    const outside = new Element("button", f.doc);
+    f.click("time-toggle");
+    f.presets[0].emit("pointerdown");
+    if (dismiss === "Escape") f.get("time-range").emit("keydown", { key: "Escape" });
+    else outside.emit(dismiss);
+    assert.equal(f.get("time-panel").hidden, true, dismiss);
+    assert.equal(f.doc.activeElement, f.get("time-toggle"));
+    // Reopen without pointer events so a missed release cannot mask a stale guard.
+    f.get("time-toggle").emit("click");
+    outside.focus();
+    assert.equal(f.get("time-panel").hidden, true, `${dismiss} must reset the gesture`);
+    assert.equal(f.doc.activeElement, outside);
+    assert.equal(f.writes.length + f.changes.length, 0);
+  }
+});
+
 test("valid saved settings restore once, but automatic time is never saved by update or later toggles", () => {
   const saved = { version: 1, hour: 22, running: true, cycleMinutes: 3 };
   const f = fixture({ saved, reducedMotion: true });

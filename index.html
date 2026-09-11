@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="experience.css" />
     <link rel="stylesheet" href="cockpit.css" />
     <link rel="stylesheet" href="time-controls.css" />
+    <link rel="stylesheet" href="mobile-ui.css" />
   </head>
   <body>
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
@@ -197,6 +198,21 @@
         </section>
       </div>
     </nav>
+
+    <nav id="mobile-toolbar" aria-label="Drive controls" hidden>
+      <button type="button" id="drive-menu-toggle" aria-haspopup="dialog" aria-controls="drive-menu" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span>Menu</span>
+      </button>
+    </nav>
+    <dialog id="drive-menu" aria-labelledby="drive-menu-title">
+      <div class="drive-menu-heading"><div><h2 id="drive-menu-title">Drive menu</h2><p>Driving is paused while you browse.</p></div><button type="button" id="drive-menu-close" aria-label="Back to game" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button></div>
+      <div id="drive-menu-tools"></div>
+      <div id="drive-menu-info">
+        <details id="drive-menu-adventure"><summary>Adventure details</summary></details>
+        <details id="drive-menu-route"><summary>Route map</summary></details>
+      </div>
+      <footer id="drive-menu-footer"></footer>
+    </dialog>
 
     <div class="badge"><span class="dot"></span> PINE VALLEY / FREE DRIVE</div>
     <div id="render-status">Loading forest…</div>

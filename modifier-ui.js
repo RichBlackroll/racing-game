@@ -360,7 +360,8 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     configure.setAttribute("aria-expanded", "false");
     onOpenChange?.(false);
     overlayChanged(false);
-    const target = returnFocus?.isConnected && returnFocus !== document.body ? returnFocus : configure;
+    const fallback = document.body.classList.contains("compact-ui") ? document.getElementById("drive-menu-toggle") : configure;
+    const target = returnFocus?.isConnected && returnFocus !== document.body && returnFocus.getClientRects().length ? returnFocus : fallback;
     target.focus({ preventScroll: true });
     returnFocus = null;
   }

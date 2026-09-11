@@ -174,6 +174,24 @@ function fakeAudio() {
   };
 }
 
+test("garage close resolves a visible focus target after the compact breakpoint changes", (t) => {
+  const { modifier, configure, doc } = garage(t);
+  const menu = doc.createElement("button");
+  menu.id = "drive-menu-toggle";
+  doc.body.append(menu);
+  for (const compact of [true, false]) {
+    const original = compact ? configure : menu;
+    original.hidden = false;
+    original.focus();
+    modifier.open();
+    doc.body.classList.toggle("compact-ui", compact);
+    configure.hidden = compact;
+    menu.hidden = !compact;
+    modifier.close();
+    assert.equal(doc.activeElement, compact ? menu : configure);
+  }
+});
+
 test("production panel edits the live model, focuses parts, and restores canvas, pose and focus", (t) => {
   let allowed = false;
   const { modifier, panel, configure, preview, doc, canvas, driving, car, body, pose, renderer, changes, events, toasts } = garage(t, { canOpen: () => allowed });

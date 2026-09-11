@@ -36,6 +36,10 @@ function fixture() {
   c.clearKeys = bindDrivingInput(keys, [pedal], win, doc,
     () => !c.paused && !doc.hidden && !c.contextLost && !c.loading.active && !c.modifier.active);
   runInNewContext(`${pause}\n${graphics}`, c);
+  c.drawMap = () => {};
+  c.createMobileUI = (options) => { c.menu = options; return {}; };
+  const menuStart = source.indexOf("  let resumeAfterMenu =");
+  runInNewContext(source.slice(menuStart, source.indexOf("  renderer.shadowMap.needsUpdate = true;", menuStart)), c);
   const emit = (target, type, fields = {}) => {
     const event = Object.assign(new Event(type, { cancelable: true }), fields);
     target.dispatchEvent(event);
@@ -160,6 +164,36 @@ test("pause messages become visible even when the animation loop is paused", () 
   runInNewContext(`${show}; show('Paused');`, c);
   assert.equal(c.ui.toast.style.opacity, 1);
   assert.equal(c.toastUntil, 4);
+});
+
+test("mobile menu owns pending interruption resumes until it closes", () => {
+  for (const manualPause of [false, true]) {
+    const { c, win, emit, visible } = fixture();
+    if (manualPause) c.pauseButton.onclick();
+    emit(c.renderer.domElement, "webglcontextlost");
+    c.menu.onOpenChange(true);
+    assert.equal(c.paused, true);
+    assert.equal(c.resumeOnReturn, false);
+    emit(c.renderer.domElement, "webglcontextrestored");
+    emit(win, "blur");
+    visible(false);
+    visible(true);
+    emit(win, "focus");
+    assert.equal(c.paused, true, "recovery cannot restart driving behind the menu");
+    c.menu.onOpenChange(false);
+    assert.equal(c.paused, manualPause);
+  }
+});
+
+test("closing the mobile menu in the background defers resuming until visible", () => {
+  const { c, visible } = fixture();
+  c.menu.onOpenChange(true);
+  visible(false);
+  c.menu.onOpenChange(false);
+  assert.equal(c.paused, true);
+  assert.equal(c.resumeOnReturn, true);
+  visible(true);
+  assert.equal(c.paused, false);
 });
 
 function viewportFixture() {

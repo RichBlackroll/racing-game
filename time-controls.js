@@ -24,7 +24,7 @@ export function createTimeControls({ daylight, onChange = () => {} }) {
   const speed = get("time-cycle-speed"), lights = get("time-lights");
   const presets = [...root.querySelectorAll("[data-time-hour]")];
   const listeners = [];
-  let disposed = false, scrubbing = false, restored = false;
+  let disposed = false, scrubbing = false, internalPointer = false, restored = false;
   let saved;
   try { saved = validateTimeSettings(JSON.parse(win.localStorage.getItem(STORAGE_KEY))); } catch {}
   if (saved) {
@@ -63,6 +63,7 @@ export function createTimeControls({ daylight, onChange = () => {} }) {
       range.focus({ preventScroll: true });
     } else {
       scrubbing = false;
+      internalPointer = false;
       if (returnFocus) toggle.focus({ preventScroll: true });
     }
   }
@@ -111,12 +112,14 @@ export function createTimeControls({ daylight, onChange = () => {} }) {
   listen(doc, "click", (event) => {
     if (!panel.hidden && !root.contains(event.target)) setOpen(false, panel.contains(doc.activeElement));
   });
+  listen(root, "pointerdown", () => { internalPointer = true; });
   listen(root, "focusout", (event) => {
-    if (event.relatedTarget && !root.contains(event.relatedTarget)) setOpen(false);
+    // Safari can focus an ancestor dialog while tapping an internal button.
+    if (!internalPointer && event.relatedTarget && !root.contains(event.relatedTarget)) setOpen(false);
   });
   listen(range, "pointerdown", () => { scrubbing = true; });
-  listen(doc, "pointerup", () => { scrubbing = false; });
-  listen(doc, "pointercancel", () => { scrubbing = false; });
+  listen(doc, "pointerup", () => { scrubbing = false; internalPointer = false; });
+  listen(doc, "pointercancel", () => { scrubbing = false; internalPointer = false; });
   listen(range, "blur", () => { scrubbing = false; });
   listen(range, "input", () => {
     const minute = Number(range.value);
