@@ -7,25 +7,7 @@ const blend = (a, b, t) => t === 0 ? a : t === 1 ? b : a + (b - a) * t;
 /** Same read-only route and X/Z projection contract as createCourse(). */
 export function createAmsterdamCourse() {
   const halfSize = AMSTERDAM.halfSize;
-  const controls = [[0, 210], [236, 210], [236, -90], [164, -90], [164, -222],
-    [-250, -222], [-250, -174], [70, -174], [70, -126], [-80, -126],
-    [-80, 66], [-250, 66], [-250, 210]];
-  let dense = [];
-  for (let i = 0; i < controls.length; i++) {
-    const p = new Vector3(controls[i][0], 0, controls[i][1]);
-    const a = controls[(i + controls.length - 1) % controls.length], b = controls[(i + 1) % controls.length];
-    const incoming = new Vector3(p.x - a[0], 0, p.z - a[1]);
-    const outgoing = new Vector3(b[0] - p.x, 0, b[1] - p.z);
-    const radius = Math.min(10, incoming.length() * 0.45, outgoing.length() * 0.45);
-    incoming.normalize(); outgoing.normalize();
-    if (incoming.dot(outgoing) > 0.999) { dense.push(p); continue; }
-    const center = p.clone().addScaledVector(incoming, -radius).addScaledVector(outgoing, radius);
-    // Circular fillets cannot overshoot the canal-side streets like a spline.
-    for (let j = 0; j <= 32; j++) {
-      const angle = j / 32 * Math.PI / 2;
-      dense.push(center.clone().addScaledVector(outgoing, -radius * Math.cos(angle)).addScaledVector(incoming, radius * Math.sin(angle)));
-    }
-  }
+  let dense = AMSTERDAM.lap.map(p => new Vector3(p.x, 0, p.z));
   dense.push(dense[0].clone());
   dense = dense.flatMap((p, i) => {
     if (i === dense.length - 1) return [p];
@@ -50,9 +32,10 @@ export function createAmsterdamCourse() {
     if (!bridge) return 0;
     const a = route[(i + route.length - 1) % route.length], b = route[(i + 1) % route.length];
     const dx = b.x - a.x, dz = b.z - a.z;
-    const along = bridge.axis === "x" ? p.x - bridge.x : p.z - bridge.z;
+    const sin = Math.sin(bridge.heading), cos = Math.cos(bridge.heading);
+    const along = (p.x - bridge.x) * sin + (p.z - bridge.z) * cos;
     const grade = -bridge.rise * Math.PI / (2 * bridge.halfLength) * Math.sin(Math.PI * along / bridge.halfLength);
-    return grade * (bridge.axis === "x" ? -dz : dx) / Math.hypot(dx, dz);
+    return grade * (-dz * sin + dx * cos) / Math.hypot(dx, dz);
   });
   let length = 0;
   const elevation = { min: Infinity, max: -Infinity, gain: 0 };
@@ -107,9 +90,11 @@ export function createAmsterdamCourse() {
   function roadDistance(x, z) {
     let distance = nearest(x, z).distance;
     for (const street of AMSTERDAM.streets) {
-      const dx = street.x2 - street.x1, dz = street.z2 - street.z1;
-      const t = clamp(((x - street.x1) * dx + (z - street.z1) * dz) / (dx * dx + dz * dz));
-      distance = Math.min(distance, Math.hypot(x - street.x1 - dx * t, z - street.z1 - dz * t));
+      for (let i = 1; i < street.points.length; i++) {
+        const a = street.points[i - 1], b = street.points[i], dx = b.x - a.x, dz = b.z - a.z;
+        const t = clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz));
+        distance = Math.min(distance, Math.hypot(x - a.x - dx * t, z - a.z - dz * t));
+      }
     }
     return distance;
   }

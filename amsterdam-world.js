@@ -1,19 +1,15 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { AMSTERDAM, waterAt, bridgeAt, isAmsterdamDry } from "./amsterdam-layout.js";
+import { AMSTERDAM, waterAt, bridgeAt, isAmsterdamDry, amsterdamPathLength, sampleAmsterdamPath } from "./amsterdam-layout.js";
+import { offsetPath } from "./amsterdam-geometry.js";
 import { decorateAmsterdamLandmarks } from "./amsterdam-landmarks.js";
 
 // Cut at the actual quay edges, not at heightfield samples: no land triangles
 // span the canals. Bridge decks are separate, sampled from the driving surface.
 export function createAmsterdamGroundGeometry() {
-  const size = AMSTERDAM.groundHalfSize;
-  const axis = key => [...new Set([-size, size, ...AMSTERDAM.canals.flatMap(c => [c[`${key}Min`], c[`${key}Max`]])])]
-    .filter(v => Math.abs(v) <= size).sort((a, b) => a - b);
-  const xs = axis("x"), zs = axis("z"), positions = [], uv = [];
-  for (let i = 1; i < xs.length; i++) for (let j = 1; j < zs.length; j++) {
-    const x0 = xs[i - 1], x1 = xs[i], z0 = zs[j - 1], z1 = zs[j];
-    if (waterAt((x0 + x1) / 2, (z0 + z1) / 2)) continue;
-    for (const [x, z] of [[x0, z0], [x0, z1], [x1, z0], [x1, z0], [x0, z1], [x1, z1]]) {
+  const size = AMSTERDAM.groundHalfSize, positions = [], uv = [];
+  for (const polygon of AMSTERDAM.landPolygons) for (let i = 1; i < polygon.length - 1; i++) {
+    for (const { x, z } of [polygon[0], polygon[i + 1], polygon[i]]) {
       positions.push(x, AMSTERDAM.landY, z);
       uv.push(x / (size * 2) + 0.5, 0.5 - z / (size * 2));
     }
@@ -234,6 +230,16 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       emit(prototypes.plane, "sign", x, y, z, w, h, 1, { ...o, tile, color: 0xffffff, name: o.name ?? `sign-${text}` });
     },
     solid(name, x, z, w, d, height, base = 0) {
+      // Short rail colliders follow oblique banks without a long enclosing box
+      // projecting invisible barriers into the adjacent driving lane.
+      if ((name === "bridge-rail" || name === "quay-railing") && Math.max(w, d) > 2.5) {
+        const count = Math.ceil(Math.max(w, d) / 2.5);
+        for (let i = 0; i < count; i++) kit.solid(name,
+          x + (w > d ? (i + .5) * w / count - w / 2 : 0),
+          z + (d >= w ? (i + .5) * d / count - d / 2 : 0),
+          w > d ? w / count : w, d >= w ? d / count : d, height, base);
+        return;
+      }
       const point = coordinates(x, z), c = Math.abs(Math.cos(origin.heading)), s = Math.abs(Math.sin(origin.heading));
       const obstacle = { ...point, y: AMSTERDAM.landY + base, hx: (c * w + s * d) / 2,
         hz: (s * w + c * d) / 2, r: Math.hypot(w, d) / 2, height, name: `${origin.name}/${name}`, kind: name };
@@ -274,11 +280,16 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
     group, decoration, landscapeGroup: decoration, counts, sites, clearings: [],
     drawMap(map, scale) {
       map.fillStyle = "#65b7bc55";
-      for (const c of AMSTERDAM.canals) map.fillRect(c.xMin * scale, -c.zMax * scale, (c.xMax - c.xMin) * scale, (c.zMax - c.zMin) * scale);
+      for (const canal of AMSTERDAM.canals) {
+        map.beginPath();
+        canal.polygon.forEach((p, i) => map[i ? "lineTo" : "moveTo"](p.x * scale, -p.z * scale));
+        map.closePath(); map.fill();
+      }
       map.strokeStyle = "#ddccb347"; map.lineWidth = 2.2;
       for (const street of AMSTERDAM.streets) {
-        map.beginPath(); map.moveTo(street.x1 * scale, -street.z1 * scale);
-        map.lineTo(street.x2 * scale, -street.z2 * scale); map.stroke();
+        map.beginPath();
+        street.points.forEach((p, i) => map[i ? "lineTo" : "moveTo"](p.x * scale, -p.z * scale));
+        map.stroke();
       }
     },
     animate(seconds) {
@@ -308,27 +319,26 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
   function buildStreets() {
     site("street-network", 0, 0, 0, k => {
       for (const street of AMSTERDAM.streets) {
-        const dx = street.x2 - street.x1, dz = street.z2 - street.z1, length = Math.hypot(dx, dz);
-        const nx = -dz / length, nz = dx / length, steps = Math.ceil(length / 2);
         for (const [left, right, material, tint, lift] of [[-5.8, 5.8, "street", 0x626461, .04],
           [-9, -5.9, "stone", 0x9a9686, .055], [5.9, 9, "stone", 0x9a9686, .055],
           [6.1, 8.1, "paint", 0x9b6255, .066]]) {
-          for (let i = 0; i < steps; i++) {
-            const points = [[i / steps, left], [i / steps, right], [(i + 1) / steps, right], [(i + 1) / steps, left]]
-              .map(([t, offset]) => {
-                const x = street.x1 + dx * t + nx * offset, z = street.z1 + dz * t + nz * offset;
+          const l = offsetPath(street.points, left), r = offsetPath(street.points, right);
+          for (let j = 1; j < street.points.length; j++) {
+            const a = street.points[j - 1], b = street.points[j], steps = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 2);
+            for (let i = 0; i < steps; i++) {
+              const points = [[i / steps, l], [i / steps, r], [(i + 1) / steps, r], [(i + 1) / steps, l]].map(([t, edge]) => {
+                const x = edge[j - 1].x + (edge[j].x - edge[j - 1].x) * t;
+                const z = edge[j - 1].z + (edge[j].z - edge[j - 1].z) * t;
                 return [x, terrain.heightAt(x, z) - AMSTERDAM.landY + lift, z];
               });
-            if (points.some(p => waterAt(p[0], p[2]) && !bridgeAt(p[0], p[2]))) continue;
-            // This order has an upward normal for both street directions.
-            k.panel(material, points, { color: tint, name: material === "paint" ? "red-cycle-lane" : "paved-street" });
+              if (points.some(p => waterAt(p[0], p[2]) && !bridgeAt(p[0], p[2]))) continue;
+              k.panel(material, points, { color: tint, name: material === "paint" ? "red-cycle-lane" : "paved-street" });
+            }
           }
         }
       }
-      for (const z of [-222, 210]) for (const x of [-80, 70, 236]) {
-        for (let j = -4; j <= 4; j++) k.box("paint", x + j * 1.05, .086, z + 10.5, .55, .025, 2.3,
-          { color: 0xe6dfcd, name: "zebra-crossing" });
-      }
+      for (const x of [-60, 70, 130]) for (let j = -4; j <= 4; j++) k.box("paint", x, .086, 210 + j * 1.05, 2.3, .025, .55,
+        { color: 0xe6dfcd, name: "zebra-crossing" });
       for (const x of [-270, -115, 120, 252]) for (const z of [-208, 195]) {
         if (!isAmsterdamDry(x, z, 1) || terrain.roadDistance(x, z) < 7.5) continue;
         k.cylinder("metal", x, 1.6, z, .065, 3.2, { color: 0x3c4b47, name: "street-sign-post" });
@@ -355,20 +365,15 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       `);
     };
     waterMaterial.customProgramCacheKey = () => "amsterdam-water-v1";
-    // Clip the overlapping east ends once, keeping the water surface single-layer.
     for (const canal of AMSTERDAM.canals) {
-      const xMax = canal.name.endsWith("gracht") ? 182 : canal.xMax;
-      const geometry = new THREE.PlaneGeometry(xMax - canal.xMin, canal.zMax - canal.zMin).rotateX(-Math.PI / 2);
+      const shape = new THREE.Shape(canal.polygon.map(p => new THREE.Vector2(p.x, -p.z)));
+      const geometry = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
       const water = new THREE.Mesh(geometry, waterMaterial);
       water.name = `amsterdam/water/${canal.name}`;
       water.userData.castShadow = false;
-      water.position.set((canal.xMin + xMax) / 2, AMSTERDAM.waterY, (canal.zMin + canal.zMax) / 2);
+      water.position.y = AMSTERDAM.waterY;
       decoration.add(water);
     }
-    const split = (a, b, gaps) => gaps.sort((p, q) => p[0] - q[0]).reduce((parts, gap) => parts.flatMap(([lo, hi]) => {
-      if (gap[1] <= lo || gap[0] >= hi) return [[lo, hi]];
-      return [...(gap[0] > lo ? [[lo, gap[0]]] : []), ...(gap[1] < hi ? [[gap[1], hi]] : [])];
-    }), [[a, b]]);
     const quay = (name, x, z, length, heading) => site(name, x, z, heading, k => {
       if (length < .1) return;
       k.box("masonry", 0, -1.45, 0, length, 3, .85, { color: 0x6e6250, name: "brick-quay-wall" });
@@ -376,32 +381,43 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       k.solid("quay-railing", 0, .05, length, .45, 1.35, -.05);
       for (const y of [.62, 1.16]) k.box("metal", 0, y, .05, length, .075, .075, { color: 0x2b3c37, name: "canal-iron-rail" });
       const n = Math.max(1, Math.ceil(length / 2.7));
-      for (let j = 0; j <= n; j++) {
+      for (let j = 0; j < n; j++) {
         const along = -length / 2 + j * length / n;
         k.cylinder("metal", along, .64, .05, .065, 1.28, { color: 0x283c37, name: "canal-railing-post" });
         if (!tablet) k.sphere("metal", along, 1.31, .05, .085, .085, .085, { color: 0x283c37, name: "railing-finial" });
       }
     });
-    for (const canal of AMSTERDAM.canals.slice(0, 3)) {
-      const gaps = AMSTERDAM.bridges.filter(b => b.axis === "z" && b.z === (canal.zMin + canal.zMax) / 2)
-        .map(b => [b.x - b.halfWidth - .65, b.x + b.halfWidth + .65]);
-      for (const [a, b] of split(-292, 182, gaps)) for (const side of [-1, 1]) {
-        quay(`${canal.name}-${side}-${a}`, (a + b) / 2, side < 0 ? canal.zMin - .3 : canal.zMax + .3, b - a, side < 0 ? Math.PI : 0);
+    // Coalesce nearly collinear bank facets for masonry/rails, while retaining
+    // the exact shoreline for land and water safety. Maximum bow is under 12 cm.
+    const quayEdges = [];
+    for (const edge of AMSTERDAM.waterBoundary) {
+      const previous = quayEdges.at(-1);
+      if (previous && Math.hypot(previous.b.x - edge.a.x, previous.b.z - edge.a.z) < 1e-7) {
+        const dx = edge.b.x - previous.a.x, dz = edge.b.z - previous.a.z, length = Math.hypot(dx, dz);
+        const bow = Math.abs(dx * (edge.a.z - previous.a.z) - dz * (edge.a.x - previous.a.x)) / length;
+        if (length <= 8 && bow < .06) { previous.b = edge.b; continue; }
       }
-      quay(`${canal.name}-end`, -292.3, (canal.zMin + canal.zMax) / 2, canal.zMax - canal.zMin, -Math.PI / 2);
+      quayEdges.push({ ...edge });
     }
-    for (const side of [-1, 1]) {
-      const gaps = AMSTERDAM.bridges.filter(b => b.axis === "x").map(b => [b.z - b.halfWidth - .65, b.z + b.halfWidth + .65]);
-      if (side < 0) gaps.push(...AMSTERDAM.canals.slice(0, 3).map(c => [c.zMin - .6, c.zMax + .6]));
-      for (const [a, b] of split(-294, 278, gaps)) quay(`Amstel-${side}-${a}`, side < 0 ? 181.7 : 218.3, (a + b) / 2, b - a, side * Math.PI / 2);
+    for (const [index, { a, b }] of quayEdges.entries()) {
+      const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+      const steps = Math.ceil(length / 8), heading = Math.atan2(-dz, dx);
+      for (let j = 0; j < steps; j++) {
+        const t = (j + .5) / steps, x = a.x + dx * t, z = a.z + dz * t;
+        if (Math.abs(x) > 339 || Math.abs(z) > 339) continue;
+        const blocked = AMSTERDAM.bridges.some(bridge => {
+          const along = (x - bridge.x) * Math.sin(bridge.heading) + (z - bridge.z) * Math.cos(bridge.heading);
+          const across = (x - bridge.x) * Math.cos(bridge.heading) - (z - bridge.z) * Math.sin(bridge.heading);
+          return Math.abs(along) < bridge.halfLength + length / steps / 2 && Math.abs(across) < bridge.halfWidth + length / steps / 2 + 1;
+        });
+        if (!blocked) quay(`curved-quay-${index}-${j}`, x, z, length / steps, heading);
+      }
     }
-    quay("Amstel-south", 200, -294.3, 36, Math.PI);
-    quay("IJ-west", -79, 277.7, 522, Math.PI);
-    quay("IJ-east", 279, 277.7, 122, Math.PI);
     for (const bridge of AMSTERDAM.bridges) {
       counts.bridges++;
-      site(bridge.name, bridge.x, bridge.z, bridge.axis === "x" ? Math.PI / 2 : 0, k => {
-        const { halfWidth: w, halfLength: l } = bridge;
+      site(bridge.name, bridge.x, bridge.z, bridge.heading, k => {
+        // Keep Float32-transformed edge vertices inside the analytic footprint.
+        const w = bridge.halfWidth - .0001, l = bridge.halfLength;
         const y = along => bridge.rise * Math.cos(Math.PI * along / (2 * l)) ** 2;
         const railLength = l - 7.5;
         const segments = Math.ceil(l * 2);
@@ -455,7 +471,9 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
   function buildHouses() {
     const palette = [0x8e5140, 0x614a42, 0x424b49, 0xae8156, 0xa55746, 0xb09b77, 0xc7c2b1, 0x725646];
     const shops = ["DE KOFFIEKAMER", "BOEKHANDEL", "BAKKERIJ", "BLOEMEN & PLANTEN", "CAFE DE GRACHT", "FIETSENMAKER"];
-    const reserved = [...AMSTERDAM.landmarks, { x: 4, z: 29, w: 112, d: 75 }];
+    const palace = AMSTERDAM.landmarks.find(p => p.id === "palace");
+    const reserved = [...AMSTERDAM.landmarks, { x: palace.x, z: palace.z - 28, w: 104, d: 24 }];
+    const plots = [];
     let serial = 0;
     const clear = (x, z, w, d) => {
       if (reserved.some(p => Math.abs(x - p.x) < (w + p.w) / 2 + 3 && Math.abs(z - p.z) < (d + p.d) / 2 + 3)) return false;
@@ -465,8 +483,20 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       return true;
     };
     function house(x, z, w, d, heading, i) {
-      const rotated = Math.abs(Math.sin(heading)) > .5;
-      if (!clear(x, z, rotated ? d : w, rotated ? w : d)) return;
+      const c = Math.abs(Math.cos(heading)), s = Math.abs(Math.sin(heading));
+      if (!clear(x, z, c * w + s * d, s * w + c * d)) return;
+      const axes = [{ x: Math.cos(heading), z: -Math.sin(heading) }, { x: Math.sin(heading), z: Math.cos(heading) }];
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({
+        x: x + axes[0].x * a * w / 2 + axes[1].x * b * d / 2,
+        z: z + axes[0].z * a * w / 2 + axes[1].z * b * d / 2,
+      }));
+      // Adjacent tangent-aligned houses may have overlapping bounding boxes,
+      // but their actual foundations must not overlap across the narrow islands.
+      if (plots.some(plot => [...axes, ...plot.axes].every(axis => {
+        const a = corners.map(p => p.x * axis.x + p.z * axis.z), b = plot.corners.map(p => p.x * axis.x + p.z * axis.z);
+        return Math.max(...a) > Math.min(...b) - .2 && Math.max(...b) > Math.min(...a) - .2;
+      }))) return;
+      plots.push({ axes, corners });
       counts.houses++;
       site(`canal-house-${i}`, x, z, heading, k => {
         const floors = 3 + (i % 4 === 0 ? 1 : 0), h = floors * 3.45 + 1.3 + i % 3 * .35;
@@ -554,56 +584,66 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       });
     }
     for (const canal of AMSTERDAM.canals.slice(0, 3)) for (const side of [-1, 1]) {
-      const z = (canal.zMin + canal.zMax) / 2 + side * 47;
-      for (let x = -285; x < 155;) {
+      const row = offsetPath(canal.points, side * 46), length = amsterdamPathLength(row);
+      for (let distance = 45; distance < length - 42;) {
         const i = serial++, w = [8.6, 9.4, 10.4, 8.9, 10.8][i % 5];
-        house(x + w / 2, z, w, 16.4 + i % 3 * .6, side > 0 ? Math.PI : 0, i);
-        x += w + .45;
+        const p = sampleAmsterdamPath(row, distance + w / 2);
+        house(p.x, p.z, w, 12, p.heading + (side > 0 ? Math.PI : 0), i);
+        distance += w + 1.2;
       }
     }
-    for (const z of [-245, 187, 247]) for (let x = -278; x < 155; x += 11.3) {
-      house(x, z, 10.6, 16, z === 247 ? Math.PI : 0, serial++);
+    for (const street of AMSTERDAM.streets.filter(s => !s.name.includes("Quay"))) for (const side of [-1, 1]) {
+      const row = offsetPath(street.points, side * 24), length = amsterdamPathLength(row);
+      for (let distance = 12; distance < length - 12; distance += 12) {
+        const p = sampleAmsterdamPath(row, distance);
+        house(p.x, p.z, 9.8, 13, p.heading + (side > 0 ? Math.PI : 0), serial++);
+      }
     }
-    for (let z = -207; z < 195; z += 11.5) house(267, z, 10.7, 17, -Math.PI / 2, serial++);
   }
 
   function buildStreetLife() {
-    for (const canal of AMSTERDAM.canals.slice(0, 3)) for (const side of [-1, 1]) {
-      const edge = side < 0 ? canal.zMin : canal.zMax;
-      for (let x = -277, index = 0; x < 155; x += 25, index++) {
-        const z = edge + side * 3.1;
+    const marketCanal = AMSTERDAM.canals[0], marketStart = amsterdamPathLength(marketCanal.points) * .65;
+    for (const canal of AMSTERDAM.canals.filter(c => c.points)) for (const side of [-1, 1]) {
+      const length = amsterdamPathLength(canal.points);
+      for (let distance = 42, index = 0; distance < length - 35; distance += 48, index++) {
+        const { x, z, heading } = sampleAmsterdamPath(canal.points, distance, side * (canal.width / 2 + 4));
         if (terrain.roadDistance(x, z) < 8.1 || !isAmsterdamDry(x, z, .7)) continue;
-        site(`quayside-${canal.name}-${side}-${index}`, x, z, side > 0 ? 0 : Math.PI, k => {
+        site(`quayside-${canal.name}-${side}-${index}`, x, z, heading + (side > 0 ? 0 : Math.PI), k => {
           tree(k, 0, 0, index);
-          if (terrain.roadDistance(x + 7, z) > 8) {
+          const p = coordinates(7, 0);
+          if (terrain.roadDistance(p.x, p.z) > 8 && isAmsterdamDry(p.x, p.z, 1)) {
             lamp(k, 7, 0);
             bicycle(k, 4.5, -.9, index);
             if (index % 3 === 0) bench(k, -5, .5);
           }
         }, true);
       }
-      const moorings = canal.name === "Prinsengracht" && side < 0 ? [-273, -105, -29, 113] : [-202, -129, 0, 113];
-      for (const [i, x] of moorings.entries()) {
-        if (AMSTERDAM.bridges.some(b => b.axis === "z" && Math.abs(b.x - x) < 22)) continue;
-        const z = edge - side * 3.3;
-        site(`houseboat-${canal.name}-${side}-${i}`, x, z, side > 0 ? 0 : Math.PI,
+      if (canal.name === "Amstel") continue;
+      let placed = 0;
+      for (let distance = 75 + (side > 0 ? 25 : 0); distance < length - 45 && placed < 4; distance += 64) {
+        if (canal === marketCanal && side > 0 && distance > marketStart - 15 && distance < marketStart + 80) continue;
+        const { x, z, heading } = sampleAmsterdamPath(canal.points, distance, side * (canal.width / 2 - 3.3));
+        if (AMSTERDAM.bridges.some(b => Math.hypot(b.x - x, b.z - z) < b.halfWidth + 18)) continue;
+        const i = placed++;
+        site(`houseboat-${canal.name}-${side}-${i}`, x, z, heading + (side > 0 ? 0 : Math.PI),
           k => boat(k, false, i + (side > 0 ? 1 : 0)), true);
       }
     }
-    for (const [i, z] of [-195, -68, 8, 142, 190].entries()) {
-      for (const x of [177.5, 224]) {
-        if (!isAmsterdamDry(x, z, .7) || terrain.roadDistance(x, z) < 7.8) continue;
-        site(`amstel-promenade-${x}-${z}`, x, z, x < 200 ? -Math.PI / 2 : Math.PI / 2, k => {
-          tree(k, 0, 0, i); lamp(k, 6, 0); bicycle(k, -4, -.5, i); bench(k, 10, 0);
-        }, true);
+    for (const [i, canal] of AMSTERDAM.canals.slice(0, 3).entries()) {
+      const length = amsterdamPathLength(canal.points);
+      for (let distance = length * .43; distance < length - 35; distance += 25) {
+        if (canal === marketCanal && distance > marketStart - 20 && distance < marketStart + 85) continue;
+        const { x, z, heading } = sampleAmsterdamPath(canal.points, distance);
+        if (AMSTERDAM.bridges.some(b => Math.hypot(x - b.x, z - b.z) < Math.hypot(b.halfLength, b.halfWidth) + 12)) continue;
+        site(`glass-roof-tour-boat-${i}`, x, z, heading, k => boat(k, true, i), true);
+        break;
       }
-    }
-    for (const [i, [x, z, heading]] of [[-165, -150, 0], [-32, 90, 0], [200, 147, Math.PI / 2]].entries()) {
-      site(`glass-roof-tour-boat-${i}`, x, z, heading, k => boat(k, true, i), true);
     }
     // Floating flower stalls sit inside the canal, with a pedestrian deck behind
     // the quayside guardrail. The driving lane remains fully open.
-    for (let i = 0; i < 7; i++) site(`bloemenmarkt-${i}`, -193 + i * 10.2, -158, Math.PI, k => {
+    for (let i = 0; i < 7; i++) {
+      const p = sampleAmsterdamPath(marketCanal.points, marketStart + i * 10.2, marketCanal.width / 2 - 3);
+      site(`bloemenmarkt-${i}`, p.x, p.z, p.heading, k => {
       counts.marketStalls++;
       k.box("wood", 0, -.22, 0, 9.5, .35, 5.6, { color: 0x766452, name: "floating-flower-market-deck" });
       k.box("wood", 0, 1.1, -1.5, 8.6, 2.6, 2.2, { color: 0x355b4c, name: "flower-stall-timber-cabin" });
@@ -617,9 +657,11 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
       }
       k.sign(i === 3 ? "BLOEMENMARKT" : ["TULPEN", "FLOWER BULBS", "TULIPS & SEEDS"][i % 3], 0, 2.24, 1.62, 7.6, .65,
         { name: "flower-market-sign", background: "#3d6253" });
-    }, true);
-    site("stationsplein", 0, 225, 0, k => {
-      for (const x of [-106, 105, 135]) {
+      }, true);
+    }
+    const station = AMSTERDAM.landmarks.find(p => p.id === "centraal");
+    site("stationsplein", station.x, station.z - 26, 0, k => {
+      for (const x of [-42, 105, 135]) {
         k.box("metal", x, .12, 0, 8, .2, 1, { color: 0x465651, name: "station-bicycle-rack-base" });
         for (let i = 0; i < (tablet ? 4 : 7); i++) bicycle(k, x - 3 + i, 0, i + 4);
         lamp(k, x + 5, 1);
@@ -629,7 +671,8 @@ export function createAmsterdamWorld({ scene, terrain, obstacles = [], buildingI
         k.cylinder("metal", x + 3, .55, 0, .34, 1.1, { color: 0x3f5249, name: "street-litter-bin" });
       }
     }, true);
-    site("dam-square", 4, 12, 0, k => {
+    const palace = AMSTERDAM.landmarks.find(p => p.id === "palace");
+    site("dam-square", palace.x, palace.z - 28, 0, k => {
       k.box("stone", 0, .035, 0, 104, .07, 18, { color: 0xc5bdaa, name: "dam-square-paving" });
       for (const x of [-40, -30, 30, 40]) {
         k.box("stone", x, .4, 0, 3.4, .8, 3.4, { color: 0xaaa68f, name: "square-planter" });

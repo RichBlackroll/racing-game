@@ -399,23 +399,29 @@ Collisions use a swept circular car collider against tree/rock circles and build
 
 Choose Amsterdam from Maps or the Level menu, or open `?level=amsterdam`.
 The procedural district is a compressed, Amsterdam-inspired setting, not a
-geographically exact reconstruction. It brings together three tree-lined canals,
-the Amstel and IJ, drivable bridges including the Magere Brug, and narrow stepped-
-and bell-gabled houses along the quays.
+geographically exact reconstruction. Three nested, asymmetric canal rings form
+tree-lined horseshoes around the old centre: Herengracht, Keizersgracht, and
+Prinsengracht. Their western arms open onto the IJ and their eastern arms join
+the curved Amstel. Radial streets connect the quays over bridges oriented to
+their crossings, including the drivable Magere Brug. Narrow stepped- and
+bell-gabled houses follow the curved banks.
 
 Landmarks include Centraal, the Rijksmuseum, Westerkerk, Dam Square and the Royal
-Palace, NEMO, and a windmill. A market, bikes, cafes, and houseboats fill out the
-canal streets. Tablet mode uses reduced geometry, and reduced-motion preferences
-keep decorative movement still.
+Palace, NEMO, and the De Gooyer windmill. A market, bikes, cafes, and houseboats
+fill out the canal streets. Tablet mode uses reduced geometry, and reduced-motion
+preferences keep decorative movement still.
 
-The 2.42 km circuit runs through a district of 260 individually detailed canal
-houses and 16 crossings. Brickwork, four gable styles, sash windows, hoisting
-beams, shop awnings, 24 houseboats, three glass-roof tour boats, flower stalls,
-and a parked blue-and-cream tram give the streets their own character.
+The 1.81 km circuit follows the curved quays and connecting streets through a
+district with individually detailed canal houses and 16 crossings. Brickwork,
+four gable styles, sash windows, hoisting beams, shop awnings, houseboats,
+three glass-roof tour boats, flower stalls, and a parked blue-and-cream tram
+give the streets their own character.
 Canal holes, bridge crests, car grounding and water safety use one shared layout;
 pedestrians and loose toys recover to dry ground if knocked into a canal.
 
-`amsterdam-layout.js` and `amsterdam-course.js` define the driving world;
+`amsterdam-geometry.js` supplies curve and polygon operations;
+`amsterdam-layout.js` shares the canal paths, water boundaries, streets and
+oriented bridges used by `amsterdam-course.js` to define the driving world.
 `amsterdam-world.js` batches the neighborhoods and street details, while
 `amsterdam-landmarks.js` builds the six architectural sites. The minimap shows
 the water and connecting streets. `amsterdam-course.test.js` and

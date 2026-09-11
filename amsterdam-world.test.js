@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createCourse } from "./course.js";
 import { createAmsterdamGroundGeometry, createAmsterdamWorld } from "./amsterdam-world.js";
-import { AMSTERDAM, waterAt, isAmsterdamDry } from "./amsterdam-layout.js";
+import { AMSTERDAM, waterAt, bridgeAt, isAmsterdamDry, amsterdamPathLength, sampleAmsterdamPath } from "./amsterdam-layout.js";
 import { createPeopleField } from "./people.js";
 import { createConeField } from "./cones.js";
 import { createPlaythings } from "./playthings.js";
@@ -64,10 +64,10 @@ test("Amsterdam has recognisable neighborhoods and landmarks in bounded spatial 
       assert.ok(features.includes(name), `missing visible detail: ${name}`);
     }
     assert.equal(world.sites.length, 6);
-    assert.equal(world.counts.houses, 260);
+    assert.ok(world.counts.houses >= 150);
     assert.equal(world.counts.bridges, 16);
     assert.ok(world.counts.bicycles >= 70);
-    assert.equal(world.counts.houseboats, 24);
+    assert.ok(world.counts.houseboats >= 20);
     assert.equal(world.counts.tourBoats, 3);
     assert.equal(world.counts.marketStalls, 7);
     assert.ok(world.counts.trees >= 60);
@@ -75,6 +75,16 @@ test("Amsterdam has recognisable neighborhoods and landmarks in bounded spatial 
     assert.ok(world.counts.triangles < 750000);
     assert.ok(materials.size <= 13);
     assert.ok([...materials].every(material => !material.transparent));
+    const fills = [], strokes = [];
+    let path;
+    world.drawMap({
+      beginPath() { path = []; },
+      moveTo(x, y) { path.push([x, y]); }, lineTo(x, y) { path.push([x, y]); },
+      closePath() { path.push(path[0]); },
+      fill() { fills.push(path); }, stroke() { strokes.push(path); },
+    }, .25);
+    assert.deepEqual(fills, AMSTERDAM.canals.map(c => [...c.polygon, c.polygon[0]].map(p => [p.x * .25, -p.z * .25])));
+    assert.deepEqual(strokes, AMSTERDAM.streets.map(s => s.points.map(p => [p.x * .25, -p.z * .25])));
   } finally { world.dispose(); }
 });
 
@@ -94,6 +104,40 @@ test("both lanes of the entire canal circuit clear buildings, quays and bridge r
         }
       }
     }
+  } finally { world.dispose(); }
+});
+
+test("radial streets and both sides of every curved quay stay clear of scenery, not only the lap", () => {
+  const { world, obstacles } = fixture(true);
+  try {
+    for (const street of AMSTERDAM.streets) {
+      const length = amsterdamPathLength(street.points);
+      for (let distance = 0; distance <= length; distance += 3) for (const lane of [-4.5, 0, 4.5]) {
+        const p = sampleAmsterdamPath(street.points, distance, lane);
+        const height = course.heightAt(p.x, p.z);
+        assert.ok(isAmsterdamDry(p.x, p.z, 1.9), `${street.name}: bank clearance`);
+        for (const o of obstacles) {
+          if (height + 1.6 <= o.y || height >= o.y + o.height) continue;
+          const clearance = Math.hypot(Math.max(0, Math.abs(p.x - o.x) - o.hx), Math.max(0, Math.abs(p.z - o.z) - o.hz));
+          assert.ok(clearance >= 1.12, `${street.name}: ${o.name} blocks lane ${lane} at ${distance}`);
+        }
+      }
+    }
+    world.decoration.traverse(mesh => {
+      for (const part of mesh.userData.parts ?? []) {
+        const boat = part.name.endsWith("boat-shaped-hull");
+        const fixture = /station-bicycle-rack-base|lantern-cast-iron-base|square-tree-grate/.test(part.name);
+        if (!boat && !fixture) continue;
+        const positions = mesh.geometry.attributes.position;
+        for (let i = part.start; i < part.start + part.count; i++) {
+          const p = new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(mesh.matrixWorld);
+          if (boat) {
+            assert.ok(waterAt(p.x, p.z), `${part.name}: boat must follow the curved canal`);
+            assert.equal(bridgeAt(p.x, p.z), null, `${part.name}: mooring must clear bridges`);
+          } else assert.ok(isAmsterdamDry(p.x, p.z), `${part.name}: land-based fixture must have dry support`);
+        }
+      }
+    });
   } finally { world.dispose(); }
 });
 

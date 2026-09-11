@@ -1,7 +1,7 @@
 import { rampShape } from "./jumps.js";
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
-import { createTerrainBody } from "./terrain-physics.js";
+import { addSceneryBodies, createTerrainBody } from "./terrain-physics.js";
 
 export function createConeField({ scene, route, obstacles, onChange, gravity = 9.82, ramps = [], terrain = null }) {
   const hasSafePosition = typeof terrain?.isSafePosition === "function";
@@ -17,14 +17,7 @@ export function createConeField({ scene, route, obstacles, onChange, gravity = 9
   const carBody = new CANNON.Body({ type: CANNON.Body.KINEMATIC, collisionFilterGroup: 4, collisionFilterMask: 2 });
   carBody.addShape(new CANNON.Box(new CANNON.Vec3(1.05, 0.55, 2.2)));
   world.addBody(carBody);
-  for (const o of obstacles) {
-    const body = new CANNON.Body({ mass: 0, collisionFilterGroup: 8, collisionFilterMask: 2 });
-    body.position.set(o.x, (o.y ?? terrain?.heightAt(o.x, o.z) ?? 0) + 1.5, o.z);
-    body.addShape(o.hx !== undefined
-      ? new CANNON.Box(new CANNON.Vec3(o.hx, 1.5, o.hz))
-      : new CANNON.Cylinder(o.r, o.r, 3, 8));
-    world.addBody(body);
-  }
+  addSceneryBodies(world, obstacles, terrain, 2);
   for (const ramp of ramps) {
     const body = new CANNON.Body({ mass: 0, collisionFilterGroup: 8, collisionFilterMask: 2 });
     body.addShape(rampShape(ramp)); body.position.set(ramp.x,(ramp.y ?? 0)+0.075,ramp.z);

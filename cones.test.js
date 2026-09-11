@@ -5,6 +5,7 @@ import * as CANNON from "cannon-es";
 import { createConeField } from "./cones.js";
 import { moveWithBounces } from "./collision.js";
 import { createAmsterdamCourse } from "./amsterdam-course.js";
+import { AMSTERDAM, amsterdamPathLength, sampleAmsterdamPath, waterAt, bridgeAt } from "./amsterdam-layout.js";
 
 test("solid impacts have a gentle rebound and preserve tangential movement", () => {
   const result = moveWithBounces({ x: 0, z: 0 }, { x: 20, z: 3 }, 0.1, [{ x: 3, z: 0, hx: 0.5, hz: 10 }]);
@@ -113,6 +114,13 @@ test("Amsterdam cones thrown into water return to their own safe origin and rese
     if (body.mass > 0) bodies.push(body);
   });
   const scene = new THREE.Scene(), terrain = createAmsterdamCourse();
+  const canal = AMSTERDAM.canals.find(c => c.name === "Prinsengracht");
+  const distance = amsterdamPathLength(canal.points) * 0.6;
+  const water = sampleAmsterdamPath(canal.points, distance);
+  const bank = sampleAmsterdamPath(canal.points, distance, canal.width / 2 + 5);
+  const toss = new THREE.Vector3(-Math.sin(water.heading), 0, -Math.cos(water.heading));
+  assert.ok(!waterAt(bank.x, bank.z) && terrain.isSafePosition(bank.x, bank.z, 0.65), "toss starts on a dry bank");
+  assert.ok(waterAt(water.x, water.z) && !bridgeAt(water.x, water.z), "toss aims across exposed canal water");
   const cones = createConeField({ scene, terrain, route: terrain.route, obstacles: [], onChange() {} });
   assert.equal(cones.state().count, 28);
   const origins = bodies.map(body => body.position.toArray());
@@ -127,8 +135,14 @@ test("Amsterdam cones thrown into water return to their own safe origin and rese
   bodies[1].aabbNeedsUpdate = true;
   const expected = bodies.map(body => body.position.toArray());
   const body = bodies[0];
-  body.position.set(0, 8, -164);
-  body.velocity.set(0, 0, 35);
+  let crossedWater = false;
+  // Observe the leading clearance edge before recovery resets the body in update().
+  body.world.addEventListener("postStep", () => {
+    const x = body.position.x + toss.x * 0.65, z = body.position.z + toss.z * 0.65;
+    crossedWater ||= waterAt(x, z) && !bridgeAt(x, z);
+  });
+  body.position.set(bank.x, 8, bank.z);
+  body.velocity.set(toss.x * 35, 0, toss.z * 35);
   body.angularVelocity.set(3, 4, 5);
   body.aabbNeedsUpdate = true;
   body.wakeUp();
@@ -137,11 +151,12 @@ test("Amsterdam cones thrown into water return to their own safe origin and rese
     assert.ok(terrain.isSafePosition(body.position.x, body.position.z, 0.65));
     for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
   }
+  assert.ok(crossedWater, "the moving cone's footprint crosses exposed water before recovery");
   assert.deepEqual(bodies.map(b => b.position.toArray()), expected, "dry bystanders are not reset");
   assert.equal(body.sleepState, CANNON.Body.SLEEPING);
   assert.equal(body.velocity.lengthSquared(), 0);
   assert.equal(body.angularVelocity.lengthSquared(), 0);
-  body.position.set(0, -1, -150);
+  body.position.set(water.x, -1, water.z);
   cones.reset(car);
   assert.deepEqual(bodies.map(b => b.position.toArray()), origins);
   assert.deepEqual(scene.children.map(mesh => mesh.instanceMatrix.array), matrices);

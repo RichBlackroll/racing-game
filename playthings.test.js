@@ -4,6 +4,7 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { createPlaythings } from "./playthings.js";
 import { createAmsterdamCourse } from "./amsterdam-course.js";
+import { AMSTERDAM, amsterdamPathLength, sampleAmsterdamPath, waterAt, bridgeAt } from "./amsterdam-layout.js";
 
 test("toys sit off-road, are pushed by the car, settle, and reset cleanly", () => {
   const scene = new THREE.Scene();
@@ -114,6 +115,13 @@ test("Amsterdam toys thrown into a canal recover individually to their safe orig
     if (body.mass > 0) bodies.push(body);
   });
   const terrain = createAmsterdamCourse(), scene = new THREE.Scene();
+  const canal = AMSTERDAM.canals.find(c => c.name === "Prinsengracht");
+  const distance = amsterdamPathLength(canal.points) * 0.6;
+  const water = sampleAmsterdamPath(canal.points, distance);
+  const bank = sampleAmsterdamPath(canal.points, distance, canal.width / 2 + 5);
+  const toss = new THREE.Vector3(-Math.sin(water.heading), 0, -Math.cos(water.heading));
+  assert.ok(!waterAt(bank.x, bank.z) && terrain.isSafePosition(bank.x, bank.z, 1), "toss starts on a dry bank");
+  assert.ok(waterAt(water.x, water.z) && !bridgeAt(water.x, water.z), "toss aims across exposed canal water");
   const toys = createPlaythings({ scene, terrain, route: terrain.route, roadDist: terrain.roadDistance,
     kinds: { ball: { count: 1, sizeRange: [1, 1] }, block: { count: 1, sizeRange: [1, 1] }, tire: { count: 1, sizeRange: [1, 1] } } });
   assert.equal(toys.state().count, 3);
@@ -126,9 +134,14 @@ test("Amsterdam toys thrown into a canal recover individually to their safe orig
   const expected = bodies.map(body => body.position.toArray());
   for (const [i, body] of bodies.entries()) {
     assert.ok(terrain.isSafePosition(body.position.x, body.position.z, 1));
-    // Toss from a dry bank into the exposed Prinsengracht, using the real solver.
-    body.position.set(0, 8, -164);
-    body.velocity.set(0, 0, 35);
+    let crossedWater = false;
+    // Observe the leading clearance edge before recovery resets the body in update().
+    body.world.addEventListener("postStep", () => {
+      const x = body.position.x + toss.x, z = body.position.z + toss.z;
+      crossedWater ||= waterAt(x, z) && !bridgeAt(x, z);
+    });
+    body.position.set(bank.x, 8, bank.z);
+    body.velocity.set(toss.x * 35, 0, toss.z * 35);
     body.angularVelocity.set(3, 4, 5);
     body.aabbNeedsUpdate = true;
     body.wakeUp();
@@ -137,6 +150,7 @@ test("Amsterdam toys thrown into a canal recover individually to their safe orig
       assert.ok(terrain.isSafePosition(body.position.x, body.position.z, 1));
       for (const mesh of scene.children) assert.ok(mesh.instanceMatrix.array.every(Number.isFinite));
     }
+    assert.ok(crossedWater, "each moving toy's footprint crosses exposed water before recovery");
     assert.deepEqual(body.position.toArray(), origins[i]);
     assert.equal(body.sleepState, CANNON.Body.SLEEPING);
     assert.equal(body.velocity.lengthSquared(), 0);
@@ -144,7 +158,7 @@ test("Amsterdam toys thrown into a canal recover individually to their safe orig
     expected[i] = origins[i];
     assert.deepEqual(bodies.map(b => b.position.toArray()), expected, "dry bystanders are not reset");
   }
-  bodies[0].position.set(0, -1, -150);
+  bodies[0].position.set(water.x, -1, water.z);
   toys.reset(car);
   assert.deepEqual(bodies.map(body => body.position.toArray()), origins);
   assert.deepEqual(scene.children.map(mesh => mesh.instanceMatrix.array), matrices);

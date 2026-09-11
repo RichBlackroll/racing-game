@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { rampShape } from "./jumps.js";
-import { createTerrainBody } from "./terrain-physics.js";
+import { addSceneryBodies, createTerrainBody } from "./terrain-physics.js";
 
 const PALETTE = [0xff5f7a, 0xffc94d, 0x3db9f2, 0x7ee887];
 const WHITE = 0xfff4ec;
@@ -137,20 +137,7 @@ export function createPlaythings({
   });
   carBody.addShape(new CANNON.Box(new CANNON.Vec3(1.05, 0.55, 2.2)));
   world.addBody(carBody);
-  for (const o of obstacles) {
-    const body = new CANNON.Body({
-      mass: 0,
-      collisionFilterGroup: 8,
-      collisionFilterMask: 3,
-    });
-    body.position.set(o.x, (o.y ?? terrain?.heightAt(o.x, o.z) ?? 0) + 1.5, o.z);
-    body.addShape(
-      o.hx !== undefined
-        ? new CANNON.Box(new CANNON.Vec3(o.hx, 1.5, o.hz))
-        : new CANNON.Cylinder(o.r, o.r, 3, 8),
-    );
-    world.addBody(body);
-  }
+  addSceneryBodies(world, obstacles, terrain, 3);
   for (const ramp of ramps) {
     const body = new CANNON.Body({
       mass: 0,

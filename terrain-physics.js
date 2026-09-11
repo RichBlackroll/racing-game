@@ -2,6 +2,30 @@ import * as CANNON from "cannon-es";
 
 const grids = new WeakMap();
 
+export function addSceneryBodies(world, obstacles, terrain, collisionFilterMask) {
+  const rails = new Map(), cellSize = 32;
+  for (const o of obstacles) {
+    const isRail = o.kind === "quay-railing" || o.kind === "bridge-rail";
+    const cx = Math.floor(o.x / cellSize), cz = Math.floor(o.z / cellSize);
+    const key = isRail ? `${cx}/${cz}` : null;
+    const position = new CANNON.Vec3(o.x, (o.y ?? terrain?.heightAt(o.x, o.z) ?? 0) + 1.5, o.z);
+    let body = rails.get(key);
+    if (!body) {
+      body = new CANNON.Body({ mass: 0, collisionFilterGroup: 8, collisionFilterMask });
+      if (isRail) {
+        // Local cell centres keep SAP bounds tight; each rail retains its own shape.
+        body.position.set((cx + 0.5) * cellSize, 0, (cz + 0.5) * cellSize);
+        rails.set(key, body);
+      } else body.position.copy(position);
+    }
+    body.addShape(o.hx !== undefined
+      ? new CANNON.Box(new CANNON.Vec3(o.hx, 1.5, o.hz))
+      : new CANNON.Cylinder(o.r, o.r, 3, 8), position.vsub(body.position));
+    if (!isRail) world.addBody(body);
+  }
+  for (const body of rails.values()) world.addBody(body);
+}
+
 // Share only samples: Cannon shapes own mutable pillar caches and body pointers.
 export function createTerrainBody(terrain = null, options = {}) {
   const body = new CANNON.Body({ ...options, mass: 0 });
