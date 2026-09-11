@@ -44,7 +44,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       body: { x: 0, y: 0, z: 0, vx: 0, vz: 0, radius: i === 4 ? 2.25 : 1.65, mass: i === 4 ? 1.35 : 1 },
       along: 0, lane: 0, speed: 0, heading: 0, mode: "cruise", pack: null, challenge: 0, cooldown: 0, packCooldown: 0,
       boostRemaining: 0, boostCooldown: 0, boosts: 0, recovery: 0, collisions: 0, passLane: 0, passTime: 0,
-      verticalSpeed: 0, onRamp: false, airborne: false };
+      verticalSpeed: 0, onRamp: false, airborne: false, speedFactor: 1, wobble: 0, wobblePhase: 0 };
   });
   let packs = [], nextPack = 1, noticeCooldown = 0;
   function pose(r, dt) {
@@ -74,7 +74,10 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     r.car.position.set(p.x, y + .08, p.z);
     // Store the root at road height; the .08 m road offset must not accumulate in flight.
     if (r.airborne) r.car.position.y = y;
-    r.car.rotation.set(-pitch, r.heading, surface.roll, "YXZ");
+    r.wobblePhase = r.wobble > 0 ? r.wobblePhase + dt * 10 : 0;
+    const sway = Math.sin(r.wobblePhase) * clamp(r.wobble, 0, 1);
+    // Item wobble is visual only; steering and impact recovery keep their heading.
+    r.car.rotation.set(-pitch, r.heading + sway * .025, surface.roll + sway * .04, "YXZ");
     for (const w of r.wheels) {
       w.pivot.rotation.y = w.front && dt ? clamp(angle(r.heading - oldHeading) / dt * .35, -.36, .36) : 0;
       w.tire.rotation.x += r.speed * dt / w.radius; w.hub.rotation.x += r.speed * dt / w.radius;
@@ -98,7 +101,8 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     racers.forEach((r, i) => {
       Object.assign(r, { along: wrap(start + [18, 48, 140, 170, 205][i]), lane: i % 2 ? -2.5 : 2.5,
         speed: 0, mode: "cruise", pack: null, challenge: 0, cooldown: 0, packCooldown: 0, verticalSpeed: 0, onRamp: false, airborne: false,
-        boostRemaining: 0, boostCooldown: 1 + i * .7, boosts: 0, recovery: 0, collisions: 0, passLane: 0, passTime: 0 });
+        boostRemaining: 0, boostCooldown: 1 + i * .7, boosts: 0, recovery: 0, collisions: 0, passLane: 0, passTime: 0,
+        speedFactor: 1, wobble: 0, wobblePhase: 0 });
       const p = road(r.along, r.lane);
       Object.assign(r.body, { x: p.x, z: p.z, vx: 0, vz: 0, hits: 0, staticHits: 0, impact: 0 });
       for (const w of r.wheels) { w.tire.rotation.x = 0; w.hub.rotation.x = 0; }
@@ -119,11 +123,19 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     }
     return true;
   }
-  function update(dt, player, playerHeading, playerSpeed, velocity = { x: Math.sin(playerHeading) * playerSpeed, z: Math.cos(playerHeading) * playerSpeed }) {
+  function update(dt, player, playerHeading, playerSpeed, velocity = { x: Math.sin(playerHeading) * playerSpeed, z: Math.cos(playerHeading) * playerSpeed },
+    itemModifiers = () => ({ speedFactor: 1, wobble: 0, shield: 0, turbo: 0 })) {
     if (!Number.isFinite(dt) || dt <= 0) return { x: player.x, z: player.z, vx: velocity.x, vz: velocity.z, hits: 0, staticHits: 0 };
     dt = Math.min(dt, .05); noticeCooldown = Math.max(0, noticeCooldown - dt);
     const playerRoad = course.nearest(player.x, player.z);
     for (const r of racers) {
+      const { speedFactor = 1, wobble = 0 } = itemModifiers(`racer-${r.index}`);
+      // Apply the initial hit once, rather than multiplying momentum every frame.
+      if (speedFactor < r.speedFactor) {
+        const factor = speedFactor / r.speedFactor;
+        r.body.vx *= factor; r.body.vz *= factor; r.speed *= factor;
+      }
+      r.speedFactor = speedFactor; r.wobble = wobble;
       r.cooldown = Math.max(0, r.cooldown - dt); r.challenge = Math.max(0, r.challenge - dt);
       r.packCooldown = Math.max(0, r.packCooldown - dt);
       if (!r.cooldown && playerRoad.distance < 9 && Math.abs(gap(r.along, playerRoad.along)) < 40 &&
@@ -198,7 +210,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       }
       r.recovery = Math.max(0, r.recovery - dt);
       r.boostCooldown = Math.max(0, r.boostCooldown - dt);
-      const safeBoost = racing && !r.recovery && !r.airborne && Math.abs(r.lane) < 4 && cornerLimit > top * 1.08 && trafficLimit > top * 1.05;
+      const safeBoost = r.speedFactor >= 1 && racing && !r.recovery && !r.airborne && Math.abs(r.lane) < 4 && cornerLimit > top * 1.08 && trafficLimit > top * 1.05;
       if (r.boostRemaining > 0) {
         r.boostRemaining = safeBoost ? Math.max(0, r.boostRemaining - dt) : 0;
         if (!r.boostRemaining) r.boostCooldown = 5 + r.index * .6;
@@ -209,6 +221,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       if (r.boostRemaining) target = top * 1.5 * r.tune.boostTop;
       target = Math.min(target, cornerLimit, trafficLimit);
       if (Math.abs(r.lane) > 6) target = Math.min(target, 17 * r.tune.offroadTop);
+      target *= r.speedFactor;
       const thrust = r.boostRemaining ? (24 + 10 * r.tune.accel) * r.tune.boostTop : 12 * r.tune.accel;
       const roadHeading = road(r.along).heading;
       const forwardSpeed = Math.max(0, r.body.vx * Math.sin(roadHeading) + r.body.vz * Math.cos(roadHeading));
@@ -246,6 +259,8 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
   reset();
   return {
     update, reset,
+    targets: () => racers.map(r => ({ id: `racer-${r.index}`, x: r.body.x, y: r.body.y, z: r.body.z,
+      heading: r.heading, speed: r.speed, radius: r.body.radius })),
     drawMap(ctx, scale) {
       for (const r of racers) {
         ctx.fillStyle = r.friend.color; ctx.strokeStyle = "#18212b"; ctx.lineWidth = 4;
@@ -255,7 +270,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     },
     state: () => racers.map(r => ({ name: r.friend.name, config: { ...r.friend.config }, position: r.car.position.toArray(),
       heading: r.heading, speed: r.speed, along: r.along, lane: r.lane, mode: r.mode, pack: r.pack, airborne: r.airborne, visuals: r.visuals,
-      velocity: { x: r.body.vx, z: r.body.vz }, collisions: r.collisions, recovering: r.recovery > 0,
+      velocity: { x: r.body.vx, z: r.body.vz }, collisions: r.collisions, recovering: r.recovery > 0, speedFactor: r.speedFactor, wobble: r.wobble,
       boosting: r.boostRemaining > 0, boostRemaining: r.boostRemaining, boostCooldown: r.boostCooldown, boosts: r.boosts, flameVisible: r.flame.visible })),
   };
 }

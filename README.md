@@ -108,10 +108,49 @@ Serve this folder with `python3 -m http.server 8765`, then open http://localhost
 - WASD or arrow keys: accelerate, brake/reverse, steer.
 - Space: handbrake.
 - Shift or the BOOST button: five-second rocket boost, followed by a gradual return to normal speed.
+- F or the large item button: deploy your collected toy with one press or tap.
 - C: chase, overhead, or inside camera. Inside view includes a live rear-view mirror,
   steering wheel, analog/digital speedometer, drive gear, boost timer, trip distance,
   and handbrake indicator, with dashboard trim, vents, and windshield pillars.
 - R: reset the car and boost.
+
+## Playful collectible items
+
+Drive through a glowing gift to collect one item. The item button shows its picture,
+name, and action: Drop, Fire, Throw, Use, or Zap. Tap it or press F, including while
+holding touch steering and a pedal. Holding F does not repeatedly deploy items.
+Your pocket holds one item; passing another gift never replaces it.
+
+| Item | What it does |
+| --- | --- |
+| Banana Peel | Drops a peel behind you for a short, wobbly slip. |
+| Silly Oil | Drops a purple, slippery puddle. |
+| Confetti Mine | Drops a colorful toy puck that pops confetti and slows cars within 9 m. |
+| Foam Rocket | Fires a soft rocket straight ahead, inheriting your forward speed. |
+| Buddy Rocket | Gently steers a soft rocket towards a nearby racer ahead. |
+| Bouncy Ball | Throws a ball that bounces off the ground and scenery. |
+| Water Balloon | Throws an arcing balloon with a 7 m splash. |
+| Bubble Shield | Clears slips and blocks item effects for 6 seconds. |
+| Turbo Star | Gives extra acceleration, 45% more cruise speed, and protection for 5 seconds. |
+| Lightning | Slows every other racer, anywhere on the map, for 4 seconds. |
+
+Each map scatters 60 gifts across safe road and off-road spots, including remote
+exploration areas. Colored minimap diamonds mark available gifts. All ten types
+appear, with the strongest items less common. Gifts return after 18 seconds of
+driving; the player collects them, while all five friend racers react to effects.
+Dropped toys disappear after 24 seconds. They can catch you too after a brief
+safe drop window, so watch out on the return trip!
+
+Everything is cartoon play: temporary slows and gentle wobbles, no damage,
+elimination, scary explosions, camera shake, or flashing-screen lightning.
+Steering stays responsive. Pause, menus, the garage, and backgrounding freeze all
+item timers. Reset clears your pocket and deployed toys and restores the gifts;
+items are not saved between reloads. Reduced motion removes decorative bobbing,
+spinning, and confetti movement.
+
+`item-system.js` owns the simulation, `item-world.js` batches the shared 3D toys,
+and `item-ui.js` owns the one-button controls. Run `node --test item-*.test.js`
+for placement, swept collisions, item effects, visuals, and input/lifecycle tests.
 
 Rendering retains physically based materials and HDR reflections. `daylight.js`
 coordinates moving sun and moon lights, sky colors, ambient light, exposure and

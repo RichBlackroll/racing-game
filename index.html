@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="cockpit.css" />
     <link rel="stylesheet" href="time-controls.css" />
     <link rel="stylesheet" href="mobile-ui.css" />
+    <link rel="stylesheet" href="items.css" />
   </head>
   <body>
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
@@ -220,7 +221,7 @@
     <section class="map-card" aria-label="Route map">
       <div class="instrument-label"><span>LIVE ROUTE</span><span class="map-north">N ↑</span></div>
       <canvas id="map" width="276" height="276" role="img" aria-label="Map showing your car, trail and next destination"></canvas>
-      <div class="map-caption"><span class="dot"></span> Free drive</div>
+      <div class="map-caption"><span class="dot"></span> Colored diamonds = gifts</div>
     </section>
 
     <div id="toast" role="status">Follow the golden trail markers</div>
@@ -240,6 +241,15 @@
     <button id="boost" title="Activate boost (Shift)">
       <svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg><span data-label>Boost</span><kbd>Shift</kbd>
     </button>
+    <section id="item-slot" aria-label="Collected item" data-ready="false">
+      <p id="item-status" role="status" aria-live="polite">10 surprises to discover</p>
+      <button type="button" id="use-item" disabled aria-label="Find a glowing gift to collect an item" aria-describedby="item-hint" aria-keyshortcuts="F">
+        <svg id="item-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"></svg>
+        <span class="item-copy"><strong id="item-name">Find a gift</strong><span id="item-action">Collect</span></span>
+        <kbd aria-hidden="true">F</kbd>
+      </button>
+      <p id="item-hint">Drive through a glowing gift. Try off-road too!</p>
+    </section>
     <div class="touch" aria-label="Touch driving controls">
       <div class="steering-control">
         <span class="instrument-label">STEERING</span>
@@ -285,7 +295,7 @@
       / <a href="WELLINGTON.md" target="_blank" rel="noopener">Map notes</a>
     </aside>
     </main>
-    <script type="module" src="build/bootstrap.js?v=21" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
+    <script type="module" src="build/bootstrap.js?v=22" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
     <button id="loading-fallback" hidden onclick="location.reload()">Reload adventure</button>
   </body>
 </html>

@@ -41,12 +41,43 @@ const drive = new Function("state", "THREE", `
   let { speed = 0, boosting = false, recovering = false, throttle = 1,
     keys = {}, now = 0, boostEnds = 5000, dt = 1 / 60, offroad = false, tune } = state;
   const flame = { scale: { set() {} } }, boostText = {}, boostButton = {};
+  const itemSystem = { modifiers: () => state.itemEffect ?? { speedFactor: 1, wobble: 0, shield: 0, turbo: 0 } };
+  let playerItemFactor = state.playerItemFactor ?? 1, slipX = state.slipX ?? 0, slipZ = state.slipZ ?? 0;
   const show = () => {}, boostLabel = 'Boost';
   let sceneDirty = false;
-  ${source.slice(source.indexOf("    const cruiseMax ="), source.indexOf('    document.body.classList.toggle("boosting"'))}
+  ${source.slice(source.indexOf("    const itemEffect ="), source.indexOf('    document.body.classList.toggle("boosting"'))}
   return { ...state, speed, boosting, recovering, disabled: boostButton.disabled,
-    cruise: cruiseMax(offroad), boost: boostMax(offroad) };
+    cruise: cruiseMax(offroad), boost: boostMax(offroad), playerItemFactor, slipX, slipZ };
 `);
+
+test("item slowdowns cancel boost, preserve steering momentum recovery, and expire", () => {
+  const tune = computeTuning(DEFAULTS), itemEffect = { speedFactor: .6, wobble: 1, shield: 0, turbo: 0 };
+  let state = drive({ tune, itemEffect, speed: 30, slipX: 5, slipZ: 5, boosting: true }, THREE);
+  assert.equal(state.boosting, false);
+  assert.equal(state.recovering, false);
+  assert.equal(state.slipX, 3);
+  const initial = state.speed;
+  for (let i = 0; i < 180; i++) state = drive(state, THREE);
+  assert.ok(state.speed >= initial, "a persistent slow is not multiplied into a complete stop");
+  assert.equal(state.cruise, 32 * tune.top * .6);
+  state.itemEffect = { speedFactor: 1, wobble: 0, shield: 0, turbo: 0 };
+  for (let i = 0; i < 600; i++) state = drive(state, THREE);
+  assert.equal(state.cruise, 32 * tune.top);
+  assert.ok(Math.abs(state.speed - state.cruise) < .001);
+});
+
+test("Turbo Star speeds every car without fitted rockets and still allows braking", () => {
+  const tune = computeTuning({ ...DEFAULTS, rocket: "none" });
+  const itemEffect = { speedFactor: 1, wobble: 0, shield: 0, turbo: 5 };
+  for (const offroad of [false, true]) {
+    let state = { tune, itemEffect, offroad };
+    for (let i = 0; i < 240; i++) state = drive(state, THREE);
+    assert.ok(state.speed > (offroad ? 17 * tune.offroadTop : 32 * tune.top) * 1.4);
+    assert.ok(drive({ ...state, keys: { " ": true } }, THREE).speed < state.speed);
+    assert.ok(drive({ ...state, throttle: -1 }, THREE).speed < state.speed);
+    assert.equal(drive({ ...state, speed: 0, throttle: 0 }, THREE).speed, 0);
+  }
+});
 
 test("engine upgrades reach clearly separated road speeds and improve off-road speed", () => {
   for (const [engine, kmh] of [["four", 115.2], ["six", 172.8], ["electric", 195.84], ["eight", 230.4]]) {

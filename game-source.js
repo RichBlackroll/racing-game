@@ -21,6 +21,9 @@ import { createPlaythings } from "./playthings.js";
 import { createPeopleField } from "./people.js";
 import { createFriendAdventure } from "./friends.js";
 import { createFriendRacers } from "./friend-racers.js";
+import { createItemSystem } from "./item-system.js";
+import { createItemWorld } from "./item-world.js";
+import { createItemUI } from "./item-ui.js";
 import { createModifier } from "./modifier-ui.js";
 import { createGaragePreview } from "./modifier-preview.js";
 import { loadVehicleModel } from "./vehicle-model.js";
@@ -590,6 +593,41 @@ export async function main(loading) {
     scene, course, obstacles, ramps, gravity: isMoon ? 3.2 : 9.82,
     contactTexture: contact, onRace: show,
   });
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const itemSystem = createItemSystem({
+    course, obstacles, ramps,
+    onEvent(event) {
+      sceneDirty = true;
+      if (event.type === "collect" || event.type === "deploy" || event.target === "player") show(event.message);
+    },
+  });
+  const itemWorld = createItemWorld({ scene, course, reducedMotion });
+  let itemSnapshot = itemSystem.state(), playerItemFactor = 1;
+  const itemUI = createItemUI({
+    enabled: () => gameReady && !loading.active && !paused && !modifier.active
+      && !adventure.busy() && !mobileUI.active && !document.hidden && !contextLost,
+    deploy() {
+      if (itemSystem.deploy()) {
+        itemSnapshot = itemSystem.state();
+        itemWorld.update(itemSnapshot, 0, itemTargets());
+        itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
+      }
+    },
+  });
+  function itemTargets() {
+    return [{ id: "player", x: car.position.x, y: car.position.y, z: car.position.z,
+      heading, speed, radius: 1.12 }, ...friendRacers.targets()];
+  }
+  function resetItems() {
+    itemSystem.reset();
+    playerItemFactor = 1;
+    const targets = itemTargets();
+    itemSystem.update(0, targets);
+    itemSnapshot = itemSystem.state();
+    itemWorld.update(itemSnapshot, 0, targets);
+    itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
+    carVisual.rotation.z = 0;
+  }
   const garagePreview = createGaragePreview({
     renderer, car: carVisual, environment: scene.environment, contactTexture: contact,
   });
@@ -672,6 +710,7 @@ export async function main(loading) {
     playField.reset(car.position, heading);
     peopleField.reset(car.position, heading);
     friendRacers.reset(car.position);
+    resetItems();
     jumpPhysics?.reset(car.position);
     checkpoint = drive?.checkpoint ?? 1;
     lap = drive?.lap ?? 1;
@@ -740,7 +779,7 @@ export async function main(loading) {
   let last = performance.now(),
     lastMap = 0;
   const map = document.getElementById("map").getContext("2d");
-  const mapExtent = isWellington || isAmsterdam ? course.halfSize : Math.max(...route.map(p => Math.max(Math.abs(p.x), Math.abs(p.z)))) + 30;
+  const mapExtent = course.halfSize;
   const mapScale = (isWellington ? 138 : 126) / mapExtent;
   function drawMap() {
     map.clearRect(0, 0, 276, 276);
@@ -786,6 +825,7 @@ export async function main(loading) {
       }
       map.closePath(); map.fillStyle = "#f4c958"; map.fill();
     }
+    itemWorld.drawMap(map, mapScale);
     adventure.drawMap(map, mapScale);
     friendRacers.drawMap(map, mapScale);
     let g = gates[checkpoint];
@@ -927,6 +967,7 @@ export async function main(loading) {
   let lastSave = 0;
   function frame(now) {
     requestAnimationFrame(frame);
+    itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
     if (loading.active || (paused && !modifier.active) || document.hidden || contextLost || (adventure.busy() && !modifier.active)) {
       audio.silence();
       last = now;
@@ -971,7 +1012,20 @@ export async function main(loading) {
     surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading);
     if (!keys[" "] && (Math.abs(speed) > .1 || throttle) && !jumpPhysics?.state().airborne)
       speed -= Math.sin(surfacePose.pitch) * (isMoon ? 3.2 : 9.82) * .55 * dt;
-    const cruiseMax = (off) => (off ? 17 * tune.offroadTop : 32 * tune.top);
+    const itemEffect = itemSystem.modifiers("player");
+    if (itemEffect.speedFactor < playerItemFactor) {
+      const factor = itemEffect.speedFactor / playerItemFactor;
+      speed *= factor; slipX *= factor; slipZ *= factor;
+    }
+    playerItemFactor = itemEffect.speedFactor;
+    if (itemEffect.speedFactor < 1) {
+      boosting = recovering = false;
+      flame.visible = false;
+      boostButton.disabled = false;
+      boostText.textContent = boostLabel;
+    }
+    const cruiseMax = (off) => (off ? 17 * tune.offroadTop : 32 * tune.top)
+      * itemEffect.speedFactor * (itemEffect.turbo > 0 ? 1.45 : 1);
     // Rockets amplify the fitted engine and tyres instead of capping upgraded cars.
     const boostMax = (off) => cruiseMax(off) * 1.5 * tune.boostTop;
     if (boosting && (now >= boostEnds || throttle < 0 || keys[" "])) {
@@ -1004,6 +1058,7 @@ export async function main(loading) {
       }
     } else {
       speed += throttle * (speed * throttle < 0 ? 22 : 10) * tune.accel * dt;
+      if (itemEffect.turbo > 0 && throttle > 0 && !keys[" "]) speed += 20 * dt;
       speed *= Math.exp(-(keys[" "] ? 3.4 : throttle ? 0.13 : 0.6) * dt);
       speed = THREE.MathUtils.clamp(speed, -9, cruiseMax(offroad));
       if (!throttle && Math.abs(speed) < 0.03) speed = 0;
@@ -1025,7 +1080,7 @@ export async function main(loading) {
     slipZ *= Math.exp(-5 * dt);
     const vx = forwardX * speed + slipX,
       vz = forwardZ * speed + slipZ;
-    const motion = friendRacers.update(dt, car.position, heading, speed, { x: vx, z: vz });
+    const motion = friendRacers.update(dt, car.position, heading, speed, { x: vx, z: vz }, itemSystem.modifiers);
     car.position.x = motion.x;
     car.position.z = motion.z;
     const flight = jumpPhysics?.update(dt, car.position);
@@ -1047,6 +1102,13 @@ export async function main(loading) {
       sceneDirty = true;
     }
 
+    const targets = itemTargets();
+    itemSystem.update(dt, targets);
+    itemSnapshot = itemSystem.state();
+    itemWorld.update(itemSnapshot, dt, targets);
+    itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
+    // Wobble only the exterior model: steering and the child's camera stay steady.
+    carVisual.rotation.z = reducedMotion ? 0 : Math.sin(itemEffect.wobble * 12) * Math.min(.09, itemEffect.wobble * .09);
     coneField.update(dt, car.position, heading);
     playField.update(dt, car.position, heading);
     peopleField.update(dt, { position: car.position, heading }, Math.abs(speed), now / 1000);
@@ -1256,6 +1318,7 @@ export async function main(loading) {
     wheelCount: wheels.length,
     adventure: adventure.state(),
     racers: friendRacers.state(),
+    items: itemSystem.state(),
     cones: coneField.state(),
     toys: playField.state(),
     people: peopleField.state(),

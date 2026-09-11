@@ -144,6 +144,46 @@ test("zero/invalid steps freeze poses, reset is deterministic and follows a rest
   }
 });
 
+test("item targets have stable IDs, car-root heights and radii, and detached snapshots", () => {
+  const { field } = fixture();
+  const initial = field.targets(), saved = structuredClone(initial), states = field.state();
+  assert.deepEqual(initial, states.map((s, i) => ({ id: `racer-${i}`, x: s.position[0], y: s.position[1], z: s.position[2],
+    heading: s.heading, speed: s.speed, radius: i === 4 ? 2.25 : 1.65 })));
+  const edited = field.targets();
+  for (const t of edited) Object.assign(t, { id: "changed", x: -1e6, y: -1e6, z: -1e6, heading: 99, speed: 99, radius: 99 });
+  edited.pop();
+  assert.deepEqual(field.targets(), saved, "callers cannot mutate racer bodies or IDs");
+  for (let i = 0; i < 30; i++) field.update(.05, absent, 0, 0);
+  assert.deepEqual(initial, saved, "old snapshots never track live racer motion");
+  assert.notDeepEqual(field.targets(), saved);
+  assert.deepEqual(field.targets().map(t => t.id), saved.map(t => t.id));
+  field.reset();
+  assert.deepEqual(field.targets(), saved);
+});
+
+test("optional item callbacks preserve default driving and receive every stable racer ID", () => {
+  const { field } = fixture("forest", [], fastCircuit());
+  const { field: explicit } = fixture("forest", [], fastCircuit());
+  const neutral = Object.freeze({ speedFactor: 1, wobble: 0, shield: 0, turbo: 0 }), calls = [];
+  const modifiers = id => { calls.push(id); return neutral; };
+  for (let i = 0; i < 160; i++) {
+    calls.length = 0;
+    const motion = field.update(.05, absent, .3, 12);
+    const other = explicit.update(.05, absent, .3, 12, undefined, modifiers);
+    assert.deepEqual(other, motion);
+    assert.deepEqual(explicit.state(), field.state());
+    assert.deepEqual(calls, field.targets().map(t => t.id));
+  }
+  calls.length = 0;
+  const before = explicit.state();
+  for (const dt of [0, -1, NaN, Infinity]) explicit.update(dt, absent, 0, 0, undefined, modifiers);
+  assert.deepEqual(calls, [], "paused/invalid steps do not read or apply modifiers");
+  assert.deepEqual(explicit.state(), before);
+  field.update(.05, absent, 0, 0, { x: 0, z: 0 });
+  explicit.update(.05, absent, 0, 0, { x: 0, z: 0 }, () => ({}));
+  assert.deepEqual(explicit.state(), field.state(), "omitted modifier fields are neutral");
+});
+
 for (const level of ["forest", "city", "stunt", "moon", "amsterdam"]) test(`${level}: racing follows terrain and ramps, stays separated and keeps finite visible transforms`, () => {
   const { field, scene, course } = fixture(level);
   const flying = new Set(), landed = new Set();
@@ -194,7 +234,7 @@ test("racers pass a stopped player instead of queueing forever; map markers incl
 
 test("production integration updates only during driving, resets the crew and exposes moving collisions", async () => {
   const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
-  const update = source.indexOf("friendRacers.update(dt, car.position, heading, speed, { x: vx, z: vz })");
+  const update = source.indexOf("friendRacers.update(dt, car.position, heading, speed, { x: vx, z: vz }");
   assert.ok(update > source.indexOf("garagePreview.render(dt)"));
   assert.ok(update > source.indexOf("if (loading.active || (paused"));
   assert.ok(update < source.indexOf("const flight = jumpPhysics?.update"), "collision displacement reaches ramp physics and terrain grounding");
@@ -246,6 +286,81 @@ test("friends race at fitted engine speeds and rocket cars boost, cool down, and
   const before = field.state(); field.update(0, absent, 0, 0); assert.deepEqual(field.state(), before);
   field.reset();
   assert.ok(field.state().every(s => !s.boosting && !s.flameVisible && s.boosts === 0 && !s.recovering));
+});
+
+test("item slows immediately cut momentum, cancel rockets, persist past cooldown, and expire normally", () => {
+  const { field } = fixture("forest", [], fastCircuit());
+  for (let i = 0; i < 400 && !field.state()[0].boosting; i++) field.update(.05, absent, 0, 0);
+  const before = field.state()[0];
+  assert.equal(before.boosting, true);
+  let speedFactor = .6;
+  const modifiers = id => ({ speedFactor: id === "racer-0" ? speedFactor : 1, wobble: 0, shield: 0, turbo: 0 });
+  field.update(.05, absent, 0, 0, undefined, modifiers);
+  const struck = field.state()[0], top = 32 * computeTuning(struck.config).top;
+  assert.ok(struck.speed < before.speed * .7, "the first hit immediately reduces existing momentum");
+  assert.equal(struck.boosting, false); assert.equal(struck.flameVisible, false);
+  assert.ok(struck.boostCooldown > 0);
+  assert.equal(struck.collisions, before.collisions, "items do not cause collision damage or recovery");
+  assert.ok(field.state().slice(1).every(s => s.speedFactor === 1), "only the addressed racer is slowed");
+  field.update(.05, absent, 0, 0, undefined, modifiers);
+  assert.ok(field.state()[0].speed > struck.speed * .9, "the same hit does not multiply momentum down every frame");
+  for (let i = 0; i < 180; i++) {
+    field.update(.05, absent, 0, 0, undefined, modifiers);
+    const s = field.state()[0];
+    assert.equal(s.speedFactor, .6);
+    assert.equal(s.boosting, false); assert.equal(s.flameVisible, false);
+    assert.equal(s.boosts, before.boosts, "rockets cannot restart during a slow");
+    if (i > 30) assert.ok(s.speed <= top * .6 + .5, `slow speed remains capped: ${s.speed}`);
+  }
+  const slowed = field.state()[0];
+  assert.equal(slowed.boostCooldown, 0, "the slow outlasted the rocket cooldown");
+  assert.ok(slowed.speed > top * .4, "the friend continues driving autonomously while slowed");
+  speedFactor = 1;
+  field.update(.05, absent, 0, 0, undefined, modifiers);
+  assert.ok(field.state()[0].speed < slowed.speed + 4, "expiry restores acceleration, not an instantaneous speed jump");
+  let peak = 0;
+  for (let i = 0; i < 400; i++) {
+    field.update(.05, absent, 0, 0, undefined, modifiers);
+    peak = Math.max(peak, field.state()[0].speed);
+  }
+  assert.ok(peak > top * .95, "the normal engine speed returns after expiry");
+  assert.ok(field.state()[0].boosts > before.boosts, "rockets become available again");
+  field.update(.05, absent, 0, 0, undefined, () => ({ speedFactor: .6, wobble: 1.2 }));
+  field.reset();
+  assert.ok(field.state().every(s => s.speedFactor === 1 && s.wobble === 0));
+});
+
+test("item wobble is gentle visual yaw and roll without changing geometry or autonomous impact recovery", () => {
+  const { field, scene, course } = fixture("forest", [], fastCircuit());
+  const { field: steady } = fixture("forest", [], fastCircuit());
+  const victim = field.state()[0], car = scene.getObjectByName(`racer-${victim.name}`);
+  const scale = car.scale.toArray(), geometry = [];
+  car.traverse(node => { if (node.isMesh) geometry.push([node, node.geometry]); });
+  const right = new THREE.Vector3(Math.cos(victim.heading), 0, -Math.sin(victim.heading));
+  const player = new THREE.Vector3(...victim.position).addScaledVector(right, -6);
+  for (const racers of [field, steady]) racers.update(.05, player, victim.heading + Math.PI / 2, 110, { x: right.x * 110, z: right.z * 110 });
+  assert.equal(field.state()[0].recovering, true);
+  let movedVisually = false, furthest = 0;
+  for (let i = 0; i < 600; i++) {
+    field.update(.05, absent, 0, 0, undefined, () => ({ speedFactor: .6, wobble: 1.2 }));
+    steady.update(.05, absent, 0, 0, undefined, () => ({ speedFactor: .6, wobble: 0 }));
+    assert.deepEqual(field.targets(), steady.targets(), "visual wobble never changes physical steering or motion");
+    const s = field.state()[0];
+    assert.ok(Math.abs(car.rotation.y - s.heading) <= .025 + 1e-8);
+    assert.ok(Math.abs(car.rotation.z) <= .04 + 1e-8);
+    movedVisually ||= Math.abs(car.rotation.z) > .02 && Math.abs(car.rotation.y - s.heading) > .01;
+    furthest = Math.max(furthest, course.nearest(s.position[0], s.position[2]).distance);
+    assert.deepEqual(car.scale.toArray(), scale);
+    for (const [node, original] of geometry) assert.equal(node.geometry, original);
+  }
+  const recovered = field.state()[0];
+  assert.ok(movedVisually, "the wobble animates both yaw and roll");
+  assert.ok(furthest > 8, "the collision still sends the slowed friend off road");
+  assert.ok(course.nearest(recovered.position[0], recovered.position[2]).distance < 4);
+  assert.ok(recovered.speed > 10 && !recovered.recovering, "the friend drives back even while slowed and wobbling");
+  field.update(.05, absent, 0, 0);
+  assert.equal(car.rotation.y, field.state()[0].heading);
+  assert.equal(car.rotation.z, 0, "visual wobble clears when the modifier expires");
 });
 
 test("a swept side hit throws a friend off track, preserves player momentum, and the friend drives back", () => {

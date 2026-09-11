@@ -27,7 +27,7 @@ function fixture() {
     heightAt: (x, z) => x * .02 + z * .01, obstacles: [], course: { halfSize: 620 },
     coneField: field, playField: field, peopleField: field, friendRacers: field,
     jumpPhysics: { reset() { flight = { airborne: false, clearance: 0 }; }, state: () => flight },
-    moveWithBounces, sampleDrivingSurface, clearCamera() {}, show() {},
+    moveWithBounces, sampleDrivingSurface, clearCamera() {}, show() {}, resetItems() {},
   };
   const api = runInNewContext(`${functions}; ({ reset, saveDrive });`, context);
   return { context, drive, writes, resets, api, flight(value) { flight = value; } };

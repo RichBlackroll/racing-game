@@ -1,0 +1,34 @@
+/* One pocket, one action. Item color belongs to the toy, not the whole HUD. */
+#item-slot { --item-color: #bbcfba; position: fixed; z-index: 3; left: var(--edge-left); bottom: calc(var(--edge-bottom) + 108px); width: 272px; color: var(--ui-text); }
+#item-status { margin: 0 0 7px 3px; font-size: 11px; font-weight: 600; color: var(--item-color); text-shadow: 0 1px 4px #101b24, 0 1px 10px #101b24; }
+#use-item { display: flex; width: 100%; min-height: 76px; gap: 12px; padding: 12px; border: 2px solid var(--item-color); border-radius: 18px; color: var(--ui-text); background: var(--ui-surface); box-shadow: 0 4px 0 #101b2480, var(--ui-shadow); text-align: left; touch-action: none; }
+#use-item:disabled { opacity: 1; cursor: default; border-color: var(--ui-border); }
+#item-icon { flex: 0 0 42px; width: 42px; height: 42px; padding: 5px; border-radius: 12px; background: var(--item-color); color: #202b24; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.item-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 4px; }
+#item-name { font-size: 16px; font-weight: 700; line-height: 1.2; }
+#item-action { color: var(--item-color); font-size: 12px; font-weight: 650; }
+#use-item kbd { color: var(--item-color); border-color: var(--item-color); }
+#item-hint { margin: 9px 3px 0; max-width: 268px; font-size: 11px; line-height: 1.4; color: var(--ui-text); text-shadow: 0 1px 4px #101b24, 0 1px 10px #101b24; }
+#use-item:focus-visible { outline: 3px solid var(--item-color); outline-offset: 4px; }
+@media (hover: hover) { #use-item:hover:not(:disabled) { background: #38413d; border-color: var(--item-color); } }
+#use-item:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #101b2480; }
+.configuring #item-slot, .drive-menu-open #item-slot { visibility: hidden; pointer-events: none; }
+.paused #item-slot { opacity: .6; }
+.touch-device #item-slot { left: auto; right: var(--edge-right); width: calc(var(--pedal-width) * 2 + 12px); bottom: calc(var(--drive-bottom) + var(--pedal-height) + 128px); }
+.touch-device #use-item kbd { display: none; }
+.touch-device #item-name { font-size: 14px; }
+.touch-device #item-hint { display: none; }
+.compact-ui #item-slot { left: var(--edge-left); bottom: calc(var(--edge-bottom) + 20px); width: 230px; }
+.compact-ui.touch-device #item-slot { left: auto; right: var(--edge-right); width: calc(var(--pedal-width) * 2 + 8px); bottom: calc(var(--drive-bottom) + var(--pedal-height) + 60px); }
+.compact-ui.touch-device #use-item { min-height: 76px; gap: 7px; padding: 8px 6px; border-radius: 14px; }
+.compact-ui.touch-device #item-icon { flex-basis: 32px; width: 32px; height: 32px; padding: 3px; border-radius: 9px; }
+.compact-ui.touch-device #item-name { font-size: 12px; }
+.compact-ui.touch-device #item-action { font-size: 11px; }
+.compact-ui.touch-device #item-status { font-size: 10px; line-height: 1.3; margin: 0 0 5px; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-device:not(.compact-ui) #item-slot { bottom: calc(var(--drive-bottom) + var(--pedal-height) + 66px); }
+  .compact-ui.touch-device #item-status { max-width: 120px; }
+}
+@media (orientation: landscape) and (max-height: 380px) {
+  .compact-ui.touch-device #item-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
