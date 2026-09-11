@@ -1,17 +1,17 @@
 import { ITEMS } from "./item-system.js";
 
 const icons = {
-  gift: '<path d="M5 11h22v17H5zM3 7h26v6H3zM16 7v21M16 7C6 8 7 0 12 3l4 4Zm0 0c10 1 9-7 4-4l-4 4Z"/>',
-  banana: '<path d="M17 4c-1 9-5 13-13 17 5 5 10 2 13-3 2 7 7 8 12 5-8-4-10-10-10-19Z"/><path d="m17 4 2-2M17 18l-5 10"/>',
-  oil: '<path d="M18 3s-6 6-6 10a6 6 0 0 0 12 0c0-4-6-10-6-10Z"/><path d="M8 18c-8 1-7 10 2 10h12c10 0 10-7 4-8M8 24h7"/>',
-  mine: '<ellipse cx="16" cy="23" rx="11" ry="5"/><path d="M5 23v-5c0-6 22-6 22 0v5M16 3v5M4 7l4 4M28 7l-4 4m-9 7 1-3 1 3 3 1-3 1-1 3-1-3-3-1Z"/>',
-  rocket: '<path d="M12 21C9 14 17 4 27 4c0 10-10 18-17 15Zm0-6H6l-3 8 7-1m7-2v6l-8 3 1-7"/><circle cx="21" cy="10" r="3"/><path d="m7 25-3 3"/>',
-  homing: '<path d="M13 21C10 14 18 4 28 4c0 10-10 18-17 15Zm0-6H7l-3 8 7-1m7-2v6l-8 3 1-7"/><path d="M20 9v2m4-2v2M3 3v6h6M3 9l6-6"/>',
-  ball: '<circle cx="16" cy="15" r="11"/><path d="M7 8c4 1 13 10 17 16M11 5c-1 8 6 13 15 12M4 29h24"/>',
-  balloon: '<path d="M26 13c0 7-7 12-10 12S6 20 6 13a10 10 0 0 1 20 0Zm-10 12-3 4h6l-3-4M11 11c0-2 1-3 3-4"/>',
-  shield: '<path d="m16 3 11 4v9c0 7-11 13-11 13S5 23 5 16V7L16 3Z"/><path d="m10 15 4 4 8-8"/>',
-  star: '<path d="m16 2 4 9 10 1-8 7 2 11-8-6-8 6 2-11-8-7 10-1Z"/>',
-  lightning: '<path d="M19 2 5 18h10l-2 12L28 12H17l2-10Z"/>',
+  empty: '<circle cx="32" cy="32" r="23" stroke="currentColor" stroke-width="2" stroke-dasharray="4 5"/><path d="M23 32h18m-9-9v18" stroke="currentColor" stroke-width="2.5"/>',
+  banana: '<path d="M31 13c-2 15-10 23-25 29 8 10 19 3 25-9-1 12-3 19-8 24 12 4 18-10 13-24 6 13 15 18 23 11-16-6-22-17-23-31Z" fill="currentColor" stroke="#9b692a" stroke-width="2"/><path d="M31 13c-1 8-1 14 2 21l5-3-2-18" fill="#fff2a1"/><path d="m32 13 1-6 5 1-2 6" fill="#926338"/><path d="M11 43c8-1 14-8 19-15m7 6c5 6 11 10 17 10" stroke="#fff4b0" stroke-width="2.5"/>',
+  oil: '<path d="M18 42C2 39 1 53 15 56c12 3 17-1 25 1 18 4 25-11 14-15-10-4-23 2-36 0Z" fill="#7951b8" stroke="#402954" stroke-width="2"/><path d="M33 6S19 23 19 32a14 14 0 0 0 28 0C47 23 33 6 33 6Z" fill="currentColor" stroke="#402954" stroke-width="2"/><path d="M27 25c-4 6-3 10 0 13M14 49h10" stroke="#e2baff" stroke-width="4"/>',
+  mine: '<path d="M10 36v12c0 12 44 12 44 0V36" fill="#775be2" stroke="#493167" stroke-width="2"/><ellipse cx="32" cy="36" rx="22" ry="11" fill="currentColor" stroke="#493167" stroke-width="2"/><path d="m32 27 3 6 8 1-6 4 2 6-7-3-7 3 2-6-6-4 8-1Z" fill="#fff178"/><path d="m11 17 4 5m34-4 4-4M31 9v8" stroke="#67e6e5" stroke-width="4"/><path d="m20 7 3 4m18 6 3-5M6 29l4 1" stroke="#fff178" stroke-width="3"/>',
+  rocket: '<path d="m18 39-5 17 16-7" fill="#ffd84d" stroke="#ba6d32" stroke-width="2"/><path d="m21 28-10 1-7 17 17-3m15-6 1 16-17 7 1-18" fill="currentColor" stroke="#9c513e" stroke-width="2"/><path d="M20 39C17 24 34 6 56 7c1 21-16 40-31 38Z" fill="#fff6df" stroke="#9c513e" stroke-width="2"/><path d="M41 10c5 1 10 6 12 12l3-15Z" fill="currentColor"/><circle cx="38" cy="25" r="7" fill="currentColor" stroke="#9c513e" stroke-width="2"/><path d="m18 36 10 10" stroke="currentColor" stroke-width="5"/>',
+  homing: '<path d="m19 40-5 16 16-7" fill="#fff178"/><path d="m22 29-10 1-7 17 17-3m15-6 1 16-17 7 1-18" fill="currentColor" stroke="#35684b" stroke-width="2"/><path d="M21 40C18 25 35 7 57 8c1 21-16 40-31 38Z" fill="#fff6df" stroke="#35684b" stroke-width="2"/><path d="M40 11c6 1 11 6 14 12l3-15Z" fill="currentColor"/><ellipse cx="35" cy="25" rx="5" ry="6" fill="#fff" stroke="#35684b" stroke-width="1.5"/><ellipse cx="45" cy="29" rx="5" ry="6" fill="#fff" stroke="#35684b" stroke-width="1.5"/><path d="M36 24v3m10 1v3" stroke="#425078" stroke-width="3"/><path d="M5 18V7h11m-11 0 9 9" stroke="currentColor" stroke-width="3"/>',
+  ball: '<circle cx="32" cy="31" r="24" fill="currentColor" stroke="#246f9f" stroke-width="2"/><path d="M10 22c17-2 34 7 43 21M23 9c-9 20 7 37 24 41" stroke="#fff178" stroke-width="5"/><path d="M37 12c7 1 12 5 15 12" stroke="#d8f6ff" stroke-width="3"/>',
+  balloon: '<path d="M52 26c0 15-13 25-20 25S12 41 12 26a20 21 0 0 1 40 0Z" fill="currentColor" stroke="#327c99" stroke-width="2"/><path d="m32 50-5 9h10Z" fill="currentColor" stroke="#327c99" stroke-width="2"/><path d="M22 25c0-6 3-10 7-11" stroke="#e3ffff" stroke-width="5"/><path d="M28 53h8" stroke="#499ac8" stroke-width="3"/>',
+  shield: '<circle cx="32" cy="31" r="27" fill="#a1eeff" fill-opacity=".12" stroke="#a1eeff" stroke-width="1.5"/><path d="m32 10 18 6v16c0 12-18 22-18 22S14 44 14 32V16Z" fill="currentColor" stroke="#4389a8" stroke-width="2"/><path d="m32 16 12 4v12c0 8-12 16-12 16Z" fill="#68bddb"/><path d="m23 31 6 6 13-13" stroke="#fff" stroke-width="4"/><path d="m8 9 3-5m44 43 3 4" stroke="#ede0ff" stroke-width="2.5"/>',
+  star: '<path d="m32 4 8 17 19 3-14 14 3 21-16-10-17 10 4-21L5 24l19-3Z" fill="currentColor" stroke="#bc883d" stroke-width="2"/><path d="m32 11 5 13 14 3-17 5Z" fill="#fffbd8"/><path d="m34 32 10 21-12-8-12 8Z" fill="#ffce65"/>',
+  lightning: '<path d="M38 4 10 35h18l-4 25 31-35H36l6-21Z" fill="currentColor" stroke="#7861ad" stroke-width="2"/><path d="m37 10-18 21h14l-3 15 17-17H32Z" fill="#fff6b0"/><path d="m10 13 5 3m35 30 5 3" stroke="currentColor" stroke-width="3"/>',
 };
 
 export function createItemUI({ deploy, enabled, doc = document, win = window }) {
@@ -19,6 +19,7 @@ export function createItemUI({ deploy, enabled, doc = document, win = window }) 
   const icon = doc.getElementById("item-icon"), name = doc.getElementById("item-name");
   const action = doc.getElementById("item-action"), hint = doc.getElementById("item-hint");
   const status = doc.getElementById("item-status");
+  const state = doc.getElementById("item-state");
   let shown, statusText;
   function use() {
     // The live guard, not last frame's disabled state, owns overlay transitions.
@@ -46,19 +47,24 @@ export function createItemUI({ deploy, enabled, doc = document, win = window }) 
       if (shown !== (item?.id ?? null)) {
         shown = item?.id ?? null;
         slot.dataset.ready = String(!!item);
-        slot.style.setProperty("--item-color", item?.color ?? "#bbcfba");
-        icon.innerHTML = icons[item?.id ?? "gift"];
-        name.textContent = item?.name ?? "Find a gift";
-        action.textContent = item?.action ?? "Collect";
-        hint.textContent = item ? item.description : "Drive through a glowing gift. Try off-road too!";
-        button.setAttribute("aria-label", item ? `${item.action} ${item.name}. Press F or tap.` : "Find a glowing gift to collect an item");
-        button.title = item ? `${item.description} (${item.action}: F)` : "One item at a time. Gifts return after a little while.";
+        slot.style.setProperty("--item-color", item?.color ?? "#a6b0a9");
+        icon.innerHTML = icons[item?.id ?? "empty"];
+        state.textContent = item ? "Ready" : "Empty";
+        name.textContent = item?.name ?? "No item";
+        action.textContent = item?.action ?? "Find a pickup";
+        hint.textContent = item ? item.description : "Drive through a floating item to collect it. Try off-road too!";
+        button.setAttribute("aria-label", item ? `${item.name} ready. ${item.action}: press F or tap.` : "Item slot empty. Drive through a floating item to collect it.");
+        button.title = item ? `${item.description} (${item.action}: F)` : "Empty slot. Drive through a floating collectible. Carry one item at a time.";
       }
-      const text = modifiers.turbo > 0 ? `Turbo + protection: ${Math.ceil(modifiers.turbo)}s`
+      const effect = modifiers.turbo > 0 ? `Turbo + protection: ${Math.ceil(modifiers.turbo)}s`
         : modifiers.shield > 0 ? `Bubble protection: ${Math.ceil(modifiers.shield)}s`
           : modifiers.speedFactor < 1 ? "A little wobble! Keep driving."
-            : item ? "Ready! Tap or press F" : "10 surprises to discover";
-      if (text !== statusText) { statusText = text; status.textContent = text; }
+            : "";
+      const text = effect || (item ? `${item.name} ready. ${item.action}: press F or tap.` : "Item slot empty. Drive through a floating item to collect it.");
+      if (text !== statusText) {
+        statusText = text; status.textContent = text;
+        slot.dataset.effect = String(!!effect);
+      }
     },
   };
 }

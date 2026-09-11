@@ -8,14 +8,14 @@ const LABELS = {
   suspension: { name: "Springs", title: "Low or high?", hint: "Watch the body move above the wheels." },
   engine: { name: "Engine", title: "Choose your power", hint: "Pick an engine, then tap Hear engine to try its sound!" },
   spoiler: { name: "Wing", title: "Pick a wing", hint: "A bigger wing helps with corners." },
-  rocket: { name: "Rocket", title: "Pick a booster", hint: "Add a rocket, or take it off." },
+  rocket: { name: "Rocket", title: "Pick a booster", hint: "Two on the sides, or one big rocket at the back!" },
 };
 const SHORT_NAMES = {
   wheels: { standard: "Road", wide: "Wide", monster: "Monster", hub: "4 motors" },
   suspension: { standard: "Comfy", sport: "Low", lift: "High" },
   engine: { four: "4 cylinders", six: "V6", eight: "V8", electric: "Electric" },
   spoiler: { stock: "Small", big: "Big", mega: "Huge!" },
-  rocket: { none: "No rocket", small: "Small", big: "Big!" },
+  rocket: { none: "No rocket", small: "Side pair", big: "Big rear" },
 };
 
 function el(tag, className, text) {
@@ -86,7 +86,7 @@ function picture(part, option = "standard", hex) {
   } else if (part === "rocket") {
     shapes = '<path d="M24 18 14 12v30l10-6" fill="#849585"/><rect x="24" y="14" width="31" height="28" rx="6" fill="#b8c7bd"/><path d="m55 14 15 14-15 14Z" fill="#dc8855"/><circle cx="40" cy="28" r="6" fill="#daece7"/>';
     if (option === "none") shapes = '<circle cx="40" cy="28" r="22" stroke="#a0aaa0"/><path d="m25 43 30-30" stroke="#c46446" stroke-width="5"/>';
-    else if (option !== "big") shapes = `<g transform="translate(8 6) scale(.8)">${shapes}</g>`;
+    else if (option === "small") shapes = `<g transform="translate(16 0) scale(.58)">${shapes}</g><g transform="translate(16 25) scale(.58)">${shapes}</g>`;
   }
   node.innerHTML = `<svg viewBox="0 0 80 56" fill="none" stroke="#254b37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${shapes}</svg>`;
   return node;

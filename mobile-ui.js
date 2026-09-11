@@ -2,12 +2,12 @@ export function createMobileUI({ onOpenChange, doc = document, win = window }) {
   const get = (id) => doc.getElementById(id);
   const toolbar = get("mobile-toolbar"), toggle = get("drive-menu-toggle");
   const dialog = get("drive-menu"), close = get("drive-menu-close");
-  const tools = get("drive-menu-tools"), adventure = get("drive-menu-adventure"), route = get("drive-menu-route");
-  const nav = doc.querySelector(".top"), pause = get("pause"), mission = get("friend-hud");
+  const tools = get("drive-menu-tools"), route = get("drive-menu-route");
+  const nav = doc.querySelector(".top"), pause = get("pause");
   const map = doc.querySelector(".map-card"), credits = doc.querySelector(".credits");
   const compact = win.matchMedia(doc.body.classList.contains("touch-device") ? "all" : "(max-width: 900px), (max-height: 600px)");
   // Move the live controls, rather than duplicating their state and event handlers.
-  const origins = new Map([pause, nav, map, credits, mission].map((node) => {
+  const origins = new Map([pause, nav, map, credits].map((node) => {
     const marker = doc.createComment("mobile UI return position");
     node.before(marker);
     return [node, marker];
@@ -18,8 +18,7 @@ export function createMobileUI({ onOpenChange, doc = document, win = window }) {
   function finishClose() {
     if (!opened) return;
     opened = false;
-    restore(mission);
-    adventure.open = route.open = false;
+    route.open = false;
     toggle.setAttribute("aria-expanded", "false");
     onOpenChange(false);
     // Also gives the garage a visible focus-return target when switching dialogs.
@@ -46,7 +45,6 @@ export function createMobileUI({ onOpenChange, doc = document, win = window }) {
   toggle.addEventListener("click", () => {
     if (!compact.matches || opened) return;
     get("time-close").click();
-    adventure.append(mission);
     dialog.showModal();
     dialog.scrollTop = 0;
     opened = true;

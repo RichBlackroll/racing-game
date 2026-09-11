@@ -16,7 +16,7 @@ export const FRIEND_RACERS = friends.map((friend, i) => ({ ...friend, config: bu
 const clamp = THREE.MathUtils.clamp;
 const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function createFriendRacers({ scene, course, obstacles = [], ramps = [], gravity = 9.82, contactTexture = null, onRace = () => {} }) {
+export function createFriendRacers({ scene, course, obstacles = [], ramps = [], gravity = 9.82, contactTexture = null, reducedMotion = false, onRace = () => {} }) {
   const { route, length, heightAt } = course;
   const distances = [0];
   for (let i = 1; i <= route.length; i++) distances.push(distances[i - 1] + route[i - 1].distanceTo(route[i % route.length]));
@@ -84,7 +84,8 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     }
     p.y = r.car.position.y;
     r.flame.visible = r.boostRemaining > 0;
-    r.flame.scale.z = 1 + Math.sin(r.boostRemaining * 35) * .12;
+    r.animateFlame(1, 1, 1 + Math.sin(r.boostRemaining * 35) * .12);
+    r.flag.update(dt, p.vx, p.vz, r.heading, reducedMotion);
     const positions = r.shadow.geometry.attributes.position;
     for (let i = 0; i < positions.count; i++) {
       const x = r.shadowCoordinates[i * 3], z = -r.shadowCoordinates[i * 3 + 1];
@@ -106,6 +107,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       const p = road(r.along, r.lane);
       Object.assign(r.body, { x: p.x, z: p.z, vx: 0, vz: 0, hits: 0, staticHits: 0, impact: 0 });
       for (const w of r.wheels) { w.tire.rotation.x = 0; w.hub.rotation.x = 0; }
+      r.flag.reset();
       pose(r, 0);
     });
   }

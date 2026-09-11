@@ -19,7 +19,6 @@ import { createJumpPhysics } from "./jumps.js";
 import { createConeField } from "./cones.js";
 import { createPlaythings } from "./playthings.js";
 import { createPeopleField } from "./people.js";
-import { createFriendAdventure } from "./friends.js";
 import { createFriendRacers } from "./friend-racers.js";
 import { createItemSystem } from "./item-system.js";
 import { createItemWorld } from "./item-world.js";
@@ -575,8 +574,7 @@ export async function main(loading) {
     roadDist,
     gravity: isMoon ? 3.2 : 9.82,
     count: device.tablet ? 8 : 14,
-    speech: () =>
-      document.getElementById("friend-voice")?.getAttribute("aria-pressed") === "true",
+    speech: () => session.value.voice,
     onChange: () => { sceneDirty = true; },
   });
   car.position.copy(start);
@@ -589,11 +587,11 @@ export async function main(loading) {
   };
   const updateCourseHUD = createCourseHUD(course);
   const cockpit = createCockpit({ renderer, scene, car, tablet: device.tablet });
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const friendRacers = createFriendRacers({
     scene, course, obstacles, ramps, gravity: isMoon ? 3.2 : 9.82,
-    contactTexture: contact, onRace: show,
+    contactTexture: contact, reducedMotion, onRace: show,
   });
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const itemSystem = createItemSystem({
     course, obstacles, ramps,
     onEvent(event) {
@@ -605,7 +603,7 @@ export async function main(loading) {
   let itemSnapshot = itemSystem.state(), playerItemFactor = 1;
   const itemUI = createItemUI({
     enabled: () => gameReady && !loading.active && !paused && !modifier.active
-      && !adventure.busy() && !mobileUI.active && !document.hidden && !contextLost,
+      && !mobileUI.active && !document.hidden && !contextLost,
     deploy() {
       if (itemSystem.deploy()) {
         itemSnapshot = itemSystem.state();
@@ -653,7 +651,7 @@ export async function main(loading) {
       sceneDirty = true;
       return next.visuals;
     },
-    canOpen: () => !loading.active && !document.hidden && !contextLost && !adventure.busy(),
+    canOpen: () => !loading.active && !document.hidden && !contextLost,
     onOpenChange(open) {
       clearKeys();
       audio.silence();
@@ -661,6 +659,7 @@ export async function main(loading) {
       for (const id of ["camera", "reset"]) document.getElementById(id).disabled = open;
       if (open) {
         speed = slipX = slipZ = steer = 0;
+        vehicleModel.flag.reset();
         boosting = recovering = false;
         boostEnds = 0;
         flame.visible = false;
@@ -710,6 +709,7 @@ export async function main(loading) {
     playField.reset(car.position, heading);
     peopleField.reset(car.position, heading);
     friendRacers.reset(car.position);
+    vehicleModel.flag.reset();
     resetItems();
     jumpPhysics?.reset(car.position);
     checkpoint = drive?.checkpoint ?? 1;
@@ -763,7 +763,7 @@ export async function main(loading) {
   document.getElementById("reset").onclick = () => reset();
   addEventListener("keydown", (e) => {
     if (e.target?.closest?.("select,input,textarea")) return;
-    if (modifier.active || adventure.busy() || mobileUI.active) return;
+    if (modifier.active || mobileUI.active) return;
     let k = e.key.toLowerCase();
     if (!e.repeat && k === "shift") activateBoost();
     if (!e.repeat && k === "r") reset();
@@ -774,7 +774,7 @@ export async function main(loading) {
     document.querySelectorAll("[data-key]"),
     window,
     document,
-    () => !modifier.active && !paused && !adventure.busy() && !loading.active && !document.hidden && !contextLost,
+    () => !modifier.active && !paused && !loading.active && !document.hidden && !contextLost,
   );
   let last = performance.now(),
     lastMap = 0;
@@ -826,7 +826,6 @@ export async function main(loading) {
       map.closePath(); map.fillStyle = "#f4c958"; map.fill();
     }
     itemWorld.drawMap(map, mapScale);
-    adventure.drawMap(map, mapScale);
     friendRacers.drawMap(map, mapScale);
     let g = gates[checkpoint];
     map.fillStyle = "#eef1a5";
@@ -912,22 +911,20 @@ export async function main(loading) {
   addEventListener("focus", returnToGame);
   addEventListener("pagehide", interruptGame);
   addEventListener("pageshow", returnToGame);
-  const adventure = createFriendAdventure({
-    scene, route, session,
-    onChange: () => { sceneDirty = true; },
-    onStop: () => {
-      audio.silence();
-      saveDrive();
-      speed = slipX = slipZ = 0;
-      boosting = recovering = false;
-      flame.visible = false;
-      boostButton.disabled = false;
-      boostText.textContent = boostLabel;
-      document.body.classList.remove("boosting");
-      sceneDirty = true;
-      clearKeys();
-    },
-  });
+  const voiceButton = document.getElementById("people-voice");
+  function voiceLabel() {
+    const voice = session.value.voice;
+    voiceButton.setAttribute("aria-pressed", String(voice));
+    voiceButton.title = voice ? "Turn people voices off" : "Turn people voices on";
+  }
+  voiceButton.onclick = () => {
+    const voice = !session.value.voice;
+    session.update({ voice });
+    if (!voice) window.speechSynthesis?.cancel();
+    voiceLabel();
+  };
+  voiceButton.hidden = !("speechSynthesis" in window);
+  voiceLabel();
   const soundButton = document.getElementById("sound");
   function soundLabel() {
     const { enabled, unlocked } = audio.state();
@@ -963,12 +960,12 @@ export async function main(loading) {
     pauseGame(true);
     loading.home();
   };
-  show(vehicleLoadMessage || (hasRamps ? (isMoon ? "Moon Run · Ready for a moon jump?" : "Stunt Park · Follow the ramp arrows!") : "Vincent is waiting for a picnic delivery!"));
+  show(vehicleLoadMessage || (hasRamps ? (isMoon ? "Moon Run · Ready for a moon jump?" : "Stunt Park · Follow the ramp arrows!") : "Follow the golden trail markers"));
   let lastSave = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
-    if (loading.active || (paused && !modifier.active) || document.hidden || contextLost || (adventure.busy() && !modifier.active)) {
+    if (loading.active || (paused && !modifier.active) || document.hidden || contextLost) {
       audio.silence();
       last = now;
       if (sceneDirty && gameReady && !loading.active && !modifier.active && !document.hidden && !contextLost) {
@@ -1039,7 +1036,7 @@ export async function main(loading) {
       const boostTarget = boostMax(offroad);
       const boostThrust = (24 + 10 * tune.accel) * tune.boostTop;
       speed += THREE.MathUtils.clamp(boostTarget - speed, -14 * dt, boostThrust * dt);
-      flame.scale.set(
+      vehicleModel.visuals.boosters.animateFlame(
         1 + Math.sin(now * 0.04) * 0.12,
         1 + Math.cos(now * 0.032) * 0.12,
         1 + Math.sin(now * 0.025) * 0.2,
@@ -1086,7 +1083,6 @@ export async function main(loading) {
     const flight = jumpPhysics?.update(dt, car.position);
     surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading);
     car.position.y = flight ? flight.height : surfacePose.height;
-    if (!flight || (!flight.airborne && flight.clearance < 0.6)) adventure.update(car.position);
     if (flight?.landed && flight.longest > 0.25) show("Lovely landing!");
     if (motion.hits) {
       collisionCount += motion.hits;
@@ -1116,6 +1112,7 @@ export async function main(loading) {
     if (lapSeconds > 0 || Math.abs(speed) > .5) lapSeconds += dt;
     car.rotation.set(-(flight ? flight.pitch : surfacePose.pitch), heading,
       surfacePose.roll - steer * speed * 0.0018, "YXZ");
+    vehicleModel.flag.update(dt, motion.vx, motion.vz, heading, reducedMotion);
     if (!flight) car.position.y += Math.sin(travel * 2) * Math.min(Math.abs(speed) * .0008, .025 * tune.bounce);
     for (let w of wheels) {
       w.pivot.rotation.y = w.front ? steer * 0.36 : 0;
@@ -1152,7 +1149,7 @@ export async function main(loading) {
       saveDrive();
       lastSave = now;
     }
-    if (!adventure.busy()) audio.updateDriving({ engineId: modifier.config.engine, speed, throttle, boosting });
+    audio.updateDriving({ engineId: modifier.config.engine, speed, throttle, boosting });
     renderFrame();
   }
   function updateCamera(dt) {
@@ -1316,7 +1313,6 @@ export async function main(loading) {
     boostRemaining: Math.max(0, (boostEnds - performance.now()) / 1000),
     flameVisible: flame.visible,
     wheelCount: wheels.length,
-    adventure: adventure.state(),
     racers: friendRacers.state(),
     items: itemSystem.state(),
     cones: coneField.state(),

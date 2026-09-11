@@ -35,8 +35,9 @@ function makeCar({ split = false, width = 0.34, transformed = false } = {}) {
   const paint = new THREE.MeshStandardMaterial({ color: 0xc60920, roughness: 0.26, metalness: 0.12 });
   const tireMaterial = new THREE.MeshStandardMaterial({ color: 0x111318, emissive: 0x020304, emissiveIntensity: 0.17 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xaeb4b6, roughness: 0.25, metalness: 0.9 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.58, 4.6), paint);
-  body.position.y = 0.53;
+  // Include rear bodywork at the sampled booster mount height, not just a cabin.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 4.6), paint);
+  body.position.y = 0.64;
   car.add(body);
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.5, 1.8), paint);
   cabin.position.set(0, 1.05, 0.1);
@@ -82,25 +83,13 @@ function makeCar({ split = false, width = 0.34, transformed = false } = {}) {
       }
     }
   }
-  const rocket = new THREE.Group();
-  rocket.position.set(0, 0.67, -2.85);
-  rocket.scale.set(0.95, 1.05, 1.1);
-  const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.65, 16), metal);
-  housing.rotation.x = Math.PI / 2;
-  rocket.add(housing);
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.27, 1.4, 12), metal);
-  flame.position.z = -0.9;
-  flame.rotation.x = -Math.PI / 2;
-  flame.visible = false;
-  rocket.add(flame);
-  car.add(rocket);
   root.updateMatrixWorld(true);
   const originalMeshes = [];
   car.traverse((object) => {
     if (object.isMesh) originalMeshes.push({ object, geometry: object.geometry, material: object.material, matrix: object.matrixWorld.clone(), visible: object.visible });
   });
-  const modifier = createModifierCar({ car, wheels, paint, rocket });
-  return { modifier, car, root, wheels, paint, tireMaterial, body, cabin, stockWing, rocket, flame, originalMeshes, pieces };
+  const modifier = createModifierCar({ car, wheels, paint });
+  return { modifier, car, root, wheels, paint, tireMaterial, body, cabin, stockWing, originalMeshes, pieces };
 }
 
 test("all paint IDs recolor the shared body; rear engines expose 4/6/8 caps or a cyan battery", () => {
@@ -258,10 +247,8 @@ test("material-piece records consolidate into four common-center steer/tire/hub 
   }
 });
 
-test("large wings clear the stock wing, mega is double-decker, and rockets follow body lift", () => {
-  const { modifier, car, stockWing, rocket, flame } = makeCar();
-  const rocketPosition = rocket.position.clone();
-  const rocketScale = rocket.scale.clone();
+test("large wings clear the stock wing and mega is double-decker", () => {
+  const { modifier, car, stockWing } = makeCar();
   modifier.apply({ ...DEFAULTS, spoiler: "big" });
   const big = modifier.state();
   const stockTop = boundsOf(stockWing).max.y;
@@ -273,18 +260,89 @@ test("large wings clear the stock wing, mega is double-decker, and rockets follo
   assert.ok(modifier.state().spoiler.width > big.spoiler.width * 1.3);
   assert.ok(modifier.state().spoiler.topY > big.spoiler.topY + 0.5);
   assert.equal(named(car, "modifier-second-wing", true).length, 1);
-  close(rocket.scale.x, rocketScale.x * 1.8, "rocket uses its captured nonuniform scale");
-  const beforeLift = rocket.getWorldPosition(new THREE.Vector3()).y;
-  modifier.apply({ ...DEFAULTS, spoiler: "mega", rocket: "big", suspension: "lift" });
-  close(rocket.getWorldPosition(new THREE.Vector3()).y - beforeLift, 0.68, "rocket moves with the body");
-  assert.equal(flame.visible, false, "visual options do not start or stop the boost flame");
-  modifier.apply({ ...DEFAULTS, rocket: "none" });
-  assert.equal(rocket.visible, false);
   modifier.apply(DEFAULTS);
   assert.equal(named(car, "modifier-wing", true).length, 0);
-  assert.equal(rocket.visible, true);
-  assert.deepEqual(rocket.scale.toArray(), rocketScale.toArray());
-  assert.deepEqual(rocket.position.toArray(), rocketPosition.toArray());
+});
+
+test("owned boosters select twin side nozzles, one big rear nozzle, or no hardware", () => {
+  const { modifier, body } = makeCar();
+  const { rocket, flame, housing, state, animateFlame } = modifier.boosters;
+  assert.equal(typeof animateFlame, "function");
+  assert.equal(rocket.name, "car-boosters");
+  assert.equal(rocket.parent, body.parent, "boosters attach to the suspended body, not the driving root");
+  assert.equal(flame.parent, rocket);
+  assert.equal(flame.name, "boost-flames");
+  const names = ["booster-side-left", "booster-side-right", "booster-rear"];
+  const groups = names.map(name => rocket.getObjectByName(name));
+  assert.equal(rocket.children.length, 4, "three prebuilt boosters and one independent flame root");
+  assert.deepEqual(flame.children.map(plume => plume.name), names.map(name => `${name}-flame`));
+  for (const group of groups) {
+    assert.equal(group.parent, rocket);
+    assert.equal(named(group, "booster-nozzle").length, 1);
+    assert.equal(named(group, "booster-mount").length, group.name === "booster-rear" ? 1 : 2);
+    assert.equal(named(group, "booster-mount-foot").length, group.name === "booster-rear" ? 0 : 2);
+  }
+  assert.equal(housing, groups[2].getObjectByName("booster-nozzle"));
+  assert.ok(groups[0].position.x < boundsOf(body).min.x);
+  assert.ok(groups[1].position.x > boundsOf(body).max.x);
+  close(groups[2].position.x, 0, "big booster is centered at the rear");
+  assert.ok(boundsOf(housing).max.z < boundsOf(body).min.z, "big nozzle projects behind the car");
+  const positions = groups.map(group => group.position.toArray());
+  for (const option of ["small", "big", "none", "small"]) {
+    modifier.apply({ ...DEFAULTS, rocket: option });
+    const active = option === "small" ? names.slice(0, 2) : option === "big" ? names.slice(2) : [];
+    assert.deepEqual(groups.filter(group => group.visible).map(group => group.name), active);
+    assert.deepEqual(flame.children.filter(plume => plume.visible).map(plume => plume.name), active.map(name => `${name}-flame`));
+    assert.deepEqual(state(), { visible: option !== "none", count: active.length, scale: option === "big" ? [1.8, 1.8, 1.8] : [1, 1, 1] });
+    assert.deepEqual(modifier.state().rocket, state());
+    assert.deepEqual(rocket.scale.toArray(), [1, 1, 1], "scale belongs to each nozzle, never the shared root");
+    assert.deepEqual(groups.map(group => group.position.toArray()), positions, "switching layouts cannot move their mounts");
+    assert.equal(flame.visible, false, "configuration does not start boost");
+  }
+  const beforeLift = groups.map(group => group.getWorldPosition(new THREE.Vector3()).y);
+  modifier.apply({ ...DEFAULTS, suspension: "lift" });
+  groups.forEach((group, i) => close(group.getWorldPosition(new THREE.Vector3()).y - beforeLift[i], .68, "each booster follows body lift"));
+});
+
+test("flame flicker scales each plume at its own outlet, without moving hardware or controlling boost", () => {
+  const { modifier, car } = makeCar({ transformed: true });
+  const { rocket, flame, animateFlame } = modifier.boosters;
+  for (const option of ["small", "big"]) {
+    modifier.apply({ ...DEFAULTS, rocket: option, wheels: "monster", suspension: "lift" });
+    const state = modifier.state().rocket;
+    for (const scale of [[.65, 1.3, .45], [1.4, .75, 1.8], [1, 1, 1]]) {
+      car.updateWorldMatrix(true, true);
+      const hardware = named(rocket, "booster-nozzle").map(nozzle => nozzle.matrixWorld.toArray());
+      animateFlame(...scale);
+      assert.equal(flame.visible, false, "animating flicker must not ignite the flame");
+      assert.deepEqual(modifier.state().rocket, state, "flame scale is not the reported nozzle scale");
+      for (const plume of flame.children) {
+        const group = rocket.getObjectByName(plume.name.replace(/-flame$/, ""));
+        const nozzle = group.getObjectByName("booster-nozzle");
+        nozzle.geometry.computeBoundingBox();
+        const outlet = nozzle.localToWorld(new THREE.Vector3(0, 0, nozzle.geometry.boundingBox.min.z));
+        close(plume.getWorldPosition(new THREE.Vector3()).distanceTo(outlet), 0, `${plume.name}: origin stays at the nozzle outlet`);
+        assert.deepEqual(plume.scale.toArray(), scale.map(value => value * group.scale.x));
+        assert.equal(plume.children.length, 2, "outer flame and bright core remain separately anchored meshes");
+        for (const mesh of plume.children) {
+          mesh.geometry.computeBoundingBox();
+          const bounds = mesh.geometry.boundingBox;
+          close(bounds.max.z, 0, "plume geometry starts at the outlet, not at the cone midpoint");
+          assert.ok(bounds.min.z < 0, "plume points backward");
+          close(mesh.localToWorld(new THREE.Vector3(0, 0, bounds.max.z)).distanceTo(outlet), 0, "scaled flame base cannot open a gap");
+        }
+      }
+      car.updateWorldMatrix(true, true);
+      assert.deepEqual(named(rocket, "booster-nozzle").map(nozzle => nozzle.matrixWorld.toArray()), hardware);
+    }
+  }
+  flame.visible = true;
+  for (const option of ["small", "none", "big", "none"]) {
+    modifier.apply({ ...DEFAULTS, rocket: option });
+    assert.equal(flame.visible, true, "configuration leaves the driving loop's boost switch alone");
+    assert.equal(named(car, "booster-plume", true).length, option === "small" ? 4 : option === "big" ? 2 : 0);
+    if (option === "none") assert.ok(flame.children.every(plume => !plume.visible), "none hides every child even during an active boost");
+  }
 });
 
 test("repeat applications are reversible and idempotent with stable meshes, geometry, materials and root pose", () => {
@@ -316,8 +374,14 @@ test("repeat applications are reversible and idempotent with stable meshes, geom
     const config = Object.fromEntries(PARTS.map((part) => [part.id, part.options[i % part.options.length].id]));
     modifier.apply(config);
     const once = modifier.state();
+    const transforms = [];
+    car.traverse(object => transforms.push([object.position.toArray(), object.quaternion.toArray(), object.scale.toArray(), object.visible]));
     modifier.apply(config);
     assert.deepEqual(modifier.state(), once);
+    const repeated = [];
+    car.traverse(object => repeated.push([object.position.toArray(), object.quaternion.toArray(), object.scale.toArray(), object.visible]));
+    assert.deepEqual(repeated, transforms, "idempotence includes actual mounts and outlet anchors, not just state");
+    assert.equal(modifier.boosters.flame.visible, false, "repeated configuration never starts boost");
     let count = 0;
     car.traverse((object) => {
       count++;

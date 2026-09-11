@@ -54,7 +54,6 @@
   .touch-device #cockpit { --dash-height: calc(var(--drive-bottom) + var(--steering-size) + 130px); }
   .touch-device .cockpit-instruments { bottom: calc(var(--drive-bottom) + var(--steering-size) + 82px); }
   .touch-device .cockpit-wheel { bottom: -90px; }
-  .cockpit-view #friend-crew { display: none; }
   .touch-device.cockpit-view #toast { bottom: calc(var(--drive-bottom) + var(--steering-size) + 224px); }
 }
 @media (orientation: landscape) and (max-height: 600px) {

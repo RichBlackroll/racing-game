@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { DEFAULTS, PARTS } from "./modifier-data.js";
+import { createCarBoosters } from "./car-boosters.js";
 
 // car is the visual group, never the driving/physics root. Initialize once.
 // wheels is consolidated in-place; tire and hub remain independent spin groups.
-export function createModifierCar({ car, wheels = [], paint, rocket }) {
+export function createModifierCar({ car, wheels = [], paint }) {
   const options = new Map(
     PARTS.map((part) => [part.id, new Map(part.options.map((o) => [o.id, o]))]),
   );
@@ -46,9 +47,7 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
 
   const originals = car.children.filter((child) => !wheelRoots.has(child));
   const bodyBounds = new THREE.Box3();
-  for (const child of originals) {
-    if (child !== rocket) bodyBounds.union(localBounds(child));
-  }
+  for (const child of originals) bodyBounds.union(localBounds(child));
   const body = new THREE.Group();
   body.name = "modifier-body";
   car.add(body);
@@ -131,12 +130,11 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
   const point = new THREE.Vector3();
   let deckY = -Infinity;
   const engineFeet = [];
-  const deckObjects = originals.filter((object) => object !== rocket);
   for (const x of [-0.48, 0, 0.48]) {
     for (const z of [engineZ - 0.48, engineZ, engineZ + 0.48]) {
       point.set(x, bodyBounds.max.y + 1, z).applyMatrix4(car.matrixWorld);
       ray.set(point, down);
-      const hit = ray.intersectObjects(deckObjects, true)[0];
+      const hit = ray.intersectObjects(originals, true)[0];
       if (hit) {
         const y = point.copy(hit.point).applyMatrix4(inverseCar).y;
         deckY = Math.max(deckY, y);
@@ -233,9 +231,8 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
     mesh(spoiler, "modifier-wing-mount", cube, silver, [0.1, 1, 0.16], [x, 0, 0]));
   const plates = [-1, 1].map(() =>
     mesh(spoiler, "modifier-wing-endplate", cube, paint || orange, [0.08, 1, 1], [0, 0, 0]));
-  const rocketPosition = rocket?.position.clone();
-  const rocketScale = rocket?.scale.clone();
-  const rocketBounds = rocket ? localBounds(rocket) : null;
+  const boosters = createCarBoosters({ body, surfaces: originals, bounds: bodyBounds,
+    wheelTop: Math.max(0, ...wheelInfo.map(w => w.center.y + w.halfHeight)), sportDrop });
 
   function apply(next = DEFAULTS) {
     for (const part of PARTS) {
@@ -326,15 +323,7 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
       plates[i].scale.set(0.08, mega ? 0.57 : 0.32, wingDepth + 0.08);
       plates[i].position.set((i === 0 ? -1 : 1) * wingWidth / 2, wingHeight - 0.09, wingOffset);
     }
-    if (rocket) {
-      const scale = config.rocket === "big" ? 1.8 : 1;
-      rocket.visible = config.rocket !== "none";
-      rocket.scale.copy(rocketScale).multiplyScalar(scale);
-      rocket.position.copy(rocketPosition);
-      // Enlarge away from the deck attachment and keep the nozzle off the floor.
-      rocket.position.y += (scale - 1) * (rocketPosition.y - rocketBounds.min.y);
-      rocket.position.z -= (scale - 1) * (rocketBounds.max.z - rocketPosition.z);
-    }
+    boosters.apply(config.rocket);
   }
 
   function state() {
@@ -355,14 +344,15 @@ export function createModifierCar({ car, wheels = [], paint, rocket }) {
         })),
       },
       spoiler: { added: spoiler.visible, width: spoiler.visible ? wing.scale.x : 0, topY: spoiler.visible ? spoiler.position.y + plates[0].position.y + plates[0].scale.y / 2 + body.position.y : null },
-      rocket: { visible: rocket?.visible ?? false, scale: rocket?.scale.toArray() ?? null },
+      rocket: boosters.state(),
     };
   }
 
   apply(DEFAULTS);
   // The loader disposes imported resources separately when replacing a vehicle.
   const resources = new Set([cube, cylinder, coilGeometry, dark, silver, cyan, springPaint, orange, ...Object.values(capPaint)]);
-  return { apply, state, dispose() {
+  return { apply, state, boosters, dispose() {
+    boosters.dispose();
     for (const resource of resources) resource.dispose();
     resources.clear();
   } };

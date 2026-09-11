@@ -58,7 +58,7 @@ test("vehicle choices validate, restore their engine defaults and preserve custo
   assert.equal(reloaded.value.config.wheels, "monster");
 });
 
-test("choices and per-map safe drive snapshots survive a new page without touching picnic progress", () => {
+test("choices and per-map safe drive snapshots survive a new page without touching retired picnic saves", () => {
   const { win, entries } = browser();
   const session = createSession(win);
   const drive = { x: 420, z: -32, heading: 1.5, checkpoint: 3, lap: 2, lapSeconds: 20, bestLap: 110 };

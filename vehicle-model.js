@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import { createModifierCar } from "./modifier-car.js";
 import { getVehicle } from "./vehicle-data.js";
+import { createCarFlag } from "./car-flag.js";
 
 function resourcesOf(model) {
   const resources = new Set();
@@ -58,7 +59,7 @@ export function prepareVehicleModel(model, id) {
     name: "vehicle-paint", color: 0xc60920, metalness: 0.12, roughness: 0.26, side: THREE.DoubleSide,
   });
   const sourceResources = resourcesOf(model), resources = new Set([paint]), temporary = new Set();
-  let visuals;
+  let visuals, flag;
   function mesh(geometry, material, parent = car, x = 0, y = 0, z = 0) {
     const object = new THREE.Mesh(geometry, material);
     object.position.set(x, y, z);
@@ -68,6 +69,7 @@ export function prepareVehicleModel(model, id) {
     return object;
   }
   function dispose() {
+    flag?.dispose();
     visuals?.dispose();
     disposeResources(resources);
     car.removeFromParent();
@@ -208,32 +210,22 @@ export function prepareVehicleModel(model, id) {
     const corners = new Set(wheels.map(({ pivot, front }) => `${Math.sign(pivot.position.x)}:${front}`));
     if (!painted || corners.size !== 4) throw new Error(`${vehicle.name} is missing paint or wheel bindings.`);
 
-    const metal = new THREE.MeshStandardMaterial({ color: 0xaeb4b6, metalness: 0.9, roughness: 0.25 });
-    const rocket = new THREE.Group();
-    rocket.position.set(0, 0.65, -2.85);
-    car.add(rocket);
-    const housing = mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.65, 24, 1, true),
-      new THREE.MeshStandardMaterial({ color: 0x727b82, metalness: 0.8, roughness: 0.32, side: THREE.DoubleSide }), rocket);
-    housing.rotation.x = Math.PI / 2;
-    const throat = mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.12, 24),
-      new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.85 }), rocket, 0, 0, 0.18);
-    throat.rotation.x = Math.PI / 2;
-    mesh(new THREE.TorusGeometry(0.34, 0.045, 8, 24), metal, rocket, 0, 0, -0.325);
-    const flame = new THREE.Group();
-    rocket.add(flame);
-    flame.visible = false;
-    const outer = mesh(new THREE.ConeGeometry(0.27, 2.4, 16),
-      new THREE.MeshStandardMaterial({ color: 0xff4910, emissive: 0xff3000, emissiveIntensity: 7, roughness: 1 }), flame, 0, 0, -1.5);
-    outer.rotation.x = -Math.PI / 2;
-    const inner = mesh(new THREE.ConeGeometry(0.17, 1.5, 16),
-      new THREE.MeshStandardMaterial({ color: 0xffedaf, emissive: 0xffcc56, emissiveIntensity: 15, roughness: 0.85 }), flame, 0, 0, -1.08);
-    inner.rotation.x = -Math.PI / 2;
-    visuals = createModifierCar({ car, wheels, paint, rocket });
+    visuals = createModifierCar({ car, wheels, paint });
+    const { rocket, housing, flame } = visuals.boosters;
+    // Reach the real rear bumper while keeping the mast behind the largest wing.
+    const body = car.getObjectByName("modifier-body");
+    car.updateMatrixWorld(true);
+    const rearRay = new THREE.Raycaster(new THREE.Vector3(.78, .72 + body.position.y, -5), new THREE.Vector3(0, 0, 1));
+    const rear = rearRay.intersectObjects(body.children.filter(object => object.isMesh), false)[0];
+    const mount = rear ? body.worldToLocal(rear.point) : new THREE.Vector3(.78, .72, -2.3);
+    flag = createCarFlag("nz", { mountLength: mount.z + 3.4 });
+    flag.group.position.set(mount.x, mount.y, -3.4);
+    body.add(flag.group);
     car.userData.headlights = headlightBounds.map((bounds, i) => bounds.isEmpty()
       ? [i === 0 ? -0.73 : 0.73, 0.74, 2.3]
       : [bounds.getCenter(point).x, point.y, bounds.max.z + 0.06]);
     disposeResources(sourceResources, resources);
-    return { vehicle, car, wheels, paint, rocket, housing, flame, visuals, dispose };
+    return { vehicle, car, wheels, paint, rocket, housing, flame, visuals, flag, dispose };
   } catch (error) {
     for (const resource of sourceResources) resources.add(resource);
     dispose();

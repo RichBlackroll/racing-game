@@ -399,7 +399,7 @@ test("friend racer emissive lenses survive batching and never dim the separate n
   const previous = globalThis.document;
   globalThis.document = { createElement: () => ({ getContext: () => ({ fillRect() {}, fillText() {} }) }) };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
-  const racer = createFriendRacerCar({ name: "Test", color: "#aaff88" }, DEFAULTS), scene = new THREE.Scene();
+  const racer = createFriendRacerCar({ name: "Test", color: "#aaff88", country: "fr", count: 1 }, DEFAULTS), scene = new THREE.Scene();
   scene.add(racer.car);
   const lenses = new Set(), signs = new Set();
   racer.car.traverse(o => { if (o.material?.userData.nightIntensity) lenses.add(o.material); });

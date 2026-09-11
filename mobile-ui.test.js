@@ -1,6 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { createMobileUI } from "./mobile-ui.js";
+
+test("picnic UI is absent while the route map, gifts and standalone people voices remain", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  for (const file of ["index.html", "mobile-ui.js", "mobile-ui.css", "tablet.css", "modifier.css", "experience.css", "cockpit.css"]) {
+    assert.doesNotMatch(readFileSync(new URL(file, import.meta.url), "utf8"), /friend-|delivery-|basket-|picnic-|drive-menu-adventure|friends\.css/i, file);
+  }
+  assert.equal(existsSync(new URL("./friends.css", import.meta.url)), false);
+  assert.match(html, /<details id="drive-menu-route"><summary>Route map<\/summary>/);
+  assert.match(html, /<canvas id="map"/);
+  assert.match(html, /<section id="item-slot"/);
+  assert.match(html, /<button[^>]+id="use-item"/);
+  const nav = html.match(/<nav class="top"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? "";
+  const voice = nav.match(/<button id="people-voice"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? "";
+  assert.match(nav, /<button id="sound"[^>]*>[\s\S]*?<\/button>\s*<button id="people-voice"/);
+  assert.match(voice, /aria-label="People voices"/);
+  assert.match(voice, /aria-pressed="false"/);
+  assert.match(voice, /title="Turn people voices on"/);
+  assert.match(voice, /<use href="#i-volume"/);
+  assert.match(voice, /<span class="toolbar-label" data-label>Voices<\/span>/);
+});
 
 // Only the component's DOM surface, including capture/bubble order and deferred close events.
 class Element {
@@ -82,21 +103,20 @@ function fixture({ width = 800, height = 800, touch = false } = {}) {
   doc.querySelector = (selector) => nodes.get(selector);
   doc.createComment = () => Object.assign(new Element(doc), { nodeType: 8 });
   for (const id of ["mobile-toolbar", "drive-menu-toggle", "drive-menu", "drive-menu-close",
-    "drive-menu-tools", "drive-menu-info", "drive-menu-adventure", "drive-menu-route", "drive-menu-footer",
-    "time-close", "pause", "friend-hud", "home", "configure"]) make(`#${id}`);
+    "drive-menu-tools", "drive-menu-info", "drive-menu-route", "drive-menu-footer",
+    "time-close", "pause", "home", "configure", "camera", "reset", "sound", "people-voice"]) make(`#${id}`);
   const nav = make(".top"), map = make(".map-card"), credits = make(".credits");
   const toolbar = get("mobile-toolbar"), toggle = get("drive-menu-toggle"), dialog = get("drive-menu");
-  const close = get("drive-menu-close"), pause = get("pause"), mission = get("friend-hud"), info = get("drive-menu-info");
-  const adventure = get("drive-menu-adventure"), route = get("drive-menu-route");
-  adventure.append(new Element(doc, "summary"));
+  const close = get("drive-menu-close"), pause = get("pause"), info = get("drive-menu-info");
+  const route = get("drive-menu-route");
   route.append(new Element(doc, "summary"));
-  info.append(adventure, route);
-  nav.append(get("home"), pause, get("configure"), get("time-close"));
+  info.append(route);
+  nav.append(get("home"), get("configure"), get("camera"), get("reset"), pause, get("sound"), get("people-voice"), get("time-close"));
   toolbar.append(toggle);
   toolbar.hidden = true;
   toggle.setAttribute("aria-expanded", "false");
   dialog.append(close, get("drive-menu-tools"), info, get("drive-menu-footer"));
-  doc.body.append(nav, toolbar, dialog, map, mission, credits, make("sentinel"));
+  doc.body.append(nav, toolbar, dialog, map, credits, make("sentinel"));
   const originals = new Map([doc.body, nav].map((parent) => [parent, [...parent.children]]));
   const media = Object.assign(new EventTarget(), { matches: false, media: "" }), changes = [];
   const matchesViewport = () => media.media === "all" || media.media.split(",").some((part) => {
@@ -119,7 +139,7 @@ function fixture({ width = 800, height = 800, touch = false } = {}) {
     media.dispatchEvent(new Event("change"));
   };
   const flushClose = () => { for (const notify of doc.closeEvents.splice(0)) notify(); };
-  return { doc, get, nav, map, credits, toolbar, toggle, dialog, close, pause, mission, adventure, route, media, originals, changes, ui, resize, flushClose };
+  return { doc, get, nav, map, credits, toolbar, toggle, dialog, close, pause, route, media, originals, changes, ui, resize, flushClose };
 }
 
 function assertRestored({ originals }) {
@@ -148,7 +168,7 @@ test("desktop controls relocate live into compact containers and restore in thei
     assert.equal(f.toolbar.hidden, false);
     assert.equal(f.doc.body.classList.contains("compact-ui"), true);
     for (const [node, parent] of [[f.pause, f.toolbar], [f.nav, f.get("drive-menu-tools")],
-      [f.map, f.route], [f.credits, f.get("drive-menu-footer")], [f.mission, f.doc.body]]) {
+      [f.map, f.route], [f.credits, f.get("drive-menu-footer")]]) {
       assert.equal(node.parentNode, parent);
       assert.ok(parent.children.includes(node));
     }
@@ -162,6 +182,24 @@ test("desktop controls relocate live into compact containers and restore in thei
   }
   assert.equal(clicks, 4, "pre-existing handlers survive every move");
   assert.deepEqual(f.changes, [], "layout alone never reports an open/close transition");
+});
+
+test("people voices stay live in the menu and retain their preference on desktop", () => {
+  const f = fixture(), voice = f.get("people-voice");
+  voice.setAttribute("aria-pressed", "false");
+  voice.addEventListener("click", () => voice.setAttribute("aria-pressed", voice.getAttribute("aria-pressed") !== "true"));
+  f.toggle.click();
+  voice.click();
+  assert.equal(f.ui.active, true, "voice preferences do not dismiss the menu");
+  assert.equal(voice.getAttribute("aria-pressed"), "true");
+  assert.equal(voice.parentNode, f.nav);
+  assert.deepEqual(f.changes, [true]);
+  f.resize(1200);
+  assertRestored(f);
+  assert.equal(voice.getAttribute("aria-pressed"), "true");
+  voice.click();
+  assert.equal(voice.getAttribute("aria-pressed"), "false");
+  assert.deepEqual(f.changes, [true, false]);
 });
 
 for (const touch of [false, true]) {
@@ -191,26 +229,22 @@ test("each menu open starts collapsed, closes time controls and resets dialog sc
     assert.equal(f.dialog.open, false, "time controls close before the menu opens");
   });
   for (let cycle = 0; cycle < 2; cycle++) {
-    assert.equal(f.adventure.open, false);
     assert.equal(f.route.open, false);
     f.dialog.scrollTop = 200;
     f.toggle.click();
     assert.equal(f.dialog.open, true);
     assert.equal(f.dialog.scrollTop, 0);
     assert.equal(timeCloses, cycle + 1);
-    for (const [details, content] of [[f.adventure, f.mission], [f.route, f.map]]) {
-      assert.equal(details.open, false);
-      assert.equal(details.children[0].selector, "summary");
-      assert.equal(details.children[1], content, "live content follows the native summary");
-      assert.equal(details.children.length, 2);
-      details.open = true;
-    }
+    assert.equal(f.route.open, false);
+    assert.equal(f.route.children[0].selector, "summary");
+    assert.equal(f.route.children[1], f.map, "live content follows the native summary");
+    assert.equal(f.route.children.length, 2);
+    f.route.open = true;
     f.dialog.scrollTop = 100;
     f.toggle.click();
     assert.equal(timeCloses, cycle + 1, "an already-open menu does not close time controls again");
     assert.equal(f.dialog.scrollTop, 100, "an already-open menu keeps its scroll position");
     f.close.click();
-    assert.equal(f.adventure.open, false);
     assert.equal(f.route.open, false);
     f.flushClose();
   }
@@ -218,9 +252,8 @@ test("each menu open starts collapsed, closes time controls and resets dialog sc
 });
 
 for (const method of ["button", "Escape", "native close"]) {
-  test(`${method} closes once, restores the mission and returns focus`, () => {
+  test(`${method} closes once, collapses the route map and returns focus`, () => {
     const f = fixture();
-    const missionIndex = f.doc.body.children.indexOf(f.mission);
     assert.equal(f.toolbar.hidden, false);
     assert.equal(f.ui.active, false);
     assert.deepEqual(f.changes, []);
@@ -229,10 +262,9 @@ for (const method of ["button", "Escape", "native close"]) {
     assert.equal(f.ui.active, true);
     assert.equal(f.dialog.open, true);
     assert.equal(f.toggle.getAttribute("aria-expanded"), "true");
-    assert.equal(f.adventure.children[1], f.mission);
     assert.equal(f.route.children[1], f.map);
     assert.deepEqual(f.changes, [true]);
-    f.adventure.open = f.route.open = true;
+    f.route.open = true;
     f.close.focus();
     if (method === "button") f.close.emit("click");
     else if (method === "Escape") {
@@ -247,11 +279,9 @@ for (const method of ["button", "Escape", "native close"]) {
     }
     assert.equal(f.ui.active, false);
     assert.equal(f.dialog.open, false);
-    assert.equal(f.adventure.open, false);
     assert.equal(f.route.open, false);
     assert.equal(f.toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(f.mission.parentNode, f.doc.body);
-    assert.equal(f.doc.body.children[missionIndex], f.mission);
+    assert.equal(f.map.parentNode, f.route);
     assert.equal(f.doc.activeElement, f.toggle);
     assert.deepEqual(f.changes, [true, false]);
     f.flushClose();
@@ -261,7 +291,7 @@ for (const method of ["button", "Escape", "native close"]) {
   });
 }
 
-for (const action of ["home", "configure"]) {
+for (const action of ["home", "configure", "camera", "reset"]) {
   test(`${action} handler runs after synchronous close and keeps its new focus`, () => {
     const f = fixture(), button = f.get(action), icon = new Element(f.doc);
     const nextDialog = new Element(f.doc);
@@ -272,7 +302,6 @@ for (const action of ["home", "configure"]) {
       calls++;
       assert.equal(f.dialog.open, false);
       assert.equal(f.ui.active, false);
-      assert.equal(f.mission.parentNode, f.doc.body);
       assert.equal(f.toggle.getAttribute("aria-expanded"), "false");
       assert.deepEqual(f.changes, [true, false]);
       assert.equal(f.doc.activeElement, f.toggle);
@@ -291,12 +320,11 @@ for (const action of ["home", "configure"]) {
 test("resizing an open menu to desktop closes once, restores controls and focuses visible pause", () => {
   const f = fixture();
   f.toggle.emit("click");
-  f.adventure.open = f.route.open = true;
+  f.route.open = true;
   f.close.focus();
   f.resize(1200);
   assert.equal(f.ui.active, false);
   assert.equal(f.dialog.open, false);
-  assert.equal(f.adventure.open, false);
   assert.equal(f.route.open, false);
   assert.equal(f.toggle.getAttribute("aria-expanded"), "false");
   assert.equal(f.toolbar.hidden, true);
@@ -308,10 +336,10 @@ test("resizing an open menu to desktop closes once, restores controls and focuse
   assert.deepEqual(f.changes, [true, false]);
   f.resize(800);
   assert.equal(f.ui.active, false);
-  assert.equal(f.mission.parentNode, f.doc.body);
+  assert.equal(f.map.parentNode, f.route);
   f.toggle.emit("click");
   assert.equal(f.dialog.open, true);
-  assert.equal(f.mission.parentNode, f.adventure);
+  assert.equal(f.map.parentNode, f.route);
   assert.deepEqual(f.changes, [true, false, true]);
 });
 
@@ -336,13 +364,13 @@ test("a delayed close event cannot dismiss a reopened dialog or steal its focus"
   assert.equal(f.ui.active, true);
   assert.equal(f.dialog.open, true);
   assert.equal(f.toggle.getAttribute("aria-expanded"), "true");
-  assert.equal(f.mission.parentNode, f.adventure);
+  assert.equal(f.map.parentNode, f.route);
   assert.equal(f.doc.activeElement, f.close);
   assert.deepEqual(f.changes, [true, false, true]);
   f.close.emit("click");
   f.flushClose();
   assert.equal(f.ui.active, false);
-  assert.equal(f.mission.parentNode, f.doc.body);
+  assert.equal(f.map.parentNode, f.route);
   assert.equal(f.doc.activeElement, f.toggle);
   assert.deepEqual(f.changes, [true, false, true, false]);
 });

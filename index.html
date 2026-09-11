@@ -10,7 +10,6 @@
     <title>WILDRUN — A little drive. A big adventure.</title>
     <script>if (new URLSearchParams(location.search).get("launch") === "drive") document.documentElement.classList.add("launch-requested");</script>
     <link rel="stylesheet" href="ui.css" />
-    <link rel="stylesheet" href="friends.css" />
     <link rel="stylesheet" href="modifier.css" />
     <link rel="stylesheet" href="tablet.css" />
     <link rel="stylesheet" href="experience.css" />
@@ -172,6 +171,9 @@
       <button id="sound" aria-label="Engine sound" aria-pressed="true" title="Engine sound">
         <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Sound</span>
       </button>
+      <button id="people-voice" aria-label="People voices" aria-pressed="false" title="Turn people voices on">
+        <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Voices</span>
+      </button>
       <div id="time-controls">
         <button type="button" id="time-toggle" disabled aria-expanded="false" aria-controls="time-panel" aria-haspopup="dialog" title="Time of day">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
@@ -210,7 +212,6 @@
       <div class="drive-menu-heading"><div><h2 id="drive-menu-title">Drive menu</h2><p>Driving is paused while you browse.</p></div><button type="button" id="drive-menu-close" aria-label="Back to game" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button></div>
       <div id="drive-menu-tools"></div>
       <div id="drive-menu-info">
-        <details id="drive-menu-adventure"><summary>Adventure details</summary></details>
         <details id="drive-menu-route"><summary>Route map</summary></details>
       </div>
       <footer id="drive-menu-footer"></footer>
@@ -221,7 +222,7 @@
     <section class="map-card" aria-label="Route map">
       <div class="instrument-label"><span>LIVE ROUTE</span><span class="map-north">N ↑</span></div>
       <canvas id="map" width="276" height="276" role="img" aria-label="Map showing your car, trail and next destination"></canvas>
-      <div class="map-caption"><span class="dot"></span> Colored diamonds = gifts</div>
+      <div class="map-caption"><span class="dot"></span> Colored diamonds = items</div>
     </section>
 
     <div id="toast" role="status">Follow the golden trail markers</div>
@@ -241,14 +242,13 @@
     <button id="boost" title="Activate boost (Shift)">
       <svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg><span data-label>Boost</span><kbd>Shift</kbd>
     </button>
-    <section id="item-slot" aria-label="Collected item" data-ready="false">
-      <p id="item-status" role="status" aria-live="polite">10 surprises to discover</p>
-      <button type="button" id="use-item" disabled aria-label="Find a glowing gift to collect an item" aria-describedby="item-hint" aria-keyshortcuts="F">
-        <svg id="item-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"></svg>
-        <span class="item-copy"><strong id="item-name">Find a gift</strong><span id="item-action">Collect</span></span>
-        <kbd aria-hidden="true">F</kbd>
+    <section id="item-slot" aria-label="Collected item" data-ready="false" data-effect="false">
+      <p id="item-status" role="status" aria-live="polite" aria-atomic="true">Item slot empty. Drive through a floating item to collect it.</p>
+      <button type="button" id="use-item" disabled aria-label="Item slot empty. Drive through a floating item to collect it." aria-describedby="item-hint" aria-keyshortcuts="F">
+        <svg id="item-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false"></svg>
+        <span class="item-copy"><span id="item-state">Empty</span><strong id="item-name">No item</strong><span class="item-trigger" aria-hidden="true"><kbd>F</kbd><span class="item-touch">Tap to </span><span id="item-action">Find a pickup</span></span></span>
       </button>
-      <p id="item-hint">Drive through a glowing gift. Try off-road too!</p>
+      <p id="item-hint">Drive through a floating item to collect it. Try off-road too!</p>
     </section>
     <div class="touch" aria-label="Touch driving controls">
       <div class="steering-control">
@@ -271,21 +271,6 @@
     </div>
     <button id="handbrake" data-key=" " aria-label="Hold handbrake"><svg class="icon" aria-hidden="true"><use href="#i-brake" /></svg><span>Handbrake</span></button>
 
-    <section id="friend-hud" aria-label="Friend adventure">
-      <div class="friend-heading"><div><small>THE PICNIC ROUTE</small><h2 id="friend-title">Help Vincent</h2></div><button id="friend-voice" title="Turn spoken clues on" aria-label="Spoken clues" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg></button><button id="friend-repeat" title="Play adventure again" aria-label="Play adventure again" hidden><svg class="icon" aria-hidden="true"><use href="#i-reset" /></svg></button></div>
-      <p id="friend-clue" aria-live="polite">Find one ball for the picnic.</p>
-      <div id="friend-dots"></div>
-      <div id="friend-crew" aria-label="Your friends"></div>
-    </section>
-    <dialog id="friend-dialog" aria-labelledby="delivery-title" aria-describedby="delivery-clue">
-      <button id="delivery-close" aria-label="Back to driving" title="Back to driving"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
-      <div class="delivery-eyebrow">SPECIAL DELIVERY</div>
-      <h2 id="delivery-title"></h2><p id="delivery-clue" aria-live="polite"></p>
-      <div id="delivery-items"></div>
-      <div id="delivery-basket" role="img" aria-label="Empty basket"></div>
-      <div id="basket-label"></div>
-      <button id="delivery-next" hidden>Next friend</button>
-    </dialog>
     <dialog id="modifier" aria-labelledby="mod-title"></dialog>
     <div id="error" role="alert">WebGL could not start. Please open this page in a browser with hardware acceleration enabled.</div>
     <a class="credits" href="CREDITS.md" target="_blank" rel="noopener">Model &amp; asset credits</a>
@@ -295,7 +280,7 @@
       / <a href="WELLINGTON.md" target="_blank" rel="noopener">Map notes</a>
     </aside>
     </main>
-    <script type="module" src="build/bootstrap.js?v=22" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
+    <script type="module" src="build/bootstrap.js?v=24" onerror="document.getElementById('loading-status').textContent='The game could not download. Check your connection and reload.'; document.getElementById('loading-fallback').hidden=false;"></script>
     <button id="loading-fallback" hidden onclick="location.reload()">Reload adventure</button>
   </body>
 </html>

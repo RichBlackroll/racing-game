@@ -42,6 +42,20 @@ export function createItemWorld({ scene, course, reducedMotion = false }) {
   shape.closePath();
   const star = new THREE.ExtrudeGeometry(shape, { depth: 0.14, bevelEnabled: true,
     bevelSize: 0.045, bevelThickness: 0.045, bevelSegments: 1, steps: 1 }).translate(0, 0, -0.07);
+  const droplet = new THREE.LatheGeometry([
+    [0, -0.6], [0.32, -0.54], [0.5, -0.28], [0.54, 0.02], [0.45, 0.3], [0.26, 0.62], [0.09, 0.88], [0, 1.06],
+  ].map(([x, y]) => new THREE.Vector2(x, y)), 12);
+  const emblems = [
+    [[-0.9, 0.9], [0, 0.72], [0.9, 0.9], [0.8, -0.15], [0.5, -0.65], [0, -1.05], [-0.5, -0.65], [-0.8, -0.15]],
+    [[0.05, 1.05], [-0.7, -0.15], [-0.1, -0.15], [-0.3, -1.05], [0.75, 0.25], [0.15, 0.25]],
+  ].map(points => {
+    const outline = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+    outline.closePath();
+    return new THREE.ExtrudeGeometry(outline, { depth: 0.3, bevelEnabled: true,
+      bevelSize: 0.045, bevelThickness: 0.045, bevelSegments: 1, steps: 1 }).translate(0, 0, -0.15);
+  });
+  const halo = new THREE.RingGeometry(1.25, 1.48, 32);
+  const sparkle = new THREE.OctahedronGeometry(1, 0);
   const peel = new THREE.BufferGeometry(), peelVertices = [
     -0.12, 0.57, 0, 0.12, 0.57, 0, -0.30, 0.22, 0.4, 0.30, 0.22, 0.4,
     -0.23, 0.06, 0.86, 0.23, 0.06, 0.86, -0.025, 0.22, 1.22, 0.025, 0.22, 1.22,
@@ -80,7 +94,7 @@ export function createItemWorld({ scene, course, reducedMotion = false }) {
     pieces.forEach(g => g.dispose());
     return geometry;
   }
-  const models = new Map();
+  const models = new Map(), pickupModels = new Map();
   for (const item of ITEMS) {
     const c = item.color, parts = [];
     if (item.id === "banana") {
@@ -146,31 +160,55 @@ export function createItemWorld({ scene, course, reducedMotion = false }) {
       }
     }
     models.set(item.id, bake(item.id, parts));
+    // Pickups are standalone toys, not shrunken puddles or racer status overlays.
+    const pickupParts = [];
+    if (item.id === "oil") {
+      pickupParts.push(part(sphere, "#7951b8", [0, -0.76, 0], [0.92, 0.08, 0.66]),
+        part(sphere, c, [0.48, -0.75, 0.25], [0.5, 0.07, 0.43]),
+        part(droplet, c), part(sphere, "#e2baff", [-0.2, 0.15, 0.43], [0.1, 0.23, 0.035]));
+    } else if (item.id === "shield") {
+      pickupParts.push(part(emblems[0], "#499ac8"), part(emblems[0], c, [0, 0, 0], [0.82, 0.82, 1.2]));
+      for (const side of [-1, 1]) pickupParts.push(
+        part(sphere, "#dffaff", [0, 0.08, side * 0.23], [0.36, 0.36, 0.16]),
+        part(ring, "#ffffff", [0, 0.08, side * 0.3], [0.38, 0.38, 0.38]),
+        part(sphere, "#ffffff", [-0.1, 0.21, side * 0.37], [0.08, 0.1, 0.035]));
+    } else if (item.id === "star") {
+      pickupParts.push(part(star, "#ffce65", [0, 0, 0], [1, 1, 2.6]),
+        part(star, c, [0, 0, 0], [0.87, 0.87, 3.1]));
+    } else if (item.id === "lightning") {
+      pickupParts.push(part(emblems[1], c), part(emblems[1], "#f1e8ff", [0, 0, 0], [0.75, 0.82, 1.2]));
+    }
+    pickupModels.set(item.id, pickupParts.length ? bake(`pickup-${item.id}`, pickupParts) : models.get(item.id));
   }
-  const gift = bake("gift-box", [part(box, "#ffffff", [0, 0, 0], [1.15, 1.02, 1.15]),
-    part(box, "#e6eeff", [0, 0.52, 0], [1.25, 0.2, 1.25])]);
-  const ribbon = bake("gift-ribbon-bow", [part(box, "#fff5cd", [0, 0.04, 0], [0.2, 1.2, 1.18]),
-    part(box, "#ffffff", [0, 0.04, 0], [1.18, 1.2, 0.2]),
-    ...[-1, 1].map(sign => part(ring, "#fff5cd", [sign * 0.21, 0.73, 0], [0.27, 0.15, 0.17], [0, 0, sign * 0.45]))]);
+  const pickupHalo = bake("pickup-halo", [part(halo, "#ffffff", [0, 0, 0], [1, 1, 1], [-Math.PI / 2, 0, 0])]);
+  const pickupSparkles = bake("pickup-sparkles", [
+    part(sparkle, "#fff6df", [-1.55, 0.85, 0], [0.13, 0.3, 0.13]),
+    part(sparkle, "#ffffff", [1.5, -0.1, 0.2], [0.1, 0.23, 0.1]),
+  ]);
   const hoop = bake("glow-ring", [part(ring, "#ffffff", [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0])]);
   const confetti = bake("confetti", [part(chip, "#ffffff", [0, 0, 0], [0.16, 0.07, 0.25])]);
-  for (const primitive of [box, chip, sphere, cylinder, ring, star, peel]) primitive.dispose();
+  for (const primitive of [box, chip, sphere, cylinder, ring, star, peel, droplet, ...emblems, halo, sparkle]) primitive.dispose();
 
   function batch(name, geometry, material = solid) {
     const b = { name: `items/${name}`, geometry, material, mesh: null, capacity: 0 };
     batches.push(b);
     return b;
   }
-  const gifts = batch("pickups/gift-boxes", gift), ribbons = batch("pickups/ribbons", ribbon);
-  const pickupRings = batch("pickups/glow-rings", hoop, glow);
-  const hints = new Map(ITEMS.map(item => [item.id, batch(`pickups/hint/${item.id}`, models.get(item.id))]));
+  const pickupRings = batch("pickups/glow-rings", pickupHalo, glow);
+  const sparkles = batch("pickups/sparkles", pickupSparkles, bright);
+  const pickupSizes = { banana: 1.55, oil: 1.5, mine: 1.9, rocket: 1.7, homing: 1.7,
+    ball: 2, balloon: 1.85, shield: 1.5, star: 1.5, lightning: 1.5 };
+  const pickups = new Map(ITEMS.map(item => [item.id, {
+    model: batch(`pickups/model/${item.id}`, pickupModels.get(item.id)), size: pickupSizes[item.id],
+    tilt: item.id === "rocket" || item.id === "homing" ? -Math.PI / 3 : item.id === "mine" ? Math.PI / 5 : 0,
+  }]));
   const entities = new Map(ITEMS.slice(0, 7).map(item => [item.id, batch(`entities/${item.id}`, models.get(item.id))]));
   const shields = batch("statuses/shield", models.get("shield"), glow);
   const stars = batch("statuses/star", models.get("star"), bright);
   const bolts = batch("effects/lightning", models.get("lightning"), bright);
   const rings = batch("effects/rings", hoop, glow), flecks = batch("effects/confetti", confetti, bright);
 
-  function stamp(b, x, y, z, sx = 1, sy = sx, sz = sx, rx = 0, ry = 0, rz = 0, tint = white) {
+  function stamp(b, x, y, z, sx = 1, sy = sx, sz = sx, rx = 0, ry = 0, rz = 0, tint = white, order = "XYZ") {
     const index = b.mesh?.count ?? 0;
     if (index >= b.capacity) {
       const old = b.mesh;
@@ -191,7 +229,7 @@ export function createItemWorld({ scene, course, reducedMotion = false }) {
       root.add(b.mesh);
     }
     transform.position.set(x, y, z); transform.scale.set(sx, sy, sz);
-    transform.rotation.set(rx, ry, rz); transform.updateMatrix();
+    transform.rotation.set(rx, ry, rz, order); transform.updateMatrix();
     b.mesh.setMatrixAt(index, transform.matrix); b.mesh.setColorAt(index, tint);
     b.mesh.count = index + 1;
   }
@@ -206,15 +244,13 @@ export function createItemWorld({ scene, course, reducedMotion = false }) {
       if (!p.available || !finitePosition(p) || !palette.has(p.type)) continue;
       const tint = palette.get(p.type), phase = p.x * 0.17 + p.z * 0.11;
       const angle = reducedMotion ? Math.PI / 4 : Math.PI / 4 + time * 0.5;
-      const y = p.y + 0.3 + (reducedMotion ? 0 : Math.sin(time * 2 + phase) * 0.12);
-      stamp(gifts, p.x, y, p.z, 1, 1, 1, 0, angle, 0, tint);
-      stamp(ribbons, p.x, y, p.z, 1, 1, 1, 0, angle);
+      const y = p.y + 1.2 + (reducedMotion ? 0 : Math.sin(time * 2 + phase) * 0.12);
+      const { model, size, tilt } = pickups.get(p.type);
+      // Yaw after the presentation tilt keeps rocket noses pointing up throughout a turn.
+      stamp(model, p.x, y, p.z, size, size, size, tilt, angle, 0, white, "YXZ");
+      stamp(sparkles, p.x, y, p.z, 1, 1, 1, 0, angle);
       const ground = number(course.heightAt(p.x, p.z), p.y - 0.9);
-      stamp(pickupRings, p.x, ground + 0.07, p.z, 0.95, 0.95, 0.95, 0, 0, 0, tint);
-      // Tiny, real toy silhouettes above the bow hint at the contents without text/textures.
-      const size = p.type === "oil" ? 0.23 : p.type === "shield" || p.type === "star" ? 0.26 : 0.4;
-      const lift = p.type === "lightning" ? -0.85 : p.type === "star" ? -0.45 : 0;
-      stamp(hints.get(p.type), p.x, y + 1.05 + lift, p.z, size, size, size, 0, angle);
+      stamp(pickupRings, p.x, ground + 0.07, p.z, 1, 1, 1, 0, 0, 0, tint);
       const marker = markers[markerCount] ?? (markers[markerCount] = {});
       marker.x = p.x; marker.z = p.z; marker.color = mapColors.get(p.type); markerCount++;
     }

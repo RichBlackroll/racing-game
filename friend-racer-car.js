@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createModifierCar } from "./modifier-car.js";
 import { createFriendLabel } from "./friend-label.js";
+import { createCarFlag } from "./car-flag.js";
 
 // A lightweight road car uses the real garage parts, without five more GLTFs.
 export function createFriendRacerCar(friend, config) {
@@ -43,12 +44,8 @@ export function createFriendRacerCar(friend, config) {
     box(pivot, silver, [.32, .1, .4], [0, 0, 0]);
     wheels.push({ pivot, tire, hub, front: z > 0 });
   }
-  const rocket = new THREE.Group(); rocket.position.set(0, .66, -2.58); car.add(rocket);
-  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(.24, .29, .6, 12), silver);
-  nozzle.rotation.x = Math.PI / 2; rocket.add(nozzle);
-  const bore = new THREE.Mesh(new THREE.CircleGeometry(.24, 12), dark);
-  bore.position.z = -.305; bore.rotation.y = Math.PI; rocket.add(bore);
-  const modifier = createModifierCar({ car, wheels, paint, rocket });
+  const modifier = createModifierCar({ car, wheels, paint });
+  const { flame, animateFlame } = modifier.boosters;
   modifier.apply(config);
   const visuals = modifier.state();
 
@@ -81,7 +78,7 @@ export function createFriendRacerCar(friend, config) {
   badge.position.set(0, signCenter + .95, 0);
   sign.add(badge);
 
-  // Freeze configured parts into material batches; only the four wheels animate.
+  // Freeze configured hardware; wheels and outlet-anchored flames still animate.
   function batch(root, excluded = new Set()) {
     car.updateMatrixWorld(true);
     const inverse = root.matrixWorld.clone().invert(), groups = new Map(), remove = [];
@@ -100,17 +97,12 @@ export function createFriendRacerCar(friend, config) {
       geometries.forEach(g => g.dispose());
     }
   }
-  const wheelRoots = new Set(wheels.map(w => w.pivot)); wheelRoots.add(sign);
+  const wheelRoots = new Set(wheels.map(w => w.pivot)); wheelRoots.add(sign); wheelRoots.add(flame);
   batch(car, wheelRoots);
   for (const wheel of wheels) { batch(wheel.tire); batch(wheel.hub); }
-  // Add after batching so the flame can switch on without rebuilding the car.
-  const flame = new THREE.Group(); flame.name = "racer-boost-flame"; flame.visible = false;
-  rocket.add(flame);
-  for (const [radius, length, color] of [[.27, 2.6, 0xff5318], [.16, 1.7, 0xffecad]]) {
-    const plume = new THREE.Mesh(new THREE.ConeGeometry(radius, length, 12),
-      new THREE.MeshBasicMaterial({ color, toneMapped: false }));
-    plume.rotation.x = -Math.PI / 2; plume.position.z = -.3 - length / 2;
-    flame.add(plume);
-  }
-  return { car, wheels, visuals, sign, flame };
+  const flag = createCarFlag(friend.country, { phase: friend.count * 1.7 });
+  // The rear bracket keeps the larger cloth on the camera side of every wing.
+  flag.group.position.set(.78, .72 + visuals.height.bodyLift, -3.35);
+  car.add(flag.group);
+  return { car, wheels, visuals, sign, flame, animateFlame, flag };
 }

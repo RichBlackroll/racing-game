@@ -27,6 +27,9 @@ const absent = new THREE.Vector3(1e5, 0, 1e5);
 test("all five existing friends have distinct valid builds, visible parts, and two readable roof faces", () => {
   const { field, scene, labels } = fixture();
   assert.deepEqual(FRIEND_RACERS.map(r => r.name), friends.map(f => f.name));
+  assert.deepEqual(Object.fromEntries(FRIEND_RACERS.map(r => [r.name, r.country])), {
+    Camilla: "pt", Maxey: "ca", Vincent: "be", Lea: "fr", Loulou: "fr",
+  });
   assert.deepEqual(labels, friends.map(f => f.name));
   const states = field.state();
   assert.equal(new Set(states.map(s => JSON.stringify(s.config))).size, 5);
@@ -35,7 +38,29 @@ test("all five existing friends have distinct valid builds, visible parts, and t
     for (const part of PARTS) assert.ok(part.options.some(o => o.id === s.config[part.id]));
     assert.equal(s.visuals.wheels.count, 4);
     assert.equal(s.visuals.engine.id, s.config.engine);
+    const boosterCount = { none: 0, small: 2, big: 1 }[s.config.rocket];
+    assert.deepEqual(s.visuals.rocket, { visible: boosterCount > 0, count: boosterCount,
+      scale: s.config.rocket === "big" ? [1.8, 1.8, 1.8] : [1, 1, 1] });
     const car = scene.getObjectByName(`racer-${s.name}`);
+    const rocket = car.getObjectByName("car-boosters"), flame = car.getObjectByName("boost-flames");
+    assert.equal(flame.parent, rocket);
+    assert.equal(flame.visible, false, "constructing a configured friend never starts boost");
+    assert.equal(flame.children.length, 3);
+    const activeBoosters = rocket.children.filter(node => node !== flame && node.visible);
+    assert.deepEqual(activeBoosters.map(node => node.name), s.config.rocket === "small"
+      ? ["booster-side-left", "booster-side-right"] : s.config.rocket === "big" ? ["booster-rear"] : []);
+    assert.ok(activeBoosters.every(group => !group.children.some(node => node.isMesh)), "configured hardware is frozen into material batches");
+    for (const plume of flame.children) {
+      assert.equal(plume.children.length, 2, "batching retains every independently animated flame and core");
+      assert.ok(plume.children.every(mesh => mesh.isMesh && mesh.name === "booster-plume"));
+    }
+    const flag = car.getObjectByName("car-flag");
+    assert.equal(flag.parent, car, "animated flags are not baked into the static material batches");
+    assert.equal(flag.userData.country, friends.find(f => f.name === s.name).country);
+    assert.ok(Math.abs(flag.position.y - .72 - s.visuals.height.bodyLift) < 1e-6, "rear bumper mount follows suspension lift");
+    assert.equal(flag.position.z, -3.35, "mast stays behind the rearmost wing edge");
+    assert.ok(flag.position.x > .7, "corner mount clears the central booster");
+    assert.ok(new THREE.Box3().setFromObject(flag.getObjectByName("flag-mount")).max.z > -2.25, "bracket reaches into the rear bumper");
     const sign = car.getObjectByName("taxi-name-sign");
     assert.equal(sign.parent, car, "physical sign is attached to the car, not a floating billboard");
     assert.ok(sign.position.y >= 1.49 + s.visuals.height.bodyLift - 1e-6);
@@ -63,6 +88,15 @@ test("all five existing friends have distinct valid builds, visible parts, and t
     });
     assert.ok(calls <= 40, `${s.name}: ${calls} draw calls`);
     assert.ok(triangles < 16000, `${s.name}: ${triangles} triangles`);
+    flame.visible = true;
+    let boostedCalls = 0, visiblePlumes = 0;
+    car.traverseVisible(node => {
+      if (node.isMesh || node.isSprite) boostedCalls++;
+      if (node.name === "booster-plume") visiblePlumes++;
+    });
+    assert.equal(visiblePlumes, boosterCount * 2, "only configured outlets ignite, including none after batching");
+    assert.equal(boostedCalls - calls, boosterCount * 2, "boost adds only the selected outer flames and cores, not unbatched hardware");
+    flame.visible = false;
   }
   assert.equal(states[2].visuals.wheels.motorHubs, 4);
   assert.ok(states[4].visuals.height.bodyLift > 1);
@@ -128,12 +162,17 @@ test("tall scenery blocks both friend and player sight lines", () => {
 });
 
 test("zero/invalid steps freeze poses, reset is deterministic and follows a restored position across the lap seam", () => {
-  const { field, course } = fixture();
+  const { field, course, scene } = fixture();
+  const cloth = scene.getObjectByName("flag-cloth").geometry.attributes.position;
+  const parked = cloth.array.slice();
   const initial = field.state();
   for (const dt of [0, -1, NaN, Infinity]) field.update(dt, absent, 0, 0);
   assert.deepEqual(field.state(), initial);
+  assert.deepEqual(cloth.array, parked);
   for (let i = 0; i < 80; i++) field.update(.05, absent, 0, 0);
+  assert.notDeepEqual(cloth.array, parked);
   field.reset(); assert.deepEqual(field.state(), initial);
+  assert.deepEqual(cloth.array, parked);
   const restored = course.route.at(-6);
   field.reset(restored);
   const start = course.nearest(restored.x, restored.z).along;
@@ -258,15 +297,26 @@ function fastCircuit() {
 }
 
 test("friends race at fitted engine speeds and rocket cars boost, cool down, and boost again", () => {
-  const { field } = fixture("forest", [], fastCircuit());
+  const { field, scene } = fixture("forest", [], fastCircuit());
   const peak = Array(5).fill(0), durations = Array(5).fill(0), active = Array(5).fill(0), previous = Array(5).fill(false);
+  const flames = field.state().map(s => scene.getObjectByName(`racer-${s.name}`).getObjectByName("boost-flames"));
+  const anchors = flames.map(flame => flame.children.map(plume => plume.position.toArray()));
+  const firstScale = new Map(), flickered = new Set();
   for (let i = 0; i < 1600; i++) {
     field.update(.05, absent, 0, 0);
     field.state().forEach((s, j) => {
       peak[j] = Math.max(peak[j], s.speed);
+      const visible = [];
+      flames[j].traverseVisible(node => { if (node.isMesh) visible.push(node); });
+      assert.equal(visible.length, s.boosting ? s.visuals.rocket.count * 2 : 0, `${s.name}: actual active flames match fitted boosters`);
+      assert.deepEqual(flames[j].scale.toArray(), [1, 1, 1], "flicker cannot scale the common root and move side outlets");
+      assert.deepEqual(flames[j].children.map(plume => plume.position.toArray()), anchors[j], "outlets remain anchored while the batched car drives");
       if (s.boosting) {
         active[j] += .05;
         assert.ok(s.boostRemaining <= 5 * computeTuning(s.config).boostTime + 1e-8);
+        const scale = visible[0].parent.scale.z;
+        if (!firstScale.has(j)) firstScale.set(j, scale);
+        else if (Math.abs(scale - firstScale.get(j)) > .01) flickered.add(j);
       } else if (previous[j]) { durations[j] = Math.max(durations[j], active[j]); active[j] = 0; assert.ok(s.boostCooldown > 0); }
       previous[j] = s.boosting;
     });
@@ -278,6 +328,7 @@ test("friends race at fitted engine speeds and rocket cars boost, cool down, and
     if (s.config.rocket === "none") assert.equal(s.boosts, 0);
     else {
       assert.ok(s.boosts >= 2, `${s.name} uses rockets repeatedly`);
+      assert.ok(flickered.has(i), `${s.name}: flame children still animate after hardware batching`);
       assert.ok(peak[i] > top * 1.25, `${s.name} gets real boost speed: ${peak[i]} / ${top}`);
       assert.ok(durations[i] <= 5 * computeTuning(s.config).boostTime + .1);
     }
@@ -286,6 +337,7 @@ test("friends race at fitted engine speeds and rocket cars boost, cool down, and
   const before = field.state(); field.update(0, absent, 0, 0); assert.deepEqual(field.state(), before);
   field.reset();
   assert.ok(field.state().every(s => !s.boosting && !s.flameVisible && s.boosts === 0 && !s.recovering));
+  assert.ok(flames.every(flame => !flame.visible), "reset extinguishes actual rendered flames too");
 });
 
 test("item slows immediately cut momentum, cancel rockets, persist past cooldown, and expire normally", () => {

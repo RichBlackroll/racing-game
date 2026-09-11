@@ -998,7 +998,7 @@ test("markup provides six inline illustrated map buttons, gated launch actions, 
   assert.equal(garage[1].replace(/<[^>]*>/g, "").trim(), "My garage");
   assert.match(html, /id="home"[\s\S]*?<use href="#i-location"\s*\/>[\s\S]*?<span>Maps<\/span>/);
   assert.match(html, /id="sound"[^>]*aria-label="Engine sound"[^>]*aria-pressed="true"/);
-  assert.match(html, /build\/bootstrap\.js\?v=22/);
+  assert.match(html, /build\/bootstrap\.js\?v=24/);
 });
 
 test("homepage markup omits fine copy, starts with empty hidden notices, and keeps stage text screen-reader-only", () => {

@@ -40,7 +40,8 @@ test("the car contact shadow faces upward and returns to full opacity after flig
 const drive = new Function("state", "THREE", `
   let { speed = 0, boosting = false, recovering = false, throttle = 1,
     keys = {}, now = 0, boostEnds = 5000, dt = 1 / 60, offroad = false, tune } = state;
-  const flame = { scale: { set() {} } }, boostText = {}, boostButton = {};
+  const flame = {}, boostText = {}, boostButton = {};
+  const vehicleModel = { visuals: { boosters: { animateFlame() {} } } };
   const itemSystem = { modifiers: () => state.itemEffect ?? { speedFactor: 1, wobble: 0, shield: 0, turbo: 0 } };
   let playerItemFactor = state.playerItemFactor ?? 1, slipX = state.slipX ?? 0, slipZ = state.slipZ ?? 0;
   const show = () => {}, boostLabel = 'Boost';
@@ -223,6 +224,17 @@ test("garage frame renders only the preview and keeps wheel spin tied to modifie
   assert.match(source, /w\.hub\.rotation\.x \+= \(speed \* dt\) \/ w\.radius/);
 });
 
+test("Elio's flag uses resolved velocity only during driving and honors reduced motion", () => {
+  const call = "vehicleModel.flag.update(dt, motion.vx, motion.vz, heading, reducedMotion);";
+  assert.ok(source.indexOf(call) > source.indexOf("const motion = friendRacers.update"));
+  assert.ok(source.indexOf(call) > source.indexOf("garagePreview.render(dt)"));
+  const args = [];
+  const update = new Function("vehicleModel", "dt", "motion", "heading", "reducedMotion", call);
+  update({ flag: { update(...values) { args.push(values); } } }, .025, { vx: -12, vz: 8 }, 1.2, true);
+  assert.deepEqual(args, [[.025, -12, 8, 1.2, true]]);
+  assert.match(source, /contactTexture: contact, reducedMotion, onRace/);
+});
+
 test("production garage lifecycle parks boost, preserves driving pose/pause, and redraws on close", () => {
   const callback = source.slice(source.indexOf("    onOpenChange(open) {"), source.indexOf("  function reset("));
   const method = callback.slice(0, callback.lastIndexOf("  });"));
@@ -235,6 +247,7 @@ test("production garage lifecycle parks boost, preserves driving pose/pause, and
       boosting: true, recovering: true, boostEnds: 9000, flame: { visible: true },
       boostButton: { disabled: true }, boostText: {}, boostLabel: "Boost",
       wheels: [{ pivot: { rotation: { y: 0.3 } } }],
+      vehicleModel: { flag: { resets: 0, reset() { this.resets++; } } },
       ui: { speed: {}, gear: {}, meter: { style: {} } },
       document: { getElementById: (id) => controls[id], body: { classList: { remove() {} } } },
       performance: { now: () => 5000 }, last: 0, qualityStart: 0, fpsStart: 0,
@@ -247,6 +260,7 @@ test("production garage lifecycle parks boost, preserves driving pose/pause, and
     lifecycle.onOpenChange(true);
     for (const key of ["speed", "slipX", "slipZ", "steer", "boostEnds"]) assert.equal(context[key], 0);
     assert.equal(context.flame.visible, false);
+    assert.equal(context.vehicleModel.flag.resets, 1, "parking in the garage removes wind momentum");
     assert.equal(context.boosting || context.recovering || context.boostButton.disabled, false);
     assert.equal(context.boostText.textContent, "Boost");
     assert.equal(controls.camera.disabled && controls.reset.disabled, true);

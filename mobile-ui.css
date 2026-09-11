@@ -4,14 +4,6 @@
 #mobile-toolbar { position: fixed; z-index: 4; top: var(--edge-top); right: var(--edge-right); display: flex; gap: 6px; }
 #mobile-toolbar button { min-width: 44px; height: 44px; padding: 10px; background: var(--ui-surface); box-shadow: var(--ui-shadow); }
 #mobile-toolbar #pause > span { display: none; }
-.compact-ui #game-ui > #friend-hud {
-  top: var(--edge-top); left: var(--edge-left); width: min(260px, calc(100% - var(--edge-left) - var(--edge-right) - 144px));
-  min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
-  pointer-events: none; text-shadow: 0 1px 4px #101b24, 0 1px 12px #101b24;
-}
-.compact-ui #game-ui > #friend-hud :is(.friend-heading small, button, #friend-dots, #friend-crew) { display: none; }
-.compact-ui #game-ui > #friend-hud #friend-title { margin: 0; font-size: 14px; line-height: 1.3; letter-spacing: -.2px; }
-.compact-ui #game-ui > #friend-hud #friend-clue { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 5px 0 0; font-size: 11px; line-height: 1.4; color: var(--ui-text); }
 .compact-ui .bottom { top: calc(var(--edge-top) + 50px); bottom: auto; left: auto; right: var(--edge-right); transform: none; }
 .compact-ui .bottom .controls { display: none; }
 .compact-ui .bottom .speed { width: auto; padding: 5px 8px; border-radius: 8px; background: #1c2323c9; }
@@ -46,7 +38,7 @@
 .drive-menu-heading h2 { margin: 0; font-size: 20px; font-weight: 500; }
 .drive-menu-heading p { margin: 6px 0 0; color: var(--ui-muted); font-size: 11px; }
 #drive-menu-close { flex: 0 0 44px; padding: 10px; }
-.compact-ui #drive-menu :is(.top, #friend-hud, .map-card) { animation: none; }
+.compact-ui #drive-menu :is(.top, .map-card) { animation: none; }
 .compact-ui #drive-menu .top { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: none; padding: 0; border: 0; background: none; box-shadow: none; }
 .compact-ui #drive-menu .top > button { justify-content: flex-start; padding: 10px 12px; background: var(--ui-raised); border-color: var(--ui-border); }
 .compact-ui #drive-menu .top :is(.toolbar-label, #home > span, #configure > span) { display: inline; }
@@ -63,10 +55,6 @@
 #drive-menu-info details[open] > summary::after { content: "-"; }
 #drive-menu-info summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 #drive-menu-info details[open] { padding-bottom: 12px; }
-.compact-ui #drive-menu #friend-hud { position: static; width: 100%; min-width: 0; padding: 14px; }
-.compact-ui #drive-menu #friend-hud .friend-heading small { display: block; }
-.compact-ui #drive-menu #friend-dots { display: flex; }
-.compact-ui #drive-menu #friend-crew { display: grid; }
 .compact-ui #drive-menu .map-card { display: block; position: static; width: min(100%, 240px); margin: auto; }
 .compact-ui #drive-menu .map-caption { display: flex; }
 .compact-ui #drive-menu .credits { position: static; display: inline-block; transform: none; white-space: normal; padding: 12px 0 0; }
@@ -89,7 +77,6 @@
   .compact-ui.touch-device { --steering-size: 100px; --pedal-width: 56px; --pedal-height: 76px; --drive-bottom: var(--edge-bottom); }
   .compact-ui.touch-device #handbrake { left: calc(var(--edge-left) + var(--steering-size) + 8px); bottom: var(--drive-bottom); width: 44px; }
   .compact-ui.touch-device #handbrake > span { display: none; }
-  .compact-ui #game-ui > #friend-hud { width: min(300px, calc(100% - 180px)); }
   .compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 76px); max-width: 50%; }
 }
 .compact-ui.touch-device.wellington { --drive-bottom: calc(var(--edge-bottom) + 24px); }

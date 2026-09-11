@@ -14,12 +14,12 @@ After automatic entry, the first driving gesture enables engine audio when the
 browser requires user activation; audio never adds another launch confirmation.
 Maps in the toolbar returns to this menu without discarding the current drive.
 
-The selected car, car parts, garage tab, last map, camera, engine sound and spoken-clue
+The selected car, car parts, garage tab, last map, camera, engine sound and people-voice
 settings save on this browser and origin. Each map also saves a grounded driving
 position, checkpoint, lap and lap timing every three seconds and on interruptions.
 Reloading resumes stationary on the current terrain, never in mid-jump or boost.
-Reset starts that map's drive over without removing the car build or picnic progress.
-The existing picnic save remains separate. Corrupt saves fall back safely; blocked
+Reset starts that map's drive over without removing the car build.
+Corrupt saves fall back safely; blocked
 or full storage keeps the game playable but cannot retain choices across reloads.
 
 `session.js` owns `wildrun-session-v1` in localStorage. It does not sync devices.
@@ -77,10 +77,10 @@ without advancing the car. Compact phone layouts keep the HUD clear of controls,
 and narrow garage tab strips scroll horizontally instead of shrinking touch targets.
 
 On touch devices (including landscape tablets), or at widths up to 900px or heights
-up to 600px, driving shows just a short objective, Menu, Pause/Resume, a small speed
+up to 600px, driving shows Menu, Pause/Resume, a small speed
 readout, and the driving controls. Menu contains
-Maps, Garage, Camera, Reset, Sound, Time of day, the full adventure, route map, and
-asset credits. Adventure details, route map, and time controls start collapsed each
+Maps, Garage, Camera, Reset, Sound, Voices, Time of day, route map, and
+asset credits. Route map and time controls start collapsed each
 time Menu opens. It pauses the car and clears held pedals; closing resumes only if
 the drive was not already manually paused. Inside view keeps the rear-view mirror
 and compact speed readout without the full-width dashboard or ornamental instruments.
@@ -116,10 +116,13 @@ Serve this folder with `python3 -m http.server 8765`, then open http://localhost
 
 ## Playful collectible items
 
-Drive through a glowing gift to collect one item. The item button shows its picture,
-name, and action: Drop, Fire, Throw, Use, or Zap. Tap it or press F, including while
+Drive through a floating collectible to collect one item. Each pickup has a large
+item-shaped model, colored ground ring, and sparkles. The bottom-center item button
+shows full-color artwork, its name, a Ready label, and its action: Drop, Fire, Throw,
+Use, or Zap. An empty pocket has a dashed outline and says Empty / No item.
+Tap the button or press F, including while
 holding touch steering and a pedal. Holding F does not repeatedly deploy items.
-Your pocket holds one item; passing another gift never replaces it.
+Your pocket holds one item; passing another pickup never replaces it.
 
 | Item | What it does |
 | --- | --- |
@@ -134,9 +137,9 @@ Your pocket holds one item; passing another gift never replaces it.
 | Turbo Star | Gives extra acceleration, 45% more cruise speed, and protection for 5 seconds. |
 | Lightning | Slows every other racer, anywhere on the map, for 4 seconds. |
 
-Each map scatters 60 gifts across safe road and off-road spots, including remote
-exploration areas. Colored minimap diamonds mark available gifts. All ten types
-appear, with the strongest items less common. Gifts return after 18 seconds of
+Each map scatters 60 collectibles across safe road and off-road spots, including remote
+exploration areas. Colored minimap diamonds mark available items. All ten types
+appear, with the strongest items less common. Pickups return after 18 seconds of
 driving; the player collects them, while all five friend racers react to effects.
 Dropped toys disappear after 24 seconds. They can catch you too after a brief
 safe drop window, so watch out on the return trip!
@@ -144,7 +147,7 @@ safe drop window, so watch out on the return trip!
 Everything is cartoon play: temporary slows and gentle wobbles, no damage,
 elimination, scary explosions, camera shake, or flashing-screen lightning.
 Steering stays responsive. Pause, menus, the garage, and backgrounding freeze all
-item timers. Reset clears your pocket and deployed toys and restores the gifts;
+item timers. Reset clears your pocket and deployed toys and restores the pickups;
 items are not saved between reloads. Reduced motion removes decorative bobbing,
 spinning, and confetti movement.
 
@@ -280,7 +283,7 @@ rapid tapping does not queue spoken instructions.
 The Engine tab's Hear engine button plays a two-second synthesized rev for the
 selected four-cylinder, V6, V8 or electric engine. Driving sound responds to speed,
 throttle and boost. The toolbar Sound button mutes driving audio; explicit garage
-previews still work when muted. Engine audio is independent of spoken picnic clues.
+previews still work when muted. Engine audio is independent of people voices.
 Audio starts only after a user gesture, with no autoplay permission required.
 Pausing, opening menus, closing the garage and backgrounding silence the engine.
 If playback is blocked, tap Enable sound or Hear engine again and check device/tab
@@ -368,7 +371,7 @@ solver for each walker. Behaviors:
   rubber-spring back up when it passes.
 - Get up: settled ragdolls blend back into a connected upright pose, then
   continue walking.
-- Voice: with friend-voice enabled they yell comedy lines on impact.
+- Voice: with Voices enabled in the toolbar or drive menu they yell comedy lines on impact.
 
 `people.js` contains the controller; run `node --test people.test.js` for
 spawn/walk/hit/recover/reset regression checks, including finite mesh transforms,
@@ -381,6 +384,18 @@ V6 sports car, Lea a yellow four-cylinder with a big rocket, Camilla a blue
 electric car with hub motors, Maxey a pink V8 with a mega wing, and Loulou a
 green lifted monster-wheel car. Each has a physical, two-sided taxi-style roof
 sign with their name. Their parts use the same visuals and tuning as the garage.
+
+Large rear-mounted flags identify Camilla (Portugal), Maxey (Canada), Vincent
+(Belgium), Lea and Loulou (France), and Elio (New Zealand, on both player cars).
+The 70 cm-tall cloth sits on a rear-bumper bracket behind the spoiler, making it
+easier to see from the chase camera without increasing the cloth mesh budget.
+The cloth droops under gravity, catches a light breeze when parked, and streams
+and flutters faster with actual driving speed, including boosts, slides and reverse.
+Pinned fabric constraints keep it attached during turns. Pause freezes the cloth;
+Reset and garage entry clear its momentum, and reduced-motion mode keeps it still.
+`car-flag.js` owns the lightweight cloth physics; `country-flag-texture.js` draws
+the local flag textures without network requests. Run
+`node --test car-flag.test.js country-flag-texture.test.js` for flag checks.
 
 Drive near a friend to start a friendly rolling race. Friends who spot each
 other briefly gather, then compete at their fitted engine's full road speed.
@@ -395,9 +410,8 @@ Cars exchange momentum when bumped. Elio can shove a friend off track rather tha
 bounce off an immovable obstacle. Friends slide after an impact, lose their boost,
 and steer back onto the road under their own power. Cars can bump each other too.
 Small car-to-car bumps do not cancel Elio's rocket; solid scenery still does.
-Matching colored dots show the racers on the map. Pause, menus, garage visits,
-and picnic dialogs freeze the racers too; Reset places them ahead of Elio again.
-Picnic progress remains separate and unchanged.
+Matching colored dots show the racers on the map. Pause, menus, and garage visits
+freeze the racers too; Reset places them ahead of Elio again.
 
 `friend-racers.js` owns the road-following and race behavior;
 `friend-racer-car.js` builds material-batched cars and their rooftop signs.
@@ -406,25 +420,6 @@ mass-weighted impulses, and the existing static-scenery collision response.
 The cars use moving contact shadows rather than regenerating the sun shadow map.
 Run `node --test friend-racers.test.js racer-physics.test.js` for speed, overtaking,
 boost/cooldown, impact/recovery, terrain, geometry, and integration checks.
-
-## Friend Picnic Adventure
-
-Vincent, Lea, Camilla, Maxey, and Loulou each have a delivery: one ball,
-two stars, three cubes, four rings, and five gems. Follow the matching map marker,
-drive through each collectible, then meet the named friend. The car stops while
-Elios taps each object into the friend's basket. Each tap counts once, with
-spoken counting when sound is enabled. The last object completes the delivery
-automatically; there is no separate number question. There are no mission timers or lost lives.
-The sound button enables spoken English clues when browser speech is available.
-Progress saves locally, independently of level; Reset moves the car without
-losing the delivery. After all five stamps, the picnic celebration opens and
-Play Again becomes available. No likenesses of the real children are used.
-
-Adventure code and responsive UI live in friends.js and friends.css. Scene
-objects reuse five low-poly geometries and one label canvas. Tablet rendering
-budgets are retained.
-Desktop and emulated tablet/phone browser renders and the full delivery sequence
-were checked; frame rate still needs validation on the actual iPad.
 
 ## Track and cone physics
 

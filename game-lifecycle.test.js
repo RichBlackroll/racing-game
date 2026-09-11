@@ -5,8 +5,42 @@ import { runInNewContext } from "node:vm";
 import { bindDrivingInput } from "./tablet.js";
 
 const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
-const pause = source.slice(source.indexOf("  function pauseGame(value)"), source.indexOf("  const adventure ="));
+const pause = source.slice(source.indexOf("  function pauseGame(value)"), source.indexOf("  const voiceButton ="));
 const graphics = source.slice(source.indexOf('  renderer.domElement.addEventListener("webglcontextlost"'), source.indexOf("  const camera ="));
+
+test("driving has no collection quest controller, saved progress, markers or dialog gates", async () => {
+  assert.doesNotMatch(source, /createFriendAdventure|adventure\.|picnic|friend-(hud|dialog|voice)/i);
+  const roster = await import("./friends.js");
+  assert.deepEqual(Object.keys(roster), ["friends"]);
+  assert.deepEqual(roster.friends.map((friend) => friend.name), ["Vincent", "Lea", "Camilla", "Maxey", "Loulou"]);
+  assert.match(source, /friendRacers\.drawMap\(map, mapScale\)/);
+  assert.match(source, /itemWorld\.drawMap\(map, mapScale\)/);
+});
+
+test("people voices restore and toggle independently of the removed quest UI", () => {
+  const voices = source.slice(source.indexOf("  const voiceButton ="), source.indexOf("  const soundButton ="));
+  for (const supported of [false, true]) for (const initial of [false, true]) {
+    const attributes = new Map(), writes = [];
+    const button = { setAttribute: (key, value) => attributes.set(key, value) };
+    const session = { value: { voice: initial }, update(value) { Object.assign(this.value, value); writes.push(value.voice); } };
+    let cancelled = 0;
+    const win = supported ? { speechSynthesis: { cancel() { cancelled++; } } } : {};
+    runInNewContext(voices, { document: { getElementById(id) { assert.equal(id, "people-voice"); return button; } }, window: win, session });
+    assert.equal(button.hidden, !supported);
+    assert.equal(attributes.get("aria-pressed"), String(initial));
+    assert.equal(button.title, initial ? "Turn people voices off" : "Turn people voices on");
+    assert.deepEqual(writes, [], "initialization does not overwrite a saved preference");
+    if (!supported) continue;
+    for (const voice of [!initial, initial]) {
+      button.onclick();
+      assert.equal(session.value.voice, voice);
+      assert.equal(attributes.get("aria-pressed"), String(voice));
+    }
+    assert.deepEqual(writes, [!initial, initial]);
+    assert.equal(cancelled, 1, "switching off cancels any current speech");
+  }
+  assert.match(source, /speech: \(\) => session\.value\.voice/);
+});
 
 function fixture() {
   const win = new EventTarget(), doc = new EventTarget(), pedal = new EventTarget();

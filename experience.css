@@ -1,11 +1,8 @@
 :root { --ease-out: cubic-bezier(.16, 1, .3, 1); }
 
 button { transition: background 180ms, border-color 180ms, box-shadow 180ms, transform 250ms var(--ease-out); }
-#friend-dialog[open] { animation: panel-arrive 450ms var(--ease-out) both; }
-#friend-dialog::backdrop { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
 #modifier { animation: panel-arrive 400ms var(--ease-out) both; }
-.app-ready #game-ui > header, .app-ready .top, .app-ready #friend-hud, .app-ready .bottom, .app-ready .map-card { animation: interface-arrive 700ms var(--ease-out) both; }
-.app-ready #friend-hud { animation-delay: 80ms; }
+.app-ready #game-ui > header, .app-ready .top, .app-ready .bottom, .app-ready .map-card { animation: interface-arrive 700ms var(--ease-out) both; }
 .app-ready .bottom { animation-delay: 140ms; }
 @media (hover: hover) {
   .top button:hover { transform: translateY(-2px); }

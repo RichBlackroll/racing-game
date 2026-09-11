@@ -137,7 +137,7 @@ export const PARTS = [
     emoji: "🚀",
     options: [
       { id: "none", name: "No rocket", emoji: "🚫", fact: "No rocket — safe and steady driving today!", effects: {} },
-      { id: "small", name: "Small booster", emoji: "🚀", fact: "A little rocket for a quick boost! Whoosh!", effects: {} },
+      { id: "small", name: "Twin side boosters", emoji: "🚀", fact: "Two side-mounted rockets for a quick boost! Whoosh!", effects: {} },
       {
         id: "big",
         name: "Big booster",
