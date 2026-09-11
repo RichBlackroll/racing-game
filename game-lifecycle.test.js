@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
-import { bindDrivingInput } from "./tablet.js";
+import { bindDrivingInput, createAdaptiveQuality, createFrameLimiter, pixelBudget } from "./tablet.js";
+import * as THREE from "three";
+import { createDaylight, enableGeometryShadows } from "./daylight.js";
 
 const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
 const pause = source.slice(source.indexOf("  function pauseGame(value)"), source.indexOf("  const voiceButton ="));
@@ -239,7 +241,7 @@ function viewportFixture() {
     window: win, document: { hidden: false }, loading: { active: false }, contextLost: false,
     modifier: { active: false }, cockpit: { resize() {} }, renderSize: {},
     device: { tablet: true }, devicePixelRatio: 3, resolutionScale: 1,
-    pixelBudget: (w, h, dpr) => Math.min(dpr, 1, Math.sqrt(1200000 / (w * h))),
+    pixelBudget,
     camera: { aspect: 390 / 844, updateProjectionMatrix() {} },
     sizeChanges: 0, ratioChanges: 0, renders: 0, previews: 0, previewResizes: 0,
     requestAnimationFrame: (fn) => pending.push(fn),
@@ -318,5 +320,99 @@ test("viewport redraws honor menus, backgrounding, and graphics loss", () => {
     assert.equal(c.previews, state === "garage" ? 1 : 0, state);
     assert.equal(c.previewResizes, state === "garage" ? 1 : 0, state);
     if (state === "contextLost") assert.equal(c.sizeChanges + c.ratioChanges, 0);
+  }
+});
+
+test("the driving loop adapts desktop and touch quality but excludes non-driving frames", () => {
+  const start = source.indexOf("  function frame(now)");
+  const frame = source.slice(start, source.indexOf("    let throttle =", start)) + "\n  }";
+  const qualityStart = source.indexOf("  function applyRenderQuality()");
+  const apply = source.slice(qualityStart, source.indexOf("  const timeControls =", qualityStart));
+  for (const tablet of [false, true]) {
+    const modes = { atmosphere: [], daylight: [], nightLighting: [], ambientEvents: [] };
+    const c = {
+      requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {}, itemSystem: { modifiers: () => ({}) },
+      loading: { active: false }, paused: false, modifier: { active: false }, document: { hidden: false },
+      contextLost: false, audio: { silence() {} }, sceneDirty: false, gameReady: true,
+      allowFrame: createFrameLimiter(), last: 0, qualityFrames: 0, qualityStart: 0,
+      renderQuality: createAdaptiveQuality(tablet), resolutionScale: 1,
+      applyPixelRatio() {}, garagePreview: { render() {} }, renderer: { shadowMap: {} },
+    };
+    for (const name of Object.keys(modes)) c[name] = { setPerformanceMode: enabled => modes[name].push(enabled), advance() {} };
+    runInNewContext(`${apply}\n${frame}`, c);
+    for (let i = 1; i <= 90; i++) c.frame(i * 1000 / 30);
+    assert.equal(c.resolutionScale, 0.9);
+    for (const values of Object.values(modes)) assert.deepEqual(values, [tablet, true]);
+    assert.equal(c.renderer.shadowMap.needsUpdate, true);
+    for (const reason of ["pause", "garage", "hidden", "contextLost", "loading"]) {
+      c.paused = reason === "pause";
+      c.modifier.active = reason === "garage";
+      c.document.hidden = reason === "hidden";
+      c.contextLost = reason === "contextLost";
+      c.loading.active = reason === "loading";
+      c.frame(c.last + 30000);
+      assert.equal(c.qualityFrames, 0, reason);
+      assert.equal(c.resolutionScale, 0.9, reason);
+    }
+  }
+});
+
+test("solar clock uses active elapsed time rather than the capped physics step and excludes interruptions", () => {
+  const start = source.indexOf("  function frame(now)");
+  const frame = source.slice(start, source.indexOf("    qualityFrames++;", start)) + "\n  }";
+  for (const fps of [60, 10, 4]) {
+    const { c } = fixture();
+    const daylight = createDaylight({ scene: new THREE.Scene(), renderer: c.renderer, level: "forest", reducedMotion: false });
+    Object.assign(c, { requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {},
+      itemSystem: { modifiers: () => ({}) }, allowFrame: createFrameLimiter(), daylight });
+    runInNewContext(frame, c);
+    daylight.setHour(5.4); daylight.setCycleMinutes(3);
+    for (let i = 1; i <= fps * 10; i++) c.frame(i * 1000 / fps);
+    assert.ok(Math.abs(daylight.state().hour - (5.4 + 10 * 24 / 180)) < 0.005, `${fps} FPS reaches sunrise on schedule`);
+    assert.equal(daylight.state().period, "golden-hour");
+    for (const reason of ["pause", "garage", "hidden", "contextLost", "loading"]) {
+      const hour = daylight.state().hour;
+      c.paused = reason === "pause"; c.modifier.active = reason === "garage";
+      c.document.hidden = reason === "hidden"; c.contextLost = reason === "contextLost";
+      c.loading.active = reason === "loading";
+      c.frame(c.last + 30000);
+      assert.equal(daylight.state().hour, hour, reason);
+      c.paused = c.modifier.active = c.document.hidden = c.contextLost = c.loading.active = false;
+      c.frame(c.last + 100);
+      assert.ok(Math.abs(daylight.state().hour - hour - 0.1 * 24 / 180) < 1e-10, "resume has no catch-up");
+    }
+    daylight.dispose();
+  }
+});
+
+test("hidden compact maps do not repaint in the driving loop and refresh when visible", () => {
+  const start = source.indexOf("    if (now - lastMap > 100");
+  const map = source.slice(start, source.indexOf("    if (now - lastSave", start));
+  let draws = 0;
+  const c = { now: 1000, lastMap: 0, mobileUI: { mapVisible: false }, drawMap: () => draws++ };
+  runInNewContext(map, c);
+  assert.equal(draws, 0);
+  assert.equal(c.lastMap, 0);
+  c.mobileUI.mapVisible = true;
+  runInNewContext(map, c);
+  assert.equal(draws, 1);
+  assert.equal(c.lastMap, 1000);
+  runInNewContext(map, c);
+  assert.equal(draws, 1);
+});
+
+test("the main terrain stays receive-only after global shadow initialization", () => {
+  const ground = source.slice(source.indexOf("  const groundSize ="), source.indexOf("  groundTex.repeat.setScalar"));
+  for (const tablet of [false, true]) {
+    const scene = new THREE.Scene(), material = new THREE.MeshStandardMaterial();
+    const c = { THREE, scene, device: { tablet }, course: { halfSize: 20 }, isWellington: false,
+      isAmsterdam: false, isCity: false, heightAt: () => 0, roadDist: () => 0, groundmat: material,
+      enableGeometryShadows,
+      mesh(geometry, mat) { const mesh = new THREE.Mesh(geometry, mat); mesh.castShadow = true; scene.add(mesh); return mesh; },
+    };
+    runInNewContext(`${ground}\nenableGeometryShadows(scene); result = ground;`, c);
+    assert.equal(c.result.castShadow, false);
+    assert.equal(c.result.receiveShadow, true);
+    c.result.geometry.dispose(); material.dispose();
   }
 });

@@ -26,6 +26,7 @@ function fixture() {
     surfacePose: null, checkpoint: 1, lap: 1, travel: 20, lapSeconds: 0, bestLap: 0,
     heightAt: (x, z) => x * .02 + z * .01, obstacles: [], course: { halfSize: 620 },
     coneField: field, playField: field, peopleField: field, friendRacers: field,
+    ambientEvents: { resets: 0, reset() { this.resets++; } },
     vehicleModel: { flag: { resets: 0, reset() { this.resets++; } } },
     jumpPhysics: { reset() { flight = { airborne: false, clearance: 0 }; }, state: () => flight },
     moveWithBounces, sampleDrivingSurface, clearCamera() {}, show() {}, resetItems() {},
@@ -45,6 +46,7 @@ test("startup restores per-map pose, checkpoint and lap timing on current terrai
   assert.equal(c.boosting || c.recovering || c.flame.visible, false);
   assert.equal(resets.length, 4);
   assert.equal(c.vehicleModel.flag.resets, 1);
+  assert.equal(c.ambientEvents.resets, 1);
   assert.ok(resets.every((position) => position.equals(c.car.position)));
   assert.equal(writes[0].drives.moon.x, 80, "saving this map preserves the other maps");
 });

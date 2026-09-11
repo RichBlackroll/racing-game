@@ -25,6 +25,19 @@ test("every part has at least 3 options with id, name, emoji and a non-empty fac
   }
 });
 
+test("paint includes dark, grey and forest shades with unique valid colours and no tuning changes", () => {
+  const options = PARTS.find((part) => part.id === "color").options;
+  for (const id of ["black", "obsidian", "charcoal", "graphite", "grey", "silver", "forest-green"]) {
+    assert.ok(options.some((option) => option.id === id), `missing paint "${id}"`);
+  }
+  assert.equal(new Set(options.map((option) => option.id)).size, options.length);
+  assert.equal(new Set(options.map((option) => option.hex)).size, options.length);
+  for (const option of options) {
+    assert.match(option.hex, /^#[0-9a-f]{6}$/, `invalid paint colour for "${option.id}"`);
+    assert.deepEqual(computeTuning({ ...DEFAULTS, color: option.id }), computeTuning(DEFAULTS));
+  }
+});
+
 test("all effects keys are valid tuning fields", () => {
   for (const part of PARTS) {
     for (const option of part.options) {

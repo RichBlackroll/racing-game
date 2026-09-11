@@ -45,12 +45,14 @@ export function occupiedWindowEmission(material) {
  * Static descriptor positions are GROUP-LOCAL and frozen in world space here.
  * The caller owns materials and renderer.shadowMap.needsUpdate; we own lights.
  * dt is seconds, defaulting to 1/60 and capped at 0.1 for 0.25-second fades.
+ * setPerformanceMode(true) lowers headlight shadows and unshadows streets (default false).
  */
 export function createNightLighting({ scene, tablet = false }) {
   const bindings = new Map(), playerBindings = new Map(), anchors = [];
   const headlights = [], streets = [];
   const eye = new THREE.Vector3(), beam = new THREE.Vector3(0, -1.4, 38), inverseScene = new THREE.Matrix4();
   let disposed = false, currentModel, currentCar, body, nightValue = 0, modelScans = 0;
+  let performanceMode = false;
   let lensPositions = [];
 
   function bind(material, target) {
@@ -132,6 +134,29 @@ export function createNightLighting({ scene, tablet = false }) {
   });
   const candidates = [], desired = new Set(), assigned = new Set();
 
+  function setPerformanceMode(enabled) {
+    if (disposed || typeof enabled !== "boolean" || enabled === performanceMode) return;
+    performanceMode = enabled;
+    const size = enabled ? 256 : tablet ? 512 : 1024;
+    for (const light of headlights) {
+      const shadow = light.shadow;
+      if (shadow.mapSize.x !== size || shadow.mapSize.y !== size) {
+        shadow.dispose();
+        shadow.map = shadow.mapPass = null;
+        shadow.mapSize.setScalar(size);
+      }
+      shadow.needsUpdate = light.intensity > 0;
+    }
+    for (const { light } of streets) {
+      light.castShadow = !enabled;
+      if (enabled) {
+        light.shadow.dispose();
+        light.shadow.map = light.shadow.mapPass = null;
+      }
+      light.shadow.needsUpdate = light.castShadow && light.intensity > 0;
+    }
+  }
+
   function update({ night, car, vehicleModel, braking = false, dt = 1 / 60, snap = false }) {
     if (disposed) return;
     const fadeStep = Number.isFinite(dt) ? THREE.MathUtils.clamp(dt, 0, 0.1) / 0.25 : 0;
@@ -207,7 +232,7 @@ export function createNightLighting({ scene, tablet = false }) {
       if (snap) slot.gain = anchor && nightValue > 0 && car ? 1 : 0;
       const fade = anchor && car ? 1 - THREE.MathUtils.smoothstep(eye.distanceTo(anchor.position), anchor.distance * 1.5, anchor.distance * 3) : 0;
       slot.light.intensity = anchor ? anchor.intensity * nightValue * THREE.MathUtils.smoothstep(slot.gain, 0, 1) * fade : 0;
-      slot.light.shadow.needsUpdate = slot.light.intensity > 0;
+      slot.light.shadow.needsUpdate = slot.light.castShadow && slot.light.intensity > 0;
     }
   }
 
@@ -223,9 +248,10 @@ export function createNightLighting({ scene, tablet = false }) {
     headlights.length = 0; streets.length = 0; anchors.length = 0; candidates.length = 0;
     desired.clear(); assigned.clear(); lensPositions = []; body = currentModel = currentCar = null;
   }
-  return { update, dispose, state: () => ({ disposed, night: nightValue,
+  return { update, setPerformanceMode, dispose, state: () => ({ disposed, night: nightValue,
     materials: bindings.size + playerBindings.size, playerMaterials: playerBindings.size,
     anchors: anchors.length, headlights: headlights.length, streetlights: streets.length,
-    shadowedLights: headlights.length + streets.length, activeStreetlights: streets.filter(slot => slot.light.intensity > 0).length, modelScans,
+    shadowedLights: headlights.length + streets.filter(slot => slot.light.castShadow).length,
+    activeStreetlights: streets.filter(slot => slot.light.intensity > 0).length, modelScans,
   }) };
 }

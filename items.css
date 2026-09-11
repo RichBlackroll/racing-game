@@ -39,9 +39,6 @@ body:not(.compact-ui):not(.cockpit-view) #toast { bottom: calc(var(--edge-bottom
 .touch-device #item-name { font-size: 16px; }
 .touch-device #use-item { gap: 10px; padding: 10px 12px; }
 .touch-device #item-icon { flex-basis: 60px; width: 60px; height: 60px; }
-@media (orientation: landscape) {
-  .compact-ui .cockpit-mirror { top: calc(var(--edge-top) + 50px); bottom: auto; }
-}
 @media (orientation: landscape) and (max-width: 700px) {
   .touch-device #use-item { min-height: 94px; padding: 8px; gap: 8px; }
   .touch-device #item-icon { flex-basis: 48px; width: 48px; height: 48px; }

@@ -446,7 +446,7 @@ export function createPeopleField({
     people.push({ ...p, body: B, joints, ST, constraints, constraintsActive: false });
   }
 
-  // Shrink unused instanced slots off-screen so they are never drawn.
+  // Hide unworn leg variants; exclude spare capacity from the draw count.
   const dummy = new THREE.Object3D();
   dummy.position.set(0, -40, 0);
   dummy.scale.setScalar(0.001);
@@ -454,7 +454,10 @@ export function createPeopleField({
   dummy.updateMatrix();
   const emptyMatrix = dummy.matrix;
   const allGroups = [...groups.values()];
-  for (const g of allGroups) for (let i = 0; i < g.mesh.count; i++) g.mesh.setMatrixAt(i, emptyMatrix);
+  for (const g of allGroups) {
+    for (let i = 0; i < g.mesh.count; i++) g.mesh.setMatrixAt(i, emptyMatrix);
+    g.mesh.count = g.slot;
+  }
 
   // ---------------------------------------------------------------------------
   // Pose targets

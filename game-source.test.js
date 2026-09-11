@@ -210,11 +210,12 @@ test("driving steering consumes analog input but nonzero keyboard steering takes
 });
 
 test("garage frame renders only the preview and keeps wheel spin tied to modified radius", () => {
-  const branch = source.match(/if \(modifier\.active\) \{\s*garagePreview\.render\(dt\);\s*return;\s*\}/)?.[0];
+  const start = source.indexOf("    if (modifier.active) {", source.indexOf("  function frame(now)"));
+  const branch = source.slice(start, source.indexOf("    daylight.advance(", start));
   assert.ok(branch, "garage bypasses driving physics and the road camera");
-  const render = new Function("modifier", "garagePreview", "dt", `${branch}; throw new Error('Driving frame ran');`);
+  const render = new Function("modifier", "garagePreview", "dt", "itemUI", "itemSnapshot", "itemSystem", `${branch}; throw new Error('Driving frame ran');`);
   let elapsed;
-  render({ active: true }, { render(dt) { elapsed = dt; } }, 0.025);
+  render({ active: true }, { render(dt) { elapsed = dt; } }, 0.025, { update() {} }, {}, { modifiers: () => ({}) });
   assert.equal(elapsed, 0.025);
   assert.match(source, /car\.add\(carVisual\)/);
   assert.match(source, /createGaragePreview\(\{\s*renderer, car: carVisual/);

@@ -2,15 +2,16 @@
 .compact-ui { --ui-gap: 12px; --edge-left: max(var(--ui-gap), env(safe-area-inset-left)); --edge-right: max(var(--ui-gap), env(safe-area-inset-right)); --edge-top: max(var(--ui-gap), env(safe-area-inset-top)); --edge-bottom: max(var(--ui-gap), env(safe-area-inset-bottom)); }
 .compact-ui .brand { display: none; }
 #mobile-toolbar { position: fixed; z-index: 4; top: var(--edge-top); right: var(--edge-right); display: flex; gap: 6px; }
-#mobile-toolbar button { min-width: 44px; height: 44px; padding: 10px; background: var(--ui-surface); box-shadow: var(--ui-shadow); }
+#mobile-toolbar button { width: 44px; height: 44px; padding: 10px; background: #1c2323c9; box-shadow: none; }
 #mobile-toolbar #pause > span { display: none; }
-.compact-ui .bottom { top: calc(var(--edge-top) + 50px); bottom: auto; left: auto; right: var(--edge-right); transform: none; }
+/* Speed, rear view and actions share one row instead of covering the road. */
+.compact-ui .bottom { top: var(--edge-top); bottom: auto; left: var(--edge-left); right: auto; transform: none; }
 .compact-ui .bottom .controls { display: none; }
-.compact-ui .bottom .speed { width: auto; padding: 5px 8px; border-radius: 8px; background: #1c2323c9; }
+.compact-ui .bottom .speed { display: flex; align-items: center; width: auto; height: 44px; padding: 5px 6px; border-radius: 10px; background: #1c2323c9; box-shadow: none; }
 .compact-ui .speed :is(.instrument-label, .bar) { display: none; }
-.compact-ui .speed .speed-reading { margin: 0; gap: 7px; }
+.compact-ui .speed .speed-reading { margin: 0; gap: 5px; }
 .compact-ui .speed .speed-meta { flex-direction: row; gap: 5px; }
-.compact-ui .speed #speed { font-size: 22px; letter-spacing: -1px; }
+.compact-ui .speed #speed { min-width: 3ch; text-align: right; font-size: 22px; letter-spacing: -1px; }
 .compact-ui .speed #gear { min-width: 18px; height: 18px; font-size: 10px; }
 .compact-ui .speed .unit { font-size: 7px; }
 
@@ -30,7 +31,7 @@
 .compact-ui.touch-device #handbrake { left: var(--edge-left); width: 44px; }
 .compact-ui.touch-device #handbrake > span { display: none; }
 .compact-ui.touch-device #boost { width: calc(var(--pedal-width) * 2 + 8px); bottom: calc(var(--drive-bottom) + var(--pedal-height) + 8px); }
-.compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 88px); bottom: auto; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(360px, calc(100% - var(--edge-left) - var(--edge-right))); padding: 6px 10px; font-size: 11px; }
+.compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 52px); bottom: auto; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(360px, calc(100% - var(--edge-left) - var(--edge-right))); padding: 6px 10px; font-size: 11px; }
 
 #drive-menu { position: fixed; inset: var(--edge-top) var(--edge-right) var(--edge-bottom) var(--edge-left); width: min(520px, calc(100% - var(--edge-left) - var(--edge-right))); max-width: none; max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom)); margin: 0 auto auto; padding: 18px; overflow: auto; overscroll-behavior: contain; color: var(--ui-text); background: #1c2323; border: 1px solid var(--ui-border); border-radius: 18px; }
 #drive-menu::backdrop { background: #101b246b; }
@@ -65,18 +66,14 @@
 .compact-ui.touch-device #cockpit { --dash-height: calc(var(--drive-bottom) + 94px); }
 .compact-ui .cockpit-wheel, .compact-ui .cockpit-vent, .compact-ui .cockpit-passenger-label, .compact-ui .cockpit-roof, .compact-ui .cockpit-dash { display: none; }
 .compact-ui .cockpit-instruments { display: none; }
-.compact-ui.cockpit-view .speed { position: static; height: auto; overflow: visible; clip-path: none; }
+.compact-ui.cockpit-view .speed { position: static; overflow: visible; clip-path: none; }
 .compact-ui .cockpit-pillar { width: 24px; }
-.compact-ui .cockpit-mirror { top: auto; bottom: calc(var(--drive-bottom, 22px) + 12px); width: 110px; height: 44px; padding: 5px; }
-.compact-ui .cockpit-mirror::before, .compact-ui .cockpit-mirror span { display: none; }
-@media (orientation: portrait) {
-  .compact-ui .cockpit-mirror { top: calc(var(--edge-top) + 88px); bottom: auto; }
-  .compact-ui.cockpit-view #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 140px); }
-}
+.compact-ui .cockpit-mirror { top: var(--edge-top); bottom: auto; width: clamp(76px, calc(100% - 256px), 110px); height: 44px; padding: 5px; box-shadow: none; }
+.compact-ui .cockpit-mirror::before, .compact-ui .cockpit-mirror span, .compact-ui .cockpit-mirror > i { display: none; }
 @media (orientation: landscape) and (max-height: 600px) {
   .compact-ui.touch-device { --steering-size: 100px; --pedal-width: 56px; --pedal-height: 76px; --drive-bottom: var(--edge-bottom); }
   .compact-ui.touch-device #handbrake { left: calc(var(--edge-left) + var(--steering-size) + 8px); bottom: var(--drive-bottom); width: 44px; }
   .compact-ui.touch-device #handbrake > span { display: none; }
-  .compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { top: calc(var(--edge-top) + 76px); max-width: 50%; }
+  .compact-ui #toast, .compact-ui.touch-device.cockpit-view #toast { max-width: 50%; }
 }
 .compact-ui.touch-device.wellington { --drive-bottom: calc(var(--edge-bottom) + 24px); }

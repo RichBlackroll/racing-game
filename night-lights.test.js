@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createNightLighting, occupiedWindowEmission } from "./night-lights.js";
 import { enableGeometryShadows } from "./daylight.js";
-import { prepareVehicleModel } from "./vehicle-model.js";
+import { loadVehicleModel, prepareVehicleModel } from "./vehicle-model.js";
 import { getVehicle } from "./vehicle-data.js";
 import { DEFAULTS } from "./modifier-data.js";
 import { createFriendRacerCar } from "./friend-racer-car.js";
@@ -353,9 +353,84 @@ test("model identity swaps rebind only the player; cleanup restores materials an
   clearScene(f.vehicleModel.car); clearScene(f.scene); clearScene(next.scene);
 });
 
+for (const tablet of [false, true]) test(`${tablet ? "tablet" : "desktop"}: performance mode budgets shadows without losing illumination or moving-car feedback`, t => {
+  const f = fixture(tablet);
+  f.scene.userData.nightLights = [0, 4, 8, 12].map(x => ({ position: [x, 6, 0], intensity: 100, distance: 30 }));
+  const night = createNightLighting(f), all = lights(f.scene);
+  const heads = lights(f.scene, "night/player"), streets = lights(f.scene, "night/street");
+  t.after(() => { night.dispose(); clearScene(f.scene); });
+  night.update({ ...f, night: 1, braking: true, snap: true });
+  const cookie = heads[0].map;
+  let disposals = 0, cookieDisposals = 0;
+  cookie.addEventListener("dispose", () => cookieDisposals++);
+  for (const enabled of [true, false, true, false]) {
+    const casters = all.filter(light => light.castShadow);
+    for (const light of casters) for (const key of ["map", "mapPass"]) {
+      light.shadow[key] = new THREE.WebGLRenderTarget(light.shadow.mapSize.x, light.shadow.mapSize.y);
+      light.shadow[key].addEventListener("dispose", () => disposals++);
+    }
+    all.forEach(light => { light.shadow.needsUpdate = false; });
+    const before = disposals, intensities = all.map(light => light.intensity);
+    const positions = all.map(light => light.position.clone());
+    night.setPerformanceMode(enabled);
+    assert.equal(disposals, before + casters.length * 2);
+    assert.equal(cookieDisposals, 0);
+    assert.ok(all.every(light => light.shadow.map === null && light.shadow.mapPass === null));
+    assert.deepEqual(all.map(light => light.intensity), intensities, "toggling never interrupts illumination or fades");
+    all.forEach((light, i) => closeVector(light.position, positions[i]));
+    assert.equal(night.state().shadowedLights, enabled ? 2 : all.length);
+    assert.equal(night.state().activeStreetlights, streets.length);
+    for (const light of heads) {
+      assert.deepEqual(light.shadow.mapSize.toArray(), Array(2).fill(enabled ? 256 : tablet ? 512 : 1024));
+      assert.equal(light.castShadow, true); assert.equal(light.shadow.needsUpdate, true);
+      assert.equal(light.map, cookie); assert.equal(light.intensity, 650); assert.equal(light.distance, 85);
+    }
+    for (const light of streets) {
+      assert.equal(light.castShadow, !enabled); assert.equal(light.shadow.needsUpdate, !enabled);
+      assert.deepEqual(light.shadow.mapSize.toArray(), [512, 512]);
+      assert.equal(light.intensity, 100);
+    }
+    all.forEach(light => { light.shadow.needsUpdate = false; });
+    night.setPerformanceMode(enabled);
+    for (const invalid of [undefined, null, 1, "false"]) night.setPerformanceMode(invalid);
+    assert.equal(disposals, before + casters.length * 2);
+    assert.ok(all.every(light => !light.shadow.needsUpdate), "repeated/invalid setters are no-ops");
+    for (let frame = 0; frame < 3; frame++) {
+      f.car.position.x += 0.2; f.car.rotation.y += 0.1; f.body.position.y += 0.05;
+      all.forEach(light => { light.shadow.needsUpdate = false; });
+      night.update({ ...f, night: 1, braking: true, dt: 0 });
+      heads.forEach((light, i) => {
+        const lens = new THREE.Vector3().fromArray(f.vehicleModel.car.userData.headlights[i]);
+        closeVector(light.position, lens.clone().applyMatrix4(f.body.matrixWorld));
+        closeVector(light.target.position, lens.add(new THREE.Vector3(0, -1.4, 38)).applyMatrix4(f.body.matrixWorld));
+        assert.equal(light.shadow.needsUpdate, true, "active moving beams are never throttled");
+      });
+      assert.ok(streets.every(light => light.shadow.needsUpdate === !enabled));
+      assert.equal(f.head.emissiveIntensity, 1.8); assert.equal(f.rear.emissiveIntensity, 3);
+      assert.equal(night.state().modelScans, 1);
+    }
+  }
+  night.setPerformanceMode(true);
+  night.update({ ...f, night: 0, braking: true, dt: 0 });
+  night.setPerformanceMode(false);
+  assert.ok(all.every(light => !light.shadow.needsUpdate && light.intensity === 0));
+  assert.equal(f.rear.emissiveIntensity, 3, "daytime braking feedback survives both modes");
+  night.update({ ...f, night: 1, snap: true });
+  assert.ok(all.every(light => light.shadow.needsUpdate && light.castShadow));
+  night.setPerformanceMode(true);
+  night.dispose();
+  const before = disposals;
+  night.setPerformanceMode(false); night.dispose();
+  assert.equal(disposals, before);
+  assert.equal(cookieDisposals, 1);
+  assert.equal(night.state().shadowedLights, 0);
+  assert.ok(heads.every(light => light.shadow.mapSize.x === 256));
+  assert.ok(streets.every(light => !light.castShadow));
+});
+
 test("production vehicle lenses bind front versus rear without whitening the Porsche's rear atlas", async () => {
-  for (const id of ["tesla", "porsche"]) {
-    const model = await vehicle(id), scene = new THREE.Scene(), car = new THREE.Group();
+  for (const id of ["tesla", "porsche", "golf", "byd-atto-1", "volvo-ex40"]) {
+    const model = getVehicle(id).authored ? await loadVehicleModel(id) : await vehicle(id), scene = new THREE.Scene(), car = new THREE.Group();
     const heads = new Set(), rears = new Set(), others = new Map();
     car.add(model.car); scene.add(car);
     model.car.traverse(object => {
@@ -374,7 +449,7 @@ test("production vehicle lenses bind front versus rear without whitening the Por
     assert.equal(model.car.userData.headlights.length, 2);
     for (const [i, position] of model.car.userData.headlights.entries()) {
       assert.ok(position.every(Number.isFinite)); assert.equal(Math.sign(position[0]), i ? 1 : -1);
-      assert.ok(position[1] > 0.3 && position[1] < 1.1 && position[2] > 2);
+      assert.ok(position[1] > 0.3 && position[1] < 1.1 && position[2] > (getVehicle(id).length || 4.6) / 2 - 0.1);
     }
     const night = createNightLighting({ scene });
     for (const suspension of ["stock", "sport", "lift"]) {

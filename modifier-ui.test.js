@@ -203,10 +203,17 @@ test("production panel edits the live model, focuses parts, and restores canvas,
   assert.equal(picker.firstElementChild.textContent, "Choose your car");
   assert.equal(picker.getAttribute("aria-labelledby"), picker.firstElementChild.id);
   assert.equal(picker.getAttribute("aria-busy"), "false");
-  assert.deepEqual(vehicles.map((button) => button.dataset.vehicle), ["porsche", "tesla"], "only available models, no placeholder Golf");
-  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-label")), ["Porsche 911 GT3 RS", "Tesla Model 3"]);
-  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-pressed")), ["true", "false"]);
-  assert.notEqual(vehicles[0].querySelector(".mod-picture").innerHTML, vehicles[1].querySelector(".mod-picture").innerHTML, "distinct car silhouettes");
+  assert.deepEqual(vehicles.map((button) => button.dataset.vehicle), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40"]);
+  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-label")), ["Porsche 911 GT3 RS", "Tesla Model 3", "Volkswagen Golf GTI Mk1", "BYD Atto 1", "Volvo EX40"]);
+  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-pressed")), ["true", "false", "false", "false", "false"]);
+  assert.equal(vehicles[2].querySelector(".mod-vehicle-name").textContent, "Volkswagen Golf GTI Mk1");
+  assert.equal(vehicles[2].querySelector(".mod-vehicle-description").textContent, "1976 hot hatch");
+  const silhouettes = vehicles.map((button) => button.querySelector(".mod-picture").innerHTML);
+  assert.equal(new Set(silhouettes).size, 5, "each car has a distinct silhouette");
+  for (const button of vehicles) {
+    assert.equal(button.querySelector(".mod-picture").getAttribute("aria-hidden"), "true");
+    assert.match(button.querySelector(".mod-picture").innerHTML, /<svg viewBox="0 0 80 56"/);
+  }
   assert.equal(panel.querySelector(".mod-tabs").children.length, 6, "vehicle selection is not a seventh part tab");
   assert.equal(modifier.active, false);
   assert.equal(preview.state().active, false);
@@ -309,9 +316,19 @@ test("saved vehicle, configuration and part hydrate before the first render, wit
       config: { ...DEFAULTS, color: "blue", engine: "six", wheels: "wide" }, part: "engine", vehicle: "tesla" },
     { name: "Tesla default engine", saved: { vehicle: "tesla", config: { engine: "invalid" }, selectedPart: "engine" },
       config: { ...DEFAULTS, engine: "electric" }, part: "engine", vehicle: "tesla" },
+    { name: "saved Golf with a customized engine", saved: { vehicle: "golf", config: { color: "blue", engine: "six", wheels: "wide" }, selectedPart: "engine" },
+      config: { ...DEFAULTS, color: "blue", engine: "six", wheels: "wide" }, part: "engine", vehicle: "golf" },
+    { name: "Golf default engine with missing config", saved: { vehicle: "golf" },
+      config: { ...DEFAULTS, engine: "four" }, part: "color", vehicle: "golf" },
+    { name: "Golf default engine with invalid choice", saved: { vehicle: "golf", config: { engine: "invalid" }, selectedPart: "engine" },
+      config: { ...DEFAULTS, engine: "four" }, part: "engine", vehicle: "golf" },
+    { name: "Atto 1 default engine", saved: { vehicle: "byd-atto-1" },
+      config: { ...DEFAULTS, engine: "electric" }, part: "color", vehicle: "byd-atto-1" },
+    { name: "EX40 invalid engine", saved: { vehicle: "volvo-ex40", config: { engine: "invalid" } },
+      config: { ...DEFAULTS, engine: "electric" }, part: "color", vehicle: "volvo-ex40" },
     { name: "invalid choices", saved: { vehicle: "toString", config: { color: "blue", engine: "toString", wheels: null, extra: "bad" }, selectedPart: "toString" },
       config: { ...DEFAULTS, color: "blue" }, part: "color" },
-    { name: "unavailable vehicle", saved: { vehicle: "golf" }, config: DEFAULTS, part: "color" },
+    { name: "unavailable vehicle", saved: { vehicle: "unavailable" }, config: DEFAULTS, part: "color" },
     { name: "missing save", saved: undefined, config: DEFAULTS, part: "color" },
   ]) {
     await t.test(name, (t) => {
@@ -432,6 +449,41 @@ test("vehicle swaps preserve parts, lock edits while loading, and use the new li
   assert.equal(session.value.vehicle, "tesla", "Undo only changes parts on the new car");
   assert.equal(apply.mock.callCount(), 0, "the old controller never receives another edit");
   assert.deepEqual(visuals.state(), oldState);
+  const golf = panel.find((node) => node.dataset.vehicle === "golf"), golfConfig = { ...nextConfig, engine: "four" };
+  golf.click();
+  const golfRequest = vehicleRequests.at(-1);
+  assert.equal(golfRequest.id, "golf");
+  assert.deepEqual(golfRequest.nextConfig, golfConfig, "Golf replaces the Tesla engine but preserves every other part");
+  assert.equal(picker.getAttribute("aria-busy"), "true");
+  assert.equal(golf.disabled, true);
+  assert.equal(golf.getAttribute("aria-pressed"), "false");
+  assert.equal(tesla.getAttribute("aria-pressed"), "true");
+  assert.equal(session.value.vehicle, "tesla", "Golf is not saved before loading succeeds");
+  assert.match(feedback.textContent, /^Loading Volkswagen Golf GTI Mk1/);
+  golfRequest.resolve();
+  await Promise.resolve();
+  assert.deepEqual(modifier.config, golfConfig);
+  assert.deepEqual(modifier.tuning, computeTuning(golfConfig));
+  assert.deepEqual(session.value, { ...saved, vehicle: "golf", config: golfConfig });
+  assert.equal(golf.getAttribute("aria-pressed"), "true");
+  assert.equal(tesla.getAttribute("aria-pressed"), "false");
+  assert.equal(picker.getAttribute("aria-busy"), "false");
+  assert.equal(golf.disabled, false);
+  assert.match(panel.querySelector(".mod-viewport").getAttribute("aria-label"), /^Volkswagen Golf GTI Mk1 in the garage/);
+  assert.equal(panel.find((node) => node.dataset.option === "four").getAttribute("aria-pressed"), "true");
+  assert.equal(modifier.visuals.engine.cylinders, 4);
+  assert.deepEqual(modifier.visuals, golfRequest.next.visuals.state());
+  assert.equal(toasts.at(-1), "Volkswagen Golf GTI Mk1 ready!");
+  assert.equal(undo.disabled, true);
+  panel.find((node) => node.dataset.option === "six").click();
+  golf.click();
+  assert.equal(vehicleRequests.length, 2, "selecting the current Golf does not reload it");
+  assert.equal(modifier.config.engine, "six", "same-Golf taps preserve a custom engine");
+  assert.equal(golfRequest.next.visuals.state().engine.cylinders, 6);
+  undo.click();
+  assert.deepEqual(modifier.config, golfConfig);
+  assert.equal(session.value.vehicle, "golf", "Undo cannot return to the Tesla");
+  assert.equal(undo.disabled, true);
   porsche.click();
   vehicleRequests.at(-1).resolve();
   await Promise.resolve();
@@ -546,7 +598,7 @@ test("closing aborts vehicle requests and late results cannot switch cars or unl
   }
 });
 
-test("vehicle, options, tabs, presets and Undo persist through a fresh page without replacing other session data", async (t) => {
+test("vehicle, options, tabs, presets and Undo persist a customized Golf through a fresh page without replacing other session data", async (t) => {
   const entries = new Map([["wildrun-friends-v1", '{"index":2,"collected":1}']]), writes = [];
   const localStorage = {
     getItem: (key) => entries.get(key) ?? null,
@@ -590,7 +642,19 @@ test("vehicle, options, tabs, presets and Undo persist through a fresh page with
     vehicleRequests.at(-1).resolve();
     await Promise.resolve();
     assert.deepEqual(patches.at(-1), { vehicle: "tesla", config: modifier.config, selectedPart: "rocket" });
-    expected = { ...initial, vehicle: "tesla", config: { ...modifier.config }, selectedPart: "rocket" };
+    const beforeGolf = { ...modifier.config };
+    panel.find((node) => node.dataset.vehicle === "golf").click();
+    assert.equal(vehicleRequests.at(-1).id, "golf");
+    vehicleRequests.at(-1).resolve();
+    await Promise.resolve();
+    assert.deepEqual(modifier.config, { ...beforeGolf, engine: "four" });
+    assert.deepEqual(patches.at(-1), { vehicle: "golf", config: modifier.config, selectedPart: "rocket" });
+    assert.equal(writes.at(-1).vehicle, "golf");
+    assert.equal(writes.at(-1).config.engine, "four");
+    panel.find((node) => node.classList.contains("mod-tab") && node.dataset.part === "engine").click();
+    panel.find((node) => node.dataset.option === "six").click();
+    panel.find((node) => node.classList.contains("mod-tab") && node.dataset.part === "rocket").click();
+    expected = { ...initial, vehicle: "golf", config: { ...beforeGolf, engine: "six" }, selectedPart: "rocket" };
     assert.deepEqual(session.value, expected);
     assert.equal(writes.length, patches.length);
     assert.equal(session.persistent, true);
@@ -604,9 +668,10 @@ test("vehicle, options, tabs, presets and Undo persist through a fresh page with
     assert.deepEqual(createSession(win).value, expected);
     assert.deepEqual(modifier.config, expected.config);
     assert.deepEqual(modifier.tuning, computeTuning(expected.config));
-    assert.equal(modifier.visuals.engine.electric, true);
-    assert.equal(modifier.visuals.paint, "#e9edf0");
-    assert.equal(panel.find((node) => node.dataset.vehicle === "tesla").getAttribute("aria-pressed"), "true");
+    assert.equal(modifier.visuals.engine.cylinders, 6, "a saved Golf upgrade overrides its four-cylinder default");
+    const savedPaint = PARTS.find((part) => part.id === "color").options.find((option) => option.id === expected.config.color);
+    assert.equal(modifier.visuals.paint, savedPaint.hex);
+    assert.equal(panel.find((node) => node.dataset.vehicle === "golf").getAttribute("aria-pressed"), "true");
     assert.equal(panel.querySelector(".mod-options").dataset.part, "rocket");
     modifier.open();
     assert.equal(preview.state().part, "rocket");

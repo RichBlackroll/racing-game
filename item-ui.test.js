@@ -119,13 +119,13 @@ test("protective item countdowns are readable and clear when their timers expire
 
 test("production lifecycle never advances items in a pause, loading screen, garage, or hidden tab", async () => {
   const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
-  const frame = source.slice(source.indexOf("  function frame(now)"), source.indexOf("    daylight.advance(dt);")) + "\n}";
+  const frame = source.slice(source.indexOf("  function frame(now)"), source.indexOf("    daylight.advance(")) + "\n}";
   for (const mode of ["paused", "loading", "hidden", "contextLost", "garage"]) {
     const context = { requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {},
       itemSystem: { modifiers: () => ({}), update() { assert.fail("Paused items advanced"); } },
       loading: { active: mode === "loading" }, paused: mode === "paused", modifier: { active: mode === "garage" },
       document: { hidden: mode === "hidden" }, contextLost: mode === "contextLost",
-      audio: { silence() {} }, sceneDirty: false, last: 0, device: { tablet: false }, garagePreview: { render() {} } };
+      audio: { silence() {} }, sceneDirty: false, last: 0, allowFrame: () => true, garagePreview: { render() {} } };
     runInNewContext(`${frame}; frame(1000);`, context);
     assert.equal(context.last, 1000);
   }

@@ -4,6 +4,8 @@ import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometr
 import { createModifierCar } from "./modifier-car.js";
 import { getVehicle } from "./vehicle-data.js";
 import { createCarFlag } from "./car-flag.js";
+import { createBydAtto1 } from "./byd-atto-1.js";
+import { createVolvoEx40 } from "./volvo-ex40.js";
 
 function resourcesOf(model) {
   const resources = new Set();
@@ -36,11 +38,16 @@ function disposeResources(resources, retained = new Set()) {
 
 export async function loadVehicleModel(id, { signal } = {}) {
   const vehicle = getVehicle(id);
+  signal?.throwIfAborted();
+  if (vehicle.authored) {
+    const scene = vehicle.id === "byd-atto-1" ? createBydAtto1() : createVolvoEx40();
+    return prepareVehicleModel(scene, vehicle.id);
+  }
   const response = await fetch(vehicle.file, { signal });
   if (!response.ok) throw new Error(`Could not load ${vehicle.name} (${response.status}).`);
   const bytes = await response.arrayBuffer();
   signal?.throwIfAborted();
-  // Both licensed GLBs are self-contained and need no runtime compression decoder.
+  // Local GLBs are self-contained and need no runtime compression decoder.
   const { scene } = await new GLTFLoader().parseAsync(bytes, "");
   if (signal?.aborted) {
     disposeResources(resourcesOf(scene));
@@ -49,12 +56,13 @@ export async function loadVehicleModel(id, { signal } = {}) {
   return prepareVehicleModel(scene, vehicle.id);
 }
 
-// Each load owns its resources. +Y is up and +Z is forward in both local assets.
+// Each load owns its resources. +Y is up and +Z is forward in the local assets.
 export function prepareVehicleModel(model, id) {
-  const vehicle = getVehicle(id), tesla = vehicle.id === "tesla";
+  const vehicle = getVehicle(id), tesla = vehicle.id === "tesla", golf = vehicle.id === "golf", authored = vehicle.authored;
   const car = new THREE.Group();
   car.name = vehicle.id;
   car.userData.nightVehicle = true;
+  if (authored) Object.assign(car.userData, model.userData);
   const paint = new THREE.MeshStandardMaterial({
     name: "vehicle-paint", color: 0xc60920, metalness: 0.12, roughness: 0.26, side: THREE.DoubleSide,
   });
@@ -80,7 +88,7 @@ export function prepareVehicleModel(model, id) {
     const bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3());
     const length = Math.max(size.x, size.z);
     if (!Number.isFinite(length) || length <= 0) throw new Error(`${vehicle.name} has no car geometry.`);
-    model.scale.multiplyScalar(4.6 / length);
+    model.scale.multiplyScalar((vehicle.length || 4.6) / length);
     model.updateMatrixWorld(true);
     bounds.setFromObject(model);
     const center = bounds.getCenter(new THREE.Vector3());
@@ -97,34 +105,41 @@ export function prepareVehicleModel(model, id) {
       if (!object.isMesh) return;
       let material = object.material;
       const name = material.name || "";
-      if (tesla ? name === "CAR_PAINT" : name.includes("Paint_Material")) {
+      if (authored ? name === "authored-paint" : tesla ? name === "CAR_PAINT" : golf ? name === "vM_CarPaint_Max1" : name.includes("Paint_Material")) {
         material = paint;
         painted = true;
       } else {
-        if (tesla ? name === "Material.017" : name.includes("Window")) {
+        if (authored ? name === "authored-window" : tesla ? name === "Material.017" : name.includes("Window")) {
           material.color.set(0x25313b);
           material.metalness = 0.35;
           material.roughness = 0.1;
           material.transparent = false;
           material.opacity = 1;
+          material.depthWrite = true;
           if ("transmission" in material) material.transmission = 0;
         }
-        if (tesla ? ["Material.002", "Material.007"].includes(name) : name.includes("RED_GLASS")) {
+        if (authored ? name === "authored-taillight" : tesla ? ["Material.002", "Material.007"].includes(name) : golf ? name === "vM_LightGlassNormal_OuterRed_Low1" : name.includes("RED_GLASS")) {
           material.color.set(0x9e0010);
           material.emissive.set(0xff0310);
           material.emissiveIntensity = 0;
           Object.assign(material.userData, { nightIntensity: 1.3, brakeIntensity: 3, nightRole: "taillight" });
           material.transparent = false;
           material.opacity = 1;
+          material.depthWrite = true;
         }
-        if (tesla && ["Glass", "LED_PHARE", "Material.004"].includes(name)) {
-          // In this model Glass means headlight covers, not the cabin windows.
+        if ((authored && name === "authored-headlight") || (tesla && ["Glass", "LED_PHARE", "Material.004"].includes(name)) || (golf && name === "golf-headlights")) {
+          // Tesla's Glass and the Golf's isolated lenses are not cabin windows.
           material.color.set(0xd7e8f4);
           material.metalness = 0.25;
           material.roughness = 0.16;
           material.emissive.set(0xe2f5ff);
           material.emissiveIntensity = 0;
-          Object.assign(material.userData, { nightIntensity: name === "LED_PHARE" ? 1.8 : 0.6, nightRole: "headlight" });
+          Object.assign(material.userData, { nightIntensity: authored || golf ? 1.5 : name === "LED_PHARE" ? 1.8 : 0.6, nightRole: "headlight" });
+          if (golf || authored) {
+            material.transparent = false;
+            material.opacity = 1;
+            material.depthWrite = true;
+          }
         }
         if (tesla && ["Material.003", "Material.011", "Material.012"].includes(name)) {
           material.metalness = 0.8;
@@ -136,7 +151,7 @@ export function prepareVehicleModel(model, id) {
       temporary.add(geometry);
       geometry.computeBoundingBox();
       const center = geometry.boundingBox.getCenter(new THREE.Vector3());
-      const isWheel = tesla ? object.name.startsWith("wheel") : name.includes("_Wheel1A_");
+      const isWheel = authored || tesla || golf ? object.name.startsWith("wheel") : name.includes("_Wheel1A_");
       if (geometry.index) {
         const indexed = geometry;
         geometry = indexed.toNonIndexed();
@@ -151,7 +166,7 @@ export function prepareVehicleModel(model, id) {
       if (!geometry.attributes.uv) geometry.setAttribute("uv",
         new THREE.Float32BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2));
       const pieces = [];
-      if (!tesla && name.includes("LightA_Material")) {
+      if (vehicle.id === "porsche" && name.includes("LightA_Material")) {
         // This atlas also covers rear/reversing lamps. Split front triangles once,
         // rather than turning the entire shared light atlas into white emission.
         if (!porscheHeadlight) {

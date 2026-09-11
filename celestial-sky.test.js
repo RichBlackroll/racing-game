@@ -4,11 +4,12 @@ import { readFile } from "node:fs/promises";
 import * as THREE from "three";
 import { createCelestialSky } from "./celestial-sky.js";
 import { createAtmosphere } from "./atmosphere.js";
+import { sampleDaylight } from "./daylight.js";
 
 function daylight(overrides = {}) {
   const sunDirection = new THREE.Vector3(-0.5, 0.7, 0.3).normalize();
   return {
-    hour: 12, daylight: 1, night: 0, twilight: 0, stars: 0,
+    hour: 12, daylight: 1, night: 0, twilight: 0, warmGlow: 0, stars: 0,
     sunDirection, moonDirection: sunDirection.clone().negate(),
     horizon: new THREE.Color(0xb7c9dc), zenith: new THREE.Color(0x3678ba), sunColor: new THREE.Color(0xffe8b9),
     ...overrides,
@@ -82,7 +83,7 @@ for (const tablet of [false, true]) test(`${tablet ? "tablet" : "desktop"}: sky 
   assert.equal(sky.renderOrder, -1000);
   assert.ok(Object.values(sky.material.uniforms).every(u => !u.value?.isTexture));
   assert.doesNotThrow(() => { celestial.update(); celestial.update({ state: null }); });
-  for (const uniform of ["uTime", "uDaylight", "uNight", "uTwilight", "uStars"]) {
+  for (const uniform of ["uTime", "uDaylight", "uNight", "uTwilight", "uWarmGlow", "uStars"]) {
     assert.ok(Number.isFinite(sky.material.uniforms[uniform].value));
   }
   celestial.dispose();
@@ -94,12 +95,13 @@ test("controller values copy into stable uniforms without inferring darkness or 
   const initialSun = uniforms.uSunDirection.value, initialHorizon = uniforms.uHorizon.value;
   const materialVersion = celestial.sky.material.version;
   for (const hour of [0, 6, 12, 18, 24]) {
-    const state = daylight({ hour, daylight: 0.43, night: 0.71, twilight: 0.86, stars: 0.17 });
+    const state = daylight({ hour, daylight: 0.43, night: 0.71, twilight: 0.86, warmGlow: 0.63, stars: 0.17 });
     const before = structuredClone(state);
     celestial.update({ state, time: 14.25 });
     assert.equal(uniforms.uDaylight.value, 0.43);
     assert.equal(uniforms.uNight.value, 0.71);
     assert.equal(uniforms.uTwilight.value, 0.86);
+    assert.equal(uniforms.uWarmGlow.value, 0.63);
     assert.equal(uniforms.uStars.value, 0.17, "astronomical darkness is not the dusk lamp blend");
     assert.equal(uniforms.uTime.value, 14.25);
     for (const [name, key] of [["uSunDirection", "sunDirection"], ["uMoonDirection", "moonDirection"],
@@ -116,6 +118,33 @@ test("controller values copy into stable uniforms without inferring darkness or 
   assert.equal(uniforms.uHorizon.value, initialHorizon);
   assert.equal(celestial.sky.material.version, materialVersion);
   celestial.dispose();
+});
+
+test("sky and fog recover daylight after blue hour on both sides of repeated nights", () => {
+  for (const tablet of [false, true]) {
+    const f = fixture({ tablet }), a = f.atmosphere, u = a.sky.material.uniforms;
+    for (let cycle = 0; cycle < 2; cycle++) {
+      for (const hour of [12, 17, 18, 18.6, 0, 5.4, 6, 7, 12]) {
+        const state = sampleDaylight(hour);
+        a.setDaylight(state); a.render();
+        assert.equal(u.uWarmGlow.value, state.warmGlow);
+        assert.equal(u.uDaylight.value, state.daylight);
+        assert.equal(u.uNight.value, state.night);
+        assert.equal(u.uStars.value, state.stars);
+        assert.ok(u.uHorizon.value.equals(state.horizon));
+        assert.ok(u.uZenith.value.equals(state.zenith));
+        assert.ok(f.scene.fog.color.equals(state.horizon));
+        assert.ok(u.uSunDirection.value.equals(state.sunDirection));
+      }
+      assert.equal(u.uDaylight.value, 1); assert.equal(u.uNight.value + u.uStars.value + u.uWarmGlow.value, 0);
+      assert.equal(a.pollen.visible, true);
+    }
+    const shader = a.sky.material.fragmentShader;
+    assert.match(shader, /horizonHaze \* uWarmGlow/);
+    assert.match(shader, /0\.22 \* uWarmGlow/);
+    assert.match(shader, /uWarmGlow \* sunward \* 0\.7/);
+    f.dispose();
+  }
 });
 
 test("day, dusk, astronomical night and dawn blends are continuous and supplied independently", () => {

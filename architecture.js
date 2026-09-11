@@ -111,6 +111,7 @@ export function createArchitecture({ scene, level, obstacles = [], buildingInfo 
     const mesh = new THREE.Mesh(geometry, materials[batch.material]);
     mesh.name = `${district.node.name}/${batch.material}-${district.serial++}`;
     mesh.castShadow = !["light", "paint", "lane", "paving"].includes(batch.material);
+    if (!mesh.castShadow) mesh.userData.castShadow = false;
     mesh.receiveShadow = true;
     // Ranges preserve feature inspectability without a draw call per feature.
     mesh.userData.parts = batch.parts;

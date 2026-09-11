@@ -4,6 +4,7 @@ import {
   tabletProfile,
   pixelBudget,
   adaptiveScale,
+  createAdaptiveQuality,
   createFrameLimiter,
   bindDrivingInput,
 } from "./tablet.js";
@@ -24,8 +25,8 @@ test("iPad desktop browser identity and connected trackpad retain tablet mode", 
     false,
   );
 });
-test("mobile frame limiting retains 60 updates on high-refresh displays without changing elapsed time", () => {
-  for (const hz of [30, 60, 90, 120, 144, 165]) {
+test("frame limiting retains up to 60 updates on all displays without changing elapsed time", () => {
+  for (const hz of [15, 20, 30, 60, 90, 120, 144, 165]) {
     const allowFrame = createFrameLimiter();
     let frames = 0, elapsed = 0, last = 0;
     for (let i = 1; i <= hz * 10; i++) {
@@ -62,6 +63,59 @@ test("render budget caps Retina and external-display pixel load", () => {
   assert.equal(adaptiveScale(1, 60), 1);
   assert.equal(adaptiveScale(1, 30), 0.9);
   assert.equal(adaptiveScale(0.8, 50), 0.8);
+});
+
+test("non-touch desktop rendering also has a total pixel budget", () => {
+  for (const [width, height] of [[1280, 720], [1920, 1080], [3840, 2160], [5120, 2880]]) {
+    for (const dpr of [0.8, 1, 2, 3]) {
+      const ratio = pixelBudget(width, height, dpr, false);
+      assert.ok(width * height * ratio ** 2 <= 2073601);
+      assert.ok(ratio <= Math.min(dpr, 1.25));
+    }
+  }
+  assert.equal(pixelBudget(1280, 720, 2, false), 1.25);
+});
+
+test("automatic quality lowers both resolution and effects on sustained slow devices", () => {
+  for (const tablet of [false, true]) {
+    const quality = createAdaptiveQuality(tablet);
+    assert.equal(quality.performanceMode, tablet);
+    assert.equal(quality.update(60), false);
+    assert.equal(quality.update(30), true);
+    assert.equal(quality.scale, 0.9);
+    assert.equal(quality.performanceMode, true);
+    for (let i = 0; i < 20; i++) quality.update(20);
+    assert.equal(quality.scale, 0.65);
+    assert.equal(quality.update(20), false, "settled low mode does not rebuild GPU resources");
+    assert.equal(quality.update(50), false);
+    for (const invalid of [NaN, Infinity, 0, -1]) assert.equal(quality.update(invalid), false);
+    assert.equal(quality.scale, 0.65);
+  }
+});
+
+test("desktop effects recover only after resolution and five consecutive healthy windows", () => {
+  const quality = createAdaptiveQuality();
+  quality.update(30);
+  quality.update(60);
+  assert.equal(quality.scale, 0.95);
+  for (let i = 0; i < 4; i++) {
+    quality.update(60);
+    assert.equal(quality.performanceMode, true);
+  }
+  quality.update(50);
+  for (let i = 0; i < 4; i++) {
+    quality.update(60);
+    assert.equal(quality.performanceMode, true, "a marginal window restarts recovery");
+  }
+  assert.equal(quality.update(60), true);
+  assert.equal(quality.performanceMode, false);
+  assert.equal(quality.scale, 1);
+  assert.equal(quality.update(60), false);
+  quality.update(30);
+  assert.equal(quality.performanceMode, true, "later thermal throttling lowers quality again");
+  const tablet = createAdaptiveQuality(true);
+  for (let i = 0; i < 20; i++) tablet.update(60);
+  assert.equal(tablet.performanceMode, true, "touch retains its economical effects preset");
 });
 class Button extends EventTarget {
   constructor(key) {

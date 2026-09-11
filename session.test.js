@@ -36,26 +36,32 @@ test("missing, malformed and invalid sessions restore safe defaults", () => {
 });
 
 test("vehicle choices validate, restore their engine defaults and preserve custom builds", () => {
-  for (const vehicle of [undefined, "golf", "toString", "__proto__", null]) {
+  for (const vehicle of [undefined, "unavailable", "toString", "__proto__", null]) {
     const session = createSession(browser(JSON.stringify({ vehicle, config: { color: "blue" } })).win);
     assert.equal(session.value.vehicle, "porsche");
     assert.deepEqual(session.value.config, { ...DEFAULTS, color: "blue" });
   }
-  const { win } = browser(JSON.stringify({ vehicle: "tesla" }));
-  const session = createSession(win);
-  assert.equal(session.value.vehicle, "tesla");
-  assert.deepEqual(session.value.config, { ...DEFAULTS, engine: "electric" });
-  const drive = { x: 30, z: -40, heading: 1, checkpoint: 2, lap: 1, lapSeconds: 0, bestLap: 0 };
-  session.update({ level: "moon", camera: 2, drives: { moon: drive },
-    config: { ...session.value.config, color: "blue", wheels: "monster", engine: "eight" } });
-  const reloaded = createSession({ localStorage: win.localStorage });
-  assert.deepEqual(reloaded.value, session.value);
-  assert.equal(reloaded.value.vehicle, "tesla");
-  assert.equal(reloaded.value.config.engine, "eight", "a saved custom engine overrides the vehicle default");
-  reloaded.update({ vehicle: "porsche" });
-  assert.deepEqual(reloaded.value.drives.moon, drive);
-  assert.equal(reloaded.value.config.color, "blue");
-  assert.equal(reloaded.value.config.wheels, "monster");
+  for (const [vehicle, engine] of [["tesla", "electric"], ["golf", "four"], ["byd-atto-1", "electric"], ["volvo-ex40", "electric"]]) {
+    for (const config of [undefined, {}, { engine: "unavailable" }]) {
+      const session = createSession(browser(JSON.stringify({ vehicle, config })).win);
+      assert.equal(session.value.vehicle, vehicle);
+      assert.deepEqual(session.value.config, { ...DEFAULTS, engine }, `${vehicle} restores its default for a missing or invalid engine`);
+    }
+    const { win } = browser(JSON.stringify({ vehicle }));
+    const session = createSession(win);
+    const drive = { x: 30, z: -40, heading: 1, checkpoint: 2, lap: 1, lapSeconds: 0, bestLap: 0 };
+    session.update({ level: "moon", camera: 2, drives: { moon: drive },
+      config: { ...session.value.config, color: "blue", wheels: "monster", engine: "eight" } });
+    const reloaded = createSession({ localStorage: win.localStorage });
+    assert.deepEqual(reloaded.value, session.value);
+    assert.equal(reloaded.value.vehicle, vehicle);
+    assert.equal(reloaded.value.config.engine, "eight", "a saved custom engine overrides the vehicle default");
+    reloaded.update({ vehicle: "porsche" });
+    assert.deepEqual(reloaded.value.drives.moon, drive);
+    assert.equal(reloaded.value.config.color, "blue");
+    assert.equal(reloaded.value.config.wheels, "monster");
+    assert.equal(reloaded.value.config.engine, "eight", "vehicle-only session patches preserve valid parts; the garage owns engine resets");
+  }
 });
 
 test("choices and per-map safe drive snapshots survive a new page without touching retired picnic saves", () => {

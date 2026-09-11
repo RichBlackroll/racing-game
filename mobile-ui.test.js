@@ -251,6 +251,21 @@ test("each menu open starts collapsed, closes time controls and resets dialog sc
   assert.deepEqual(f.changes, [true, false, true, false]);
 });
 
+test("map visibility follows compact menus and the collapsed route without layout reads", () => {
+  const f = fixture({ width: 1200 });
+  assert.equal(f.ui.mapVisible, true);
+  f.resize(800);
+  assert.equal(f.ui.mapVisible, false);
+  f.toggle.click();
+  assert.equal(f.ui.mapVisible, false);
+  f.route.open = true;
+  assert.equal(f.ui.mapVisible, true);
+  f.close.click();
+  assert.equal(f.ui.mapVisible, false);
+  f.resize(1200);
+  assert.equal(f.ui.mapVisible, true);
+});
+
 for (const method of ["button", "Escape", "native close"]) {
   test(`${method} closes once, collapses the route map and returns focus`, () => {
     const f = fixture();

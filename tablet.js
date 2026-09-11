@@ -13,11 +13,11 @@ export function tabletProfile({
   };
 }
 
-export function pixelBudget(width, height, deviceRatio = 1) {
+export function pixelBudget(width, height, deviceRatio = 1, tablet = true) {
   return Math.min(
     deviceRatio,
-    1,
-    Math.sqrt(1200000 / Math.max(1, width * height)),
+    tablet ? 1 : 1.25,
+    Math.sqrt((tablet ? 1200000 : 2073600) / Math.max(1, width * height)),
   );
 }
 
@@ -26,6 +26,25 @@ export function adaptiveScale(scale, fps) {
   if (fps < 45) return Math.max(0.65, Math.round((scale - 0.1) * 100) / 100);
   if (fps > 57) return Math.min(1, Math.round((scale + 0.05) * 100) / 100);
   return scale;
+}
+
+// Feed measured driving FPS once per three-second window, not individual frames.
+export function createAdaptiveQuality(tablet = false) {
+  let healthyWindows = 0;
+  return {
+    scale: 1,
+    performanceMode: tablet,
+    update(fps) {
+      if (!Number.isFinite(fps) || fps <= 0) return false;
+      const previousScale = this.scale, previousMode = this.performanceMode;
+      this.scale = adaptiveScale(this.scale, fps);
+      if (fps < 45) this.performanceMode = true;
+      // Recover resolution first; require 15 seconds of headroom before restoring effects.
+      healthyWindows = fps > 57 && this.scale === 1 ? healthyWindows + 1 : 0;
+      if (!tablet && healthyWindows >= 5) this.performanceMode = false;
+      return this.scale !== previousScale || this.performanceMode !== previousMode;
+    },
+  };
 }
 
 export function createFrameLimiter(fps = 60) {

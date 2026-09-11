@@ -51,9 +51,17 @@ function picture(part, option = "standard", hex) {
   }
   let shapes = "";
   if (part === "vehicle") {
-    shapes = option === "tesla"
-      ? '<path d="M7 32 17 28l10-13h23l15 14 8 5v9H7Z" fill="#a9c8d9"/><path d="m22 28 8-10h18l11 10Z" fill="#e8f3ee"/><path d="M39 18v21m-12-7h4m14 0h4"/>'
-      : '<path d="m8 29 13-2 10-8h11l12 10 15 3 4 7v4H7Z" fill="#e9b354"/><path d="m27 27 7-6h7l8 7Z" fill="#e8f3ee"/><path d="M7 21h14m-10 0 3 8m49 6h7"/>';
+    if (option === "byd-atto-1") {
+      shapes = '<path d="M9 42V25l7-12 29 1 15 15 12 5v8Z" fill="#b7cf77"/><path d="m14 25 5-9h23l13 13-40 3Z" fill="#e8f3ee"/><path d="m17 15-3 13m17-12 1 15m-20 7 42-5M30 33l1 8M13 29v5m48-4 6 4M38 35h4M20 36h4"/>';
+    } else if (option === "volvo-ex40") {
+      shapes = '<path d="M8 42V24l9-11h29l11 13 14 4v12Z" fill="#afbcb9"/><path d="m13 25 6-9h25l9 11-24 1-7-3Z" fill="#e8f3ee"/><path d="M15 13h31m-30-3h26M31 16v12m-1 1v11M9 22v12h5m50-2h6m-2-2v6M18 32h4m16 0h4M8 39h63"/>';
+    } else if (option === "golf") {
+      shapes = '<path d="M8 42V27l4-14h31l12 14h16v15Z" fill="#cf6555"/><path d="m13 26 3-9h25l8 9Z" fill="#e8f3ee"/><path d="M27 17v10m25 2v11M32 31h5M9 35h61M8 29h4v5H8m58-5h5v5h-5"/>';
+    } else if (option === "tesla") {
+      shapes = '<path d="M7 32 17 28l10-13h23l15 14 8 5v9H7Z" fill="#a9c8d9"/><path d="m22 28 8-10h18l11 10Z" fill="#e8f3ee"/><path d="M39 18v21m-12-7h4m14 0h4"/>';
+    } else {
+      shapes = '<path d="m8 29 13-2 10-8h11l12 10 15 3 4 7v4H7Z" fill="#e9b354"/><path d="m27 27 7-6h7l8 7Z" fill="#e8f3ee"/><path d="M7 21h14m-10 0 3 8m49 6h7"/>';
+    }
     shapes += '<circle cx="21" cy="42" r="7" fill="#35453d"/><circle cx="60" cy="42" r="7" fill="#35453d"/><circle cx="21" cy="42" r="3" fill="#d3ddd0"/><circle cx="60" cy="42" r="3" fill="#d3ddd0"/>';
   } else if (part === "wheels") {
     const wide = option === "wide" || option === "monster";

@@ -62,6 +62,31 @@ The controls never advance time or own a render loop. They consume `state()` wit
 Run `node --test time-controls.test.js` for settings validation, persistence,
 keyboard isolation, focus, dismissal, and lifecycle checks using a lightweight DOM mock.
 
+## Living worlds
+
+Each map has its own shuffled lineup of animated surprises, beginning within a few
+seconds of driving. Balloonists wave from striped baskets, propeller planes and
+helicopters cross the skyline, birds flap past, kites trail ribbons, and airships
+cruise overhead. Forest, Downtown and Stunt Park have strolling elephants;
+Downtown and Stunt Park also have rocket launches with fire and drifting smoke.
+Stunt Park occasionally gets a flying-saucer visitor.
+
+Amsterdam and Wellington feature balloonists, birds, planes, helicopters, kites
+and airships. Moon Run has rocket launches, flying saucers, tumbling satellites,
+comets, hopping astronauts and a space-suited elephant. Shooting stars also appear
+on the five Earth maps after dark, alongside the existing planets and aurora.
+
+Events stay anchored in the world, fade in and out, and never change driving
+physics or move the camera. Ground visitors use clear, dry, off-road paths.
+Scheduling excludes pause, menus, garage, background and graphics-loss time;
+Reset clears the visitors and starts a fresh lineup. Desktop allows up to three
+simultaneous events; performance mode allows two. Reduced motion allows one
+slower visitor at a time, without bobbing, rapid articulation or smoke effects.
+`gameState().ambientEvents` reports the lineup, active visitors and bounded counts.
+
+Run `node --test ambient-events.test.js ambient-models.test.js` for map coverage,
+placement, animation, pause/reset, motion preferences and resource budgets.
+
 ## Mobile browsers and touch screens
 
 Both portrait and landscape layouts have separate steering, accelerator/brake,
@@ -86,14 +111,26 @@ the drive was not already manually paused. Inside view keeps the rear-view mirro
 and compact speed readout without the full-width dashboard or ornamental instruments.
 
 iPad (including Safari's desktop identity) and coarse-pointer phones use the same cinematic world
-renderer with reduced scenery detail. Tablet rendering caps the drawing buffer at
-1.2 million pixels, targets at most 60 updates per second, and adjusts resolution
-after sustained slow frames. Normal and roughness ground downloads are skipped.
+renderer with reduced scenery detail. Rendering caps the drawing buffer at
+1.2 million pixels on tablets/phones and 2.07 million on desktop, and targets at
+most 60 updates per second on all devices. Every three seconds of active driving,
+measured frame rate adjusts resolution, including on non-touch laptops.
+Below 45 FPS, automatic performance mode also bypasses HDR bloom/post grading,
+uses 1024/512 sun/moon and 256 headlight shadow maps, and removes streetlight
+shadows while retaining their illumination. Touch profiles start in this mode.
+Desktop effects return only after resolution recovers and five healthy windows
+above 57 FPS, preventing rapid quality switching. Loading, pause, background and
+garage time are excluded from frame-rate measurements. The render-status label
+and `gameState().mode` report performance mode; `gameState().resolutionScale`
+reports the adaptive scale. Normal and roughness ground downloads are skipped.
 The iPad profile uses smaller occlusion and dynamic shadow maps, fewer vegetation
 instances and facade details, and disables multisample AA.
 The frame limiter preserves its timing remainder on 90/120/144 Hz displays without
 accelerating physics. The garage renders only after changes or during camera
 transitions, avoiding continuous GPU work while choosing parts.
+Hidden compact route maps are not repainted while driving. Pedestrian batches
+submit only occupied instance slots, and receive-only terrain/paving stays out of
+shadow passes without reducing the visible crowd or changing driving physics.
 
 Run `node --test tablet.test.js mobile-ui.test.js game-lifecycle.test.js modifier-preview.test.js`
 for device detection, rendering budgets, frame pacing, resize, garage-idle, and
@@ -178,6 +215,10 @@ an optional WebGL run via `ROAD_REFLECTORS_PLAYWRIGHT` (an installed Playwright
 module path) and `ROAD_REFLECTORS_CHROME` (a Chrome executable path).
 Time advances only during active driving, not in menus, pause or background tabs;
 choosing another time while paused still redraws the lighting immediately.
+The full cycle repeats: daylight, warm amber/rose sunset, cobalt blue hour, night,
+blue hour, warm sunrise, then daylight again. Sky, fog, cloud glow and ambient
+light blend smoothly in both directions. The solar clock uses active elapsed time
+independently of the capped physics step, with a one-second cap for long stalls.
 A half-float HDR
 resolve adds restrained highlight bloom, color grading, and vignette, with a
 direct-render fallback on devices without the required render-target support.
@@ -229,7 +270,12 @@ checkpoint progress and best-lap records restart for the new course length.
 
 The speed boost and visible teaching parts are arcade behavior, not a simulation of real vehicle specifications.
 
-Porsche model: Ddiaz Design, CC BY-NC-SA 4.0, noncommercial use. Tesla Model 3: David_Holiday, CC BY 4.0. See CREDITS.md for attribution and adaptations. Both car assets are local; no runtime CDN or model-download account is required.
+Porsche model: Ddiaz Design, CC BY-NC-SA 4.0, noncommercial use. Tesla Model 3:
+David_Holiday, CC BY 4.0. Volkswagen Golf GTI Mk1: Ddiaz Design, declared
+CC BY-NC-SA 4.0, but underlying game-model rights are unverified; local internal
+evaluation only, not cleared for public or commercial distribution. See
+[CREDITS.md](CREDITS.md) for attribution, adaptations, and the Golf provenance caveat.
+All three car assets are local; no runtime CDN or model-download account is required.
 
 ## Wellington Waterfront
 
@@ -252,19 +298,42 @@ The road is put away and the same live car sits on a studio turntable.
 It stays still until you swipe or tap Turn car. Selecting a part turns to
 a useful viewing angle, and every choice changes the car immediately.
 
-Choose your car offers the original Porsche 911 GT3 RS and a downloaded Tesla
-Model 3. Switching preserves paint, wheels, springs, wing, and rocket, and fits
-the selected car's default engine (electric for the Tesla). Other engine choices
-remain available as playful upgrades. The choice saves across reloads and maps;
-driving position and heading do not change. Only the selected model downloads.
+Choose your car offers the original Porsche 911 GT3 RS, Tesla Model 3,
+Volkswagen Golf GTI Mk1 (1976 hot hatch), BYD Atto 1, and Volvo EX40,
+each with its own illustrated silhouette.
+Switching preserves paint, wheels, springs, wing, and rocket, and fits the selected
+car's default engine: four cylinders for the Porsche and Golf, electric for the
+Tesla, Atto 1, and EX40. Other engine choices remain available as playful upgrades. Tapping the
+current car keeps its customized engine. The choice and custom build save across
+reloads and maps; driving position and heading do not change. Only the selected
+imported model downloads; the two code-authored EVs need no model download.
 Failed switches keep the current car, and closing the garage cancels a pending
-switch. If a saved Tesla cannot load on startup, the game tries the Porsche.
+switch. If a saved Tesla or Golf cannot load on startup, the game tries the Porsche.
 Replaced models release their geometry, materials, and decoded textures.
 
-An exact [VW Golf I GTI by arsenios](https://sketchfab.com/3d-models/volkswagen-golf-i-gti-caae7a1e3ab1496a81ecba4215ddb23e)
-was found under CC BY 4.0. Its official download requires Sketchfab sign-in, so
-it is not bundled or offered as a selectable car. No different Golf generation
-or unverified GTI substitute is included.
+The Atto 1 is an original approximation of the 2025 AU/NZ Premium export model,
+with its 3.990 m body, 16-inch wheels, angular six-strip headlights, dotted
+floating-roof pillars and full-width rear light. The EX40 uses the facelift
+electric SUV exterior: 4.440 m body, 19-inch wheels, upright black roof/rails,
+closed grille, Thor's Hammer headlights and hooked vertical rear lamps.
+These two retain real-world exterior scale and wheelbase instead of the imported
+cars' established 4.6-unit normalization. Their body profiles, glazing, open
+arches, wheel details and badges are authored in `byd-atto-1.js`, `volvo-ex40.js`
+and `authored-car-geometry.js`, then use the same paint, steering, lights,
+upgrades and disposal pipeline as the GLBs. They are reference-led game models,
+not factory CAD or exact replicas; interiors and optics are simplified.
+Manufacturer references and fidelity limits are recorded in
+[CREDITS.md](CREDITS.md#byd-atto-1-and-volvo-ex40).
+
+The bundled Golf is [Ddiaz Design's 1976 Volkswagen Golf GTI Mk1](https://sketchfab.com/3d-models/1976-volkswagen-golf-gti-mk1-1fc46cb37bd748e3bb9355fcedaf3817),
+obtained from the public race-flow mirror and prepared as `golf-gti-mk1.glb`.
+It is self-contained, with baked transforms, four separate tire/disk corners with
+stable wheel names, a dedicated headlight material, retained textures and
+attribution, and +Y up / +Z front. No runtime model decoder is required.
+The listing declares CC BY-NC-SA 4.0 but explicitly says "Based on a Need For Speed
+Heat 3d model" and credits GM25. Underlying rights are **not verified**; the Golf
+is included for local internal evaluation, not cleared for public distribution. See
+[CREDITS.md](CREDITS.md#volkswagen-golf-gti-mk1) for the full provenance and caveat.
 
 Six illustrated buttons select Paint, Wheels, Springs, Engine, Wing, and
 Rocket. Large paint pots and part pictures make choosing possible without
@@ -307,14 +376,18 @@ rocket disables BOOST until one is fitted again.
 multipliers; `modifier-ui.js` builds the panel, `modifier-car.js` applies the 3D
 visuals, and `modifier-preview.js` manages the live preview. `vehicle-data.js`
 lists the available cars; `vehicle-model.js` loads, adapts, and releases their
-models. Run `npm test` for tuning, actual-GLB geometry and licensing checks,
+models. Run `npm test` for tuning, actual-GLB geometry and attribution checks,
+authored-EV dimensions, open wheel arches and geometry budgets,
 vehicle loading/cancellation, persistence, and garage integration tests.
+Run `node --test modifier-ui.test.js session.test.js` for the garage roster,
+Golf selection, default/custom engines, swap semantics, and saved-state checks.
+Automated attribution checks do not verify underlying intellectual-property rights.
 
 ## Rebuild
 
 Run `npm install` and `npm run build` in this folder. The editable application is `game-source.js`.
 
-`bootstrap.js` starts the lightweight loading screen before downloading the game bundle. Loading stages and recovery live in `loading.js`, with destination artwork and transitions in `experience.css`. Rebuild after JavaScript changes and deploy `build/bootstrap.js` together with all its generated game and shared chunks.
+`bootstrap.js` starts the lightweight loading screen before downloading the game bundle. Loading stages and recovery live in `loading.js`, with destination artwork and transitions in `experience.css`. Rebuild after JavaScript changes for local internal evaluation, keeping `build/bootstrap.js` together with all its generated game and shared chunks. Do not publish or deploy builds containing the Golf asset; see the restrictions in [CREDITS.md](CREDITS.md#volkswagen-golf-gti-mk1).
 
 ## Levels and collisions
 
@@ -386,7 +459,7 @@ green lifted monster-wheel car. Each has a physical, two-sided taxi-style roof
 sign with their name. Their parts use the same visuals and tuning as the garage.
 
 Large rear-mounted flags identify Camilla (Portugal), Maxey (Canada), Vincent
-(Belgium), Lea and Loulou (France), and Elio (New Zealand, on both player cars).
+(Belgium), Lea and Loulou (France), and Elio (New Zealand, on all three player cars).
 The 70 cm-tall cloth sits on a rear-bumper bracket behind the spoiler, making it
 easier to see from the chase camera without increasing the cloth mesh budget.
 The cloth droops under gravity, catches a light breeze when parked, and streams

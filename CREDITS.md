@@ -35,6 +35,67 @@ adaptations retain CC BY 4.0 attribution. Author, license, source, and preparati
 details are also embedded in the GLB. No external model service or decoder is
 required at runtime.
 
+## Volkswagen Golf GTI Mk1
+
+"1976 Volkswagen Golf GTI Mk1" by **Ddiaz Design**.
+
+Original model: https://sketchfab.com/3d-models/1976-volkswagen-golf-gti-mk1-1fc46cb37bd748e3bb9355fcedaf3817
+Creator: https://sketchfab.com/ddiaz-design
+Uploader-declared license: **Creative Commons Attribution-NonCommercial-ShareAlike 4.0**:
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Downloaded from the public race-flow asset mirror:
+https://github.com/richardfariax/race-flow
+Source file: https://raw.githubusercontent.com/richardfariax/race-flow/main/web/public/models/golf_gti.glb
+Original source download: 3,838,096 bytes; source mesh: 48,825 triangles.
+Local asset: `golf-gti-mk1.glb` (3,040,540 bytes; 48,825 triangles).
+
+Local preparation: self-contained GLB with no runtime decoder dependency; baked
+transforms; tire and disk geometry separated into four wheel corners with stable
+wheel names; dedicated headlight material; retained textures and attribution;
+normalized orientation with +Y up and +Z front. The game adds its configurable
+educational parts and rocket. Retain attribution and the declared noncommercial
+and share-alike restrictions for the model and adaptations, to the extent the
+uploader has the rights to license them.
+
+**Provenance caveat: underlying rights are not verified.** The original listing
+explicitly states "Based on a Need For Speed Heat 3d model" and credits **GM25**:
+https://www.facebook.com/p/GM25-100042237200164/
+The uploader's CC declaration does not establish permission from the underlying
+game's rights holders. Included at the user's request for **local internal
+evaluation only**, not cleared for public or commercial distribution. Do not
+publish or deploy this asset without resolving those rights. Internal use is not
+a license exemption and can still fall outside the noncommercial terms.
+
+## BYD Atto 1 and Volvo EX40
+
+Original code-authored exterior approximations, added at the user's request.
+No third-party vehicle mesh, texture, font, scan or manufacturer CAD is bundled.
+Reference photos were inspected for modeling, not copied into the game.
+
+- **BYD Atto 1**: 2025 Australia/New Zealand Premium export-body reference,
+  3.990 m length, 1.720 m body width, 1.590 m height, 2.500 m wheelbase;
+  185/55 R16 wheels. Not the shorter Chinese-market Seagull, Dolphin, or Atto 3.
+  References: https://bydautomotive.com.au/atto-1 and
+  https://bydautomotive.com.au/brochures/BYD-ATTO-1-2025.pdf
+- **Volvo EX40**: facelift electric SUV, using Volvo MY26 exterior photographs,
+  4.440 m length, 1.873 m body width, 1.647 m height, 2.702 m wheelbase;
+  19-inch five-spoke wheels and black roof. Not the EC40 coupe, EX30, or the
+  pre-facelift XC40 Recharge.
+  References: https://www.volvocars.com/uk/cars/ex40-electric/ and
+  https://www.volvocars.com/uk/cars/ex40-electric/specifications/
+
+Geometry is defined in `byd-atto-1.js`, `volvo-ex40.js`, and
+`authored-car-geometry.js`. Dimensions and reference notes accompany each model.
+These are reference-led game models, not exact replicas: lamp optics, alloy
+machining, badges, underbodies and glazing are simplified; no modeled interiors
+or opening panels. The shared cockpit overlay is not specific to either car.
+Real exterior scale is preserved for these two models; existing imported cars
+keep their established arcade scale. Paint and the game's teaching parts,
+rockets and flags remain customizable. Handling is arcade, not factory data.
+Vehicle names and marks identify the depicted vehicles; no manufacturer
+affiliation or endorsement is claimed.
+
 ## Forest assets
 
 Forest Slope HDRI and Forest Floor material maps from Poly Haven, CC0.

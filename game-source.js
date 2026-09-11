@@ -10,6 +10,7 @@ import { createWellingtonWorld } from "./wellington-world.js";
 import { createAmsterdamGroundGeometry, createAmsterdamWorld } from "./amsterdam-world.js";
 import { createLandmarks } from "./landmarks.js";
 import { createAtmosphere } from "./atmosphere.js";
+import { createAmbientEvents } from "./ambient-events.js";
 import { createDaylight, enableGeometryShadows } from "./daylight.js";
 import { createNightLighting } from "./night-lights.js";
 import { createTimeControls } from "./time-controls.js";
@@ -35,7 +36,7 @@ import { createCockpit } from "./cockpit.js";
 import {
   tabletProfile,
   pixelBudget,
-  adaptiveScale,
+  createAdaptiveQuality,
   createFrameLimiter,
   bindDrivingInput,
 } from "./tablet.js";
@@ -78,12 +79,11 @@ export async function main(loading) {
   renderer.domElement.classList.add("game-canvas");
   renderer.setSize(renderer.domElement.clientWidth, renderer.domElement.clientHeight, false);
   const renderSize = new THREE.Vector2();
-  const allowMobileFrame = createFrameLimiter();
+  const allowFrame = createFrameLimiter();
+  const renderQuality = createAdaptiveQuality(device.tablet);
   let resolutionScale = 1;
   const applyPixelRatio = (width = renderer.domElement.clientWidth, height = renderer.domElement.clientHeight) => {
-    const ratio = device.tablet
-      ? pixelBudget(width, height, devicePixelRatio) * resolutionScale
-      : Math.min(devicePixelRatio, 1.25);
+    const ratio = pixelBudget(width, height, devicePixelRatio, device.tablet) * resolutionScale;
     if (renderer.getPixelRatio() === ratio) return false;
     renderer.setPixelRatio(ratio);
     return true;
@@ -213,7 +213,7 @@ export async function main(loading) {
     }
     groundGeometry.computeVertexNormals();
     ground = mesh(groundGeometry, groundmat);
-    ground.castShadow = false;
+    ground.castShadow = ground.userData.castShadow = false;
   }
   groundTex.repeat.setScalar(groundSize / 7);
   // Fine sand and small stones, generated once as a repeating surface texture.
@@ -516,6 +516,7 @@ export async function main(loading) {
     carShadow.material.opacity = Math.max(.18, 1 - clearance * .065);
     landscape.animate(performance.now() / 1000);
     const lightState = daylight.update(car.position);
+    ambientEvents.setNight(lightState.night);
     nightLighting.update({ night: lightState.night, car, vehicleModel,
       braking: !!(keys.s || keys.arrowdown || keys[" "]), snap: paused || loading.active,
       dt: lastLightingTick === undefined ? 0 : (tick - lastLightingTick) / 1000 });
@@ -536,7 +537,8 @@ export async function main(loading) {
       car.visible = carVisible;
     }
     cockpit.renderMirror(tick);
-    status.textContent = "CINEMATIC WORLD · " + fps + " FPS";
+    const label = (renderQuality.performanceMode ? "PERFORMANCE WORLD" : "CINEMATIC WORLD") + " · " + fps + " FPS";
+    if (status.textContent !== label) status.textContent = label;
   }
   const keys = {};
   let slipX = 0,
@@ -588,6 +590,8 @@ export async function main(loading) {
   const updateCourseHUD = createCourseHUD(course);
   const cockpit = createCockpit({ renderer, scene, car, tablet: device.tablet });
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ambientEvents = createAmbientEvents({ scene, course, level, obstacles,
+    sites: landmarks.sites, tablet: device.tablet, reducedMotion });
   const friendRacers = createFriendRacers({
     scene, course, obstacles, ramps, gravity: isMoon ? 3.2 : 9.82,
     contactTexture: contact, reducedMotion, onRace: show,
@@ -708,6 +712,7 @@ export async function main(loading) {
     coneField.reset(car.position, heading);
     playField.reset(car.position, heading);
     peopleField.reset(car.position, heading);
+    ambientEvents.reset();
     friendRacers.reset(car.position);
     vehicleModel.flag.reset();
     resetItems();
@@ -964,8 +969,8 @@ export async function main(loading) {
   let lastSave = 0;
   function frame(now) {
     requestAnimationFrame(frame);
-    itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
     if (loading.active || (paused && !modifier.active) || document.hidden || contextLost) {
+      itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
       audio.silence();
       last = now;
       if (sceneDirty && gameReady && !loading.active && !modifier.active && !document.hidden && !contextLost) {
@@ -975,28 +980,25 @@ export async function main(loading) {
       return;
     }
     // Rendering deadlines are separate from the actual elapsed physics time.
-    if (device.tablet && !allowMobileFrame(now)) return;
-    let dt = Math.min((now - last) / 1000, 0.05);
+    if (!allowFrame(now)) return;
+    const elapsed = Math.max(0, (now - last) / 1000);
+    let dt = Math.min(elapsed, 0.05);
     last = now;
     if (modifier.active) {
+      itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
       garagePreview.render(dt);
       return;
     }
-    daylight.advance(dt);
-    if (device.tablet) {
-      qualityFrames++;
-      if (now - qualityStart >= 3000) {
-        const next = adaptiveScale(
-          resolutionScale,
-          (qualityFrames * 1000) / (now - qualityStart),
-        );
-        if (next !== resolutionScale) {
-          resolutionScale = next;
-          applyPixelRatio();
-        }
-        qualityStart = now;
-        qualityFrames = 0;
+    daylight.advance(elapsed);
+    qualityFrames++;
+    if (now - qualityStart >= 3000) {
+      if (renderQuality.update((qualityFrames * 1000) / (now - qualityStart))) {
+        resolutionScale = renderQuality.scale;
+        applyPixelRatio();
+        applyRenderQuality();
       }
+      qualityStart = now;
+      qualityFrames = 0;
     }
     let throttle =
         (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0),
@@ -1108,6 +1110,7 @@ export async function main(loading) {
     coneField.update(dt, car.position, heading);
     playField.update(dt, car.position, heading);
     peopleField.update(dt, { position: car.position, heading }, Math.abs(speed), now / 1000);
+    ambientEvents.update(elapsed, car.position, heading);
     travel += Math.abs(speed) * dt;
     if (lapSeconds > 0 || Math.abs(speed) > .5) lapSeconds += dt;
     car.rotation.set(-(flight ? flight.pitch : surfacePose.pitch), heading,
@@ -1141,7 +1144,7 @@ export async function main(loading) {
     ui.meter.style.width = Math.min(100, (Math.abs(speed) /
       (modifier.config.rocket === "none" ? cruiseMax(false) : boostMax(false))) * 100) + "%";
     ui.toast.style.opacity = now / 1000 < toastUntil ? 1 : 0;
-    if (now - lastMap > 100) {
+    if (now - lastMap > 100 && mobileUI.mapVisible) {
       drawMap();
       lastMap = now;
     }
@@ -1197,6 +1200,15 @@ export async function main(loading) {
   await loading.phase(4, "Calling your friends. You're almost there...");
   enableGeometryShadows(scene);
   const nightLighting = createNightLighting({ scene, tablet: device.tablet });
+  function applyRenderQuality() {
+    const enabled = renderQuality.performanceMode;
+    atmosphere.setPerformanceMode(enabled);
+    daylight.setPerformanceMode(enabled);
+    nightLighting.setPerformanceMode(enabled);
+    ambientEvents.setPerformanceMode(enabled);
+    renderer.shadowMap.needsUpdate = true;
+  }
+  applyRenderQuality();
   const timeControls = createTimeControls({ daylight, onChange: () => { sceneDirty = true; } });
   let resumeAfterMenu = false;
   const mobileUI = createMobileUI({ onOpenChange(open) {
@@ -1281,6 +1293,7 @@ export async function main(loading) {
       daylight: daylight.state().daylight, night: daylight.state().night, stars: daylight.state().stars,
       sunDirection: daylight.state().sunDirection.toArray(), moonDirection: daylight.state().moonDirection.toArray() },
     nightLighting: nightLighting.state(),
+    ambientEvents: ambientEvents.state(),
     roadside: roadside.counts,
     course: { length: course.length, elevation: course.elevation, samples: route.length,
       groundHeight: heightAt(car.position.x, car.position.z), pitch: surfacePose.pitch,
@@ -1289,7 +1302,8 @@ export async function main(loading) {
     ramps: ramps.length,
     collisionCount,
     lateralSpeed: Math.hypot(slipX, slipZ),
-    mode: "cinematic",
+    mode: renderQuality.performanceMode ? "performance" : "cinematic",
+    resolutionScale,
     architecture: architecture.counts,
     amsterdam: isAmsterdam ? waterfront.counts : null,
     landmarks: landmarks.sites,

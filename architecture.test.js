@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { createArchitecture } from "./architecture.js";
 import { moveWithBounces } from "./collision.js";
 import { createCourse } from "./course.js";
+import { enableGeometryShadows } from "./daylight.js";
 
 function make(level, tablet = false, terrain) {
   const scene = new THREE.Scene();
@@ -202,6 +203,36 @@ test("all levels have finite PBR batches, bounded draw/triangle budgets and no t
     assert.equal(triangles, world.counts.triangles);
     assert.ok(meshes <= (level === "city" ? 120 : 20), `${level}: ${meshes} draws`);
     assert.ok(triangles <= (level === "city" ? (tablet ? 180000 : 500000) : 20000), `${level}: ${triangles} triangles`);
+    dispose(world);
+  }
+});
+
+test("architecture shadow exclusions survive scene-wide geometry shadow setup", () => {
+  const excluded = new Set(["architecture/recessed-warm-light", "architecture/warm-white-road-paint",
+    "architecture/muted-ochre-lane-paint", "architecture/honed-limestone"]);
+  for (const level of ["city", "forest", "stunt"]) for (const tablet of [false, true]) {
+    const world = make(level, tablet);
+    const casting = [], receiving = [];
+    world.scene.traverse((mesh) => {
+      if (!mesh.isMesh) return;
+      const casts = !excluded.has(mesh.material.name);
+      assert.equal(mesh.castShadow, casts, `${mesh.name}: intended initial shadow policy`);
+      (casts ? casting : receiving).push(mesh);
+    });
+    assert.ok(casting.length > 0, `${level}: exercise casting geometry`);
+    assert.equal(new Set(receiving.map((mesh) => mesh.material.name)).size, level === "city" ? 4 : 1);
+    for (let pass = 0; pass < 2; pass++) {
+      enableGeometryShadows(world.scene);
+      for (const mesh of receiving) {
+        assert.equal(mesh.castShadow, false, `${mesh.name}: remain receive-only`);
+        assert.equal(mesh.userData.castShadow, false, "metadata preserves the exclusion");
+        assert.equal(mesh.receiveShadow, true);
+      }
+      for (const mesh of casting) {
+        assert.equal(mesh.castShadow, true, `${mesh.name}: solid geometry still casts`);
+        assert.equal(mesh.receiveShadow, true);
+      }
+    }
     dispose(world);
   }
 });

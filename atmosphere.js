@@ -6,6 +6,7 @@ import { createCelestialSky } from "./celestial-sky.js";
  * Call setDaylight(controllerState) before each render(timeSeconds).
  * resize() follows the caller's setSize/setPixelRatio (including adaptive budgets);
  * render() also checks dimensions. dispose() before replacing the level.
+ * setPerformanceMode(true) bypasses HDR bloom until disabled (default false).
  * Owns a full-canvas render, not a composer pass; leaves exposure/environment alone.
  */
 export function createAtmosphere({ scene, renderer, camera, level, tablet = false }) {
@@ -28,6 +29,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
   let animationTime = 0;
   let previousTime;
   let disposed = false;
+  let performanceMode = false;
   const celestial = createCelestialSky({ scene, level, tablet });
   const { sky } = celestial;
   let pollen = null;
@@ -204,13 +206,23 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
     }
   }
 
+  function setPerformanceMode(enabled) {
+    if (disposed || typeof enabled !== "boolean" || enabled === performanceMode) return;
+    performanceMode = enabled;
+    if (enabled && target) {
+      // setSize releases GPU storage; keep the target/texture for lazy recovery.
+      target.setSize(1, 1);
+      resolve.material.uniforms.uTexel.value.set(1, 1);
+    }
+  }
+
   function resize() {
     if (disposed) return;
     renderer.getDrawingBufferSize(bufferSize);
     renderer.getSize(logicalSize);
     const width = Math.max(1, bufferSize.x);
     const height = Math.max(1, bufferSize.y);
-    if (target && (target.width !== width || target.height !== height)) {
+    if (!performanceMode && target && (target.width !== width || target.height !== height)) {
       target.setSize(width, height);
       resolve.material.uniforms.uTexel.value.set(1 / width, 1 / height);
     }
@@ -233,7 +245,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
     camera.getWorldPosition(eye);
     celestial.update({ time: animationTime, eye });
     if (pollen) pollen.material.uniforms.uTime.value = animationTime;
-    if (!target) {
+    if (performanceMode || !target) {
       renderer.render(scene, camera);
       return;
     }
@@ -284,5 +296,5 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
   }
 
   resize();
-  return { setDaylight, render, resize, dispose, sky, pollen };
+  return { setDaylight, setPerformanceMode, render, resize, dispose, sky, pollen };
 }

@@ -6,11 +6,15 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VEHICLES, getVehicle } from "./vehicle-data.js";
 import { loadVehicleModel, prepareVehicleModel } from "./vehicle-model.js";
 import { DEFAULTS, PARTS } from "./modifier-data.js";
+import { createBydAtto1 } from "./byd-atto-1.js";
+import { createVolvoEx40 } from "./volvo-ex40.js";
 
 async function asset(id) {
+  if (id === "byd-atto-1") return { scene: createBydAtto1() };
+  if (id === "volvo-ex40") return { scene: createVolvoEx40() };
   const bytes = await readFile(new URL(getVehicle(id).file, import.meta.url));
   const loader = new GLTFLoader();
-  // The Porsche's embedded images require a browser; geometry and material bindings do not.
+  // Embedded images require a browser; geometry and material bindings do not.
   loader.register(() => ({ name: "geometry-only-test", loadTexture: () => Promise.resolve(null) }));
   return loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "");
 }
@@ -66,15 +70,19 @@ function surfaceCrossing(hardware, tires) {
   return null;
 }
 
-test("vehicle IDs resolve to local assets, with the original car as the safe default", () => {
-  assert.deepEqual(VEHICLES.map(({ id }) => id), ["porsche", "tesla"]);
+test("vehicle IDs resolve to local assets or authored models, with the original car as the safe default", () => {
+  assert.deepEqual(VEHICLES.map(({ id }) => id), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40"]);
   for (const vehicle of VEHICLES) {
     assert.equal(getVehicle(vehicle.id), vehicle);
-    assert.match(vehicle.file, /^[a-z0-9-]+\.glb$/);
+    if (vehicle.authored) {
+      assert.ok(vehicle.length > 3.9 && vehicle.length < 4.5);
+      assert.equal(vehicle.engine, "electric");
+    } else assert.match(vehicle.file, /^[a-z0-9-]+\.glb$/);
     assert.ok(PARTS.find(({ id }) => id === "engine").options.some(({ id }) => id === vehicle.engine));
   }
   assert.equal(getVehicle("tesla").engine, "electric");
-  for (const invalid of [undefined, null, "toString", "__proto__", "golf"]) assert.equal(getVehicle(invalid).id, "porsche");
+  assert.equal(getVehicle("golf").engine, "four");
+  for (const invalid of [undefined, null, "toString", "__proto__", "unavailable"]) assert.equal(getVehicle(invalid).id, "porsche");
 });
 
 test("the downloaded Tesla retains attribution, contains only the car and needs no external decoder or files", async () => {
@@ -93,6 +101,33 @@ test("the downloaded Tesla retains attribution, contains only the car and needs 
   assert.equal(json.meshes.length, 39);
   assert.equal(json.extras.wheels.length, 4);
   assert.equal(json.extras.orientation.front, "+Z");
+});
+
+test("the downloaded Mk1 GTI retains provenance warnings and four separate wheels without external resources", async () => {
+  const bytes = await readFile(new URL("./golf-gti-mk1.glb", import.meta.url));
+  assert.equal(bytes.readUInt32LE(0), 0x46546c67);
+  assert.equal(bytes.readUInt32LE(8), bytes.length);
+  assert.ok(bytes.length < 4_000_000, "keep the textured car small enough for mobile loading");
+  const json = JSON.parse(bytes.toString("utf8", 20, 20 + bytes.readUInt32LE(12)));
+  const { attribution, adaptation } = json.asset.extras;
+  assert.equal(attribution.title, "1976 Volkswagen Golf GTI Mk1");
+  assert.equal(attribution.author, "Ddiaz Design");
+  assert.equal(attribution.licenseURL, "https://creativecommons.org/licenses/by-nc-sa/4.0/");
+  assert.match(attribution.source, /1fc46cb37bd748e3bb9355fcedaf3817$/);
+  assert.match(attribution.provenance, /Need For Speed Heat/);
+  assert.match(attribution.license, /underlying rights unverified/);
+  assert.match(attribution.usage, /Internal evaluation only/);
+  assert.equal(adaptation.triangleCount, 48825);
+  assert.ok(adaptation.changes.length > 0);
+  assert.ok(!(json.extensionsRequired || []).some(name => /draco|meshopt|basisu/i.test(name)));
+  for (const resource of [...json.buffers, ...json.images]) assert.equal(resource.uri, undefined);
+  assert.equal(json.extras.orientation.front, "+Z");
+  assert.equal(json.extras.orientation.wheelAxle, "+X");
+  assert.equal(json.extras.wheels.length, 4);
+  for (const wheel of json.extras.wheels) {
+    assert.equal(wheel.parts.length, 5, "each corner owns its tire, disc, rim, cap and valve");
+    for (const name of wheel.parts) assert.ok(json.nodes.some(node => node.name === name));
+  }
 });
 
 for (const vehicle of VEHICLES) test(`${vehicle.name}: production loading binds paint, four grounded wheels and every upgrade`, async () => {
@@ -117,7 +152,7 @@ for (const vehicle of VEHICLES) test(`${vehicle.name}: production loading binds 
   assert.ok(stock.wheels.corners.every(({ radius, bottomY }) => radius > 0.2 && radius < 0.6 && bottomY >= -0.001 && bottomY < 0.06));
   const importedPaint = body.children.find((object) => object.isMesh && object.material === model.paint);
   assert.ok(importedPaint, "paint controls the imported body, not just the added wing");
-  assert.ok(new THREE.Box3().setFromObject(importedPaint).getSize(new THREE.Vector3()).z > 4);
+  assert.ok(new THREE.Box3().setFromObject(importedPaint).getSize(new THREE.Vector3()).z > (vehicle.length || 4.6) - 0.3);
   const resources = new Map();
   for (const part of PARTS) for (const option of part.options) {
     model.visuals.apply({ ...DEFAULTS, engine: vehicle.engine, [part.id]: option.id });
@@ -157,6 +192,26 @@ for (const vehicle of VEHICLES) test(`${vehicle.name}: production loading binds 
     assert.ok(new THREE.Box3().setFromObject(byMaterial("LED_PHARE")).min.z > 0, "headlights face forward");
     assert.ok(new THREE.Box3().setFromObject(byMaterial("Material.002")).max.z < 0, "rear lights face backward");
     assert.notEqual(byMaterial("Glass").material.color.getHex(), byMaterial("Material.017").material.color.getHex(), "headlight covers are not blacked-out cabin glass");
+  }
+  if (vehicle.id === "golf") {
+    const byMaterial = name => body.children.find(object => object.isMesh && object.material.name === name);
+    const headlights = byMaterial("golf-headlights"), rear = byMaterial("vM_LightGlassNormal_OuterRed_Low1");
+    assert.ok(new THREE.Box3().setFromObject(headlights).min.z > 2, "round headlight lenses face forward");
+    assert.ok(new THREE.Box3().setFromObject(rear).max.z < -2, "red lights face backward");
+    assert.equal(headlights.material.userData.nightRole, "headlight");
+    assert.equal(headlights.material.opacity, 1);
+    assert.equal(headlights.material.depthWrite, true);
+    assert.equal(rear.material.userData.nightRole, "taillight");
+    assert.equal(rear.material.userData.brakeIntensity, 3);
+    assert.equal(byMaterial("vM_LightGlassNormal_Clear_Low1").material.userData.nightRole, undefined, "reversing lenses do not become headlights");
+    const glass = byMaterial("vM_Glass_WindowFront_Low1").material;
+    assert.equal(glass.userData.nightRole, undefined);
+    assert.equal(glass.transparent, false);
+    assert.equal(glass.depthWrite, true, "opaque tinted glass occludes the interior despite the source BLEND material");
+    assert.ok(model.car.userData.headlights.every(([x, y, z]) => Math.abs(x) > .5 && y > .5 && z > 2));
+    assert.ok(byMaterial("breaks"), "brake calipers stay out of spinning wheels");
+  }
+  if (vehicle.authored || vehicle.id === "tesla" || vehicle.id === "golf") {
     for (const wheel of model.wheels) {
       const center = wheel.pivot.position.clone();
       for (const angle of [0, Math.PI / 2, Math.PI]) {
@@ -171,6 +226,62 @@ for (const vehicle of VEHICLES) test(`${vehicle.name}: production loading binds 
   model.dispose();
   assert.ok([...resources.values()].every((count) => count === 1), "swaps release imported and all upgrade resources once, including previously selected caps");
   assert.equal(model.car.children.length, 0);
+});
+
+for (const [id, dimensions, mirrors, signatures] of [
+  ["byd-atto-1", [3.99, 1.72, 1.59, 2.5], 2.016,
+    ["left-angled-led-bar-6", "full-width-rear-led-bridge", "left-c-pillar-ice-crystal-dots", "tailgate-atto-1-badge"]],
+  ["volvo-ex40", [4.44, 1.873, 1.647, 2.702], 2.034,
+    ["angular-Thors-hammer-upright-1", "rear-vertical-lamp-inward-hook-LED-1", "body-colour-closed-electric-grille", "rear-EX40-model-badge"]],
+]) test(`${id}: authored exterior retains dimensions, distinct details, open arches and a mobile geometry budget`, async (t) => {
+  const { scene } = await asset(id), resources = new Set();
+  t.after(() => { for (const resource of resources) resource.dispose(); });
+  const bounds = new THREE.Box3().setFromObject(scene), size = bounds.getSize(new THREE.Vector3());
+  const [length, width, height, wheelbase] = dimensions;
+  assert.deepEqual(scene.userData.dimensions, { length, width, height, wheelbase });
+  assert.ok(Math.abs(size.z - length) < 0.002);
+  assert.ok(Math.abs(size.x - mirrors) < 0.002);
+  assert.ok(Math.abs(size.y - height) < 0.002);
+  assert.ok(Math.abs(bounds.min.y) < 1e-6);
+  assert.match(scene.userData.reference.description, /approximation/i);
+  for (const name of signatures) assert.ok(scene.getObjectByName(name)?.isMesh, name);
+  let triangles = 0;
+  const corners = new Map(), body = [];
+  scene.traverse(object => {
+    if (!object.isMesh) return;
+    resources.add(object.geometry); resources.add(object.material);
+    assert.ok(object.geometry.attributes.position.array.every(Number.isFinite), object.name);
+    assert.ok(object.geometry.attributes.normal.array.every(Number.isFinite), object.name);
+    triangles += (object.geometry.index?.count || object.geometry.attributes.position.count) / 3;
+    assert.equal(object.material.map, null, "no network, canvas or font textures");
+    if (object.name.startsWith("wheel") && object.name.endsWith("-tire")) corners.set(object.name, object.position);
+    if (!object.name.startsWith("wheel")) body.push(object);
+  });
+  assert.ok(triangles > 10_000 && triangles < 55_000, `source triangles: ${triangles}`);
+  assert.equal(corners.size, 4);
+  const front = [...corners.values()].find(p => p.z > 0), rear = [...corners.values()].find(p => p.z < 0);
+  assert.ok(Math.abs(front.z - rear.z - wheelbase) < 1e-6);
+  for (const corner of corners.values()) {
+    const side = Math.sign(corner.x);
+    const ray = new THREE.Raycaster(new THREE.Vector3(side * (width / 2 + 0.02), corner.y + 0.12, corner.z), new THREE.Vector3(-side, 0, 0), 0, 0.13);
+    assert.equal(ray.intersectObjects(body, false).length, 0, "bodywork does not fill the wheel opening");
+  }
+  const ready = await loadVehicleModel(id);
+  t.after(() => ready.dispose());
+  assert.equal(ready.car.userData.dimensions.length, length);
+  ready.visuals.apply({ ...DEFAULTS, engine: ready.vehicle.engine });
+  assert.equal(ready.visuals.state().engine.electric, true);
+});
+
+test("authored EV loading is offline and rejects an already cancelled request", async t => {
+  const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected model request"); });
+  for (const id of ["byd-atto-1", "volvo-ex40"]) {
+    const model = await loadVehicleModel(id);
+    assert.equal(model.vehicle.id, id);
+    model.dispose();
+    await assert.rejects(loadVehicleModel(id, { signal: AbortSignal.abort() }), { name: "AbortError" });
+  }
+  assert.equal(fetch.mock.callCount(), 0);
 });
 
 for (const vehicle of VEHICLES) test(`${vehicle.name}: production booster mounts contact real surfaces and clear tires and ground`, async (t) => {

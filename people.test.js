@@ -63,30 +63,62 @@ test("people walk around on their own and never explode into NaN", () => {
   assert.ok(field.state().walking > 0, "still some walkers after a while");
 });
 
-test("pedestrian meshes have finite, populated transforms at spawn, while walking, and after reset", () => {
+test("pedestrian batches draw only allocated slots through walking, ragdolls, and reset", () => {
   const { field, scene } = makeField(14);
   const car = new THREE.Vector3(300, 0, 300);
   const matrix = new THREE.Matrix4();
   const point = new THREE.Vector3();
+  const batches = scene.children.filter((mesh) => mesh.isInstancedMesh).map((mesh) => {
+    const visibleSlots = [];
+    for (let i = 0; i < mesh.instanceMatrix.count; i++) {
+      mesh.getMatrixAt(i, matrix);
+      if (matrix.elements[13] > -10) visibleSlots.push(i);
+    }
+    // Both leg variants have allocated slots, but only the worn variant is shown.
+    const allocated = mesh.name === "pedestrians/skinLimbs" ? 8 * field.state().count
+      : mesh.name === "pedestrians/pantsLimbs" ? 4 * field.state().count : visibleSlots.length;
+    const capacity = mesh.name.endsWith("Limbs") ? 140
+      : ["pedestrians/hands", "pedestrians/feet", "pedestrians/eyes"].includes(mesh.name) ? 28 : 14;
+    return { mesh, allocated, capacity, visibleSlots, attribute: mesh.instanceMatrix,
+      matrices: mesh.instanceMatrix.array, colors: mesh.instanceColor?.array };
+  });
+  assert.ok(batches.some(({ allocated, capacity }) => allocated < capacity), "exercise spare buffer capacity");
   function checkMeshes() {
     let visible = 0;
-    for (const mesh of scene.children) {
-      if (!mesh.isInstancedMesh) continue;
+    for (const { mesh, allocated, capacity, visibleSlots, attribute, matrices, colors } of batches) {
+      assert.equal(mesh.count, allocated, `${mesh.name}: draw only allocated slots`);
+      assert.equal(mesh.instanceMatrix.count, capacity, `${mesh.name}: retain buffer capacity`);
+      assert.equal(mesh.instanceMatrix, attribute);
+      assert.equal(mesh.instanceMatrix.array, matrices);
+      assert.equal(mesh.instanceColor?.array, colors);
       assert.ok(mesh.geometry.attributes.position.count > 0);
       assert.ok(mesh.instanceMatrix.array.every(Number.isFinite), "all mesh transforms must be finite");
+      const currentSlots = [];
       for (let i = 0; i < mesh.count; i++) {
         mesh.getMatrixAt(i, matrix);
         point.setFromMatrixPosition(matrix);
-        if (point.y < -10) continue; // hidden, unallocated slots
+        if (point.y < -10) continue; // hidden, allocated leg variants
+        currentSlots.push(i);
         visible++;
         assert.ok(Math.abs(matrix.determinant()) < 0.15, "no unused identity-matrix bodies at the origin");
       }
+      assert.deepEqual(currentSlots, visibleSlots, `${mesh.name}: visible slot indices stay stable`);
     }
     assert.ok(visible >= field.state().count * 17, "each pedestrian has a complete visible body");
   }
   checkMeshes();
   for (let i = 0; i < 120; i++) {
     field.update(1 / 60, { position: car, heading: 0 }, 0, i / 60);
+    checkMeshes();
+  }
+  const [x, , z] = field.state().positions[0];
+  car.set(x, 0, z);
+  field.update(1 / 120, { position: car, heading: Math.PI / 2 }, 20, 2);
+  assert.ok(field.state().tumbling > 0, "exercise ragdoll transforms after walking");
+  checkMeshes();
+  car.set(300, 0, 300);
+  for (let i = 0; i < 120; i++) {
+    field.update(1 / 120, { position: car, heading: 0 }, 0, 2 + i / 120);
     checkMeshes();
   }
   field.reset(car, 0);
@@ -354,10 +386,15 @@ test("unsafe spawn and wandering candidates exhaust bounded attempts without wet
 
   checks = 0;
   terrain.isSafePosition = () => { checks++; return false; };
-  const empty = createPeopleField({ scene: new THREE.Scene(), terrain, route, count: 3, roadDist: () => 99 });
+  const scene = new THREE.Scene();
+  const empty = createPeopleField({ scene, terrain, route, count: 3, roadDist: () => 99 });
   assert.equal(empty.state().count, 0);
   assert.ok(checks > 0 && checks <= 270);
   empty.reset();
+  for (const mesh of scene.children) {
+    assert.equal(mesh.count, 0, "failed spawns leave no drawn instances");
+    assert.ok(mesh.instanceMatrix.count >= 3, "empty batches retain their allocated buffers");
+  }
   assert.deepEqual(empty.state().positions, []);
 });
 

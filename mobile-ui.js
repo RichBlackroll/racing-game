@@ -61,5 +61,8 @@ export function createMobileUI({ onOpenChange, doc = document, win = window }) {
   }, true);
   compact.addEventListener("change", layout);
   layout();
-  return { get active() { return opened; } };
+  return {
+    get active() { return opened; },
+    get mapVisible() { return !compact.matches || (opened && route.open); },
+  };
 }

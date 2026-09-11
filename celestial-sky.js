@@ -19,6 +19,7 @@ export function createCelestialSky({ scene, level, tablet = false }) {
     uDaylight: { value: 1 },
     uNight: { value: 0 },
     uTwilight: { value: 0 },
+    uWarmGlow: { value: 0 },
     uStars: { value: vacuum ? 1 : 0 },
     uHorizon: { value: new THREE.Color(vacuum ? 0 : waterfront ? 0xb7d4dd : level === "amsterdam" ? 0xc5d2ce : 0xbfc5bc) },
     uZenith: { value: new THREE.Color(vacuum ? 0 : 0x397caf) },
@@ -27,7 +28,8 @@ export function createCelestialSky({ scene, level, tablet = false }) {
     uMoonDirection: { value: sun.clone().negate() },
     uPlanets: { value: planets.map(p => new THREE.Vector4(0, 0, 0, THREE.MathUtils.degToRad(p.diameter / 2))) },
   };
-  const blends = [["daylight", "uDaylight"], ["night", "uNight"], ["twilight", "uTwilight"], ["stars", "uStars"]];
+  const blends = [["daylight", "uDaylight"], ["night", "uNight"], ["twilight", "uTwilight"],
+    ["warmGlow", "uWarmGlow"], ["stars", "uStars"]];
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(900, tablet ? 32 : 48, tablet ? 16 : 24),
     new THREE.ShaderMaterial({
@@ -53,6 +55,7 @@ export function createCelestialSky({ scene, level, tablet = false }) {
         uniform float uDaylight;
         uniform float uNight;
         uniform float uTwilight;
+        uniform float uWarmGlow;
         uniform float uStars;
         uniform vec3 uHorizon;
         uniform vec3 uZenith;
@@ -133,9 +136,9 @@ export function createCelestialSky({ scene, level, tablet = false }) {
             vec3 amber = uSunColor * vec3(0.48, 0.22, 0.10);
             vec3 rose = vec3(0.22, 0.047, 0.082);
             float horizonHaze = exp(-abs(d.y - 0.045) * 7.0);
-            color += mix(rose, amber, sunward) * horizonHaze * uTwilight * (0.18 + 0.82 * sunward);
+            color += mix(rose, amber, sunward) * horizonHaze * uWarmGlow * (0.18 + 0.82 * sunward);
             color += uSunColor * sunward * exp(-elevation * 2.8) * (0.035 * uDaylight);
-            color += uSunColor * exp(-sunDistance * 18.0) * (0.12 * uDaylight + 0.22 * uTwilight);
+            color += uSunColor * exp(-sunDistance * 18.0) * (0.12 * uDaylight + 0.22 * uWarmGlow);
 
             // Long, sheared cirrus strands. The night sky never inherits white daytime clouds.
             vec2 p = d.xz / max(d.y + 0.25, 0.15);
@@ -259,7 +262,7 @@ export function createCelestialSky({ scene, level, tablet = false }) {
 
           if (uVacuum < 0.5) {
             vec3 cloudColor = mix(uHorizon * 0.65, vec3(0.91, 0.93, 0.94), uDaylight);
-            cloudColor = mix(cloudColor, uSunColor * vec3(0.95, 0.48, 0.34), uTwilight * sunward * 0.7);
+            cloudColor = mix(cloudColor, uSunColor * vec3(0.95, 0.48, 0.34), uWarmGlow * sunward * 0.7);
             color = mix(color, cloudColor, clouds * (0.12 + 0.14 * uDaylight));
           }
           // Vacuum still has the moving sun, but no atmospheric aureole or extra moon disc.
