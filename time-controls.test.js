@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createTimeControls, validateTimeSettings } from "./time-controls.js";
+import { sampleDaylight } from "./daylight.js";
 import { bindDrivingInput } from "./tablet.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
@@ -171,15 +172,15 @@ test("initialization preserves controller defaults including reduced motion and 
 
 test("opening focuses the labeled range and paints the current period and night blend", () => {
   const f = fixture();
-  f.state.hour = 22;
+  f.state.hour = 23;
   f.state.period = "night";
   f.state.night = 0.84;
   f.click("time-toggle");
   assert.equal(f.doc.activeElement, f.get("time-range"));
   assert.equal(f.get("time-panel").hidden, false);
   assert.equal(f.get("time-toggle").getAttribute("aria-expanded"), "true");
-  assert.equal(f.get("time-range").value, "1320");
-  assert.equal(f.get("time-range").getAttribute("aria-valuetext"), "22:00 game time");
+  assert.equal(f.get("time-range").value, "1380");
+  assert.equal(f.get("time-range").getAttribute("aria-valuetext"), "23:00 game time");
   assert.equal(f.get("time-period").textContent, "Night");
   assert.equal(f.get("time-lights").textContent, "Night lighting: 84%");
   assert.equal(f.get("time-panel").style["--time-panel-top"], "90px");
@@ -246,12 +247,14 @@ test("an automatic tick never moves a thumb during scrubbing; release and cancel
 test("every preset, run toggle, and speed choice applies before notifying and saving", () => {
   const f = fixture();
   f.click("time-toggle");
-  for (const [i, hour] of [6, 12, 17.5, 22].entries()) {
+  for (const [i, hour] of [5, 12, 19.5, 23].entries()) {
     f.click(f.presets[i]);
     assert.equal(f.state.hour, hour);
     assert.equal(f.changes.at(-1).hour, hour);
     assert.equal(f.state.running, true);
     assert.equal(JSON.parse(f.values.get(key)).hour, hour);
+    for (const level of ["forest", "city", "stunt", "amsterdam", "wellington", "moon"])
+      assert.equal(sampleDaylight(hour, level).period, ["sunrise", "daylight", "golden-hour", "night"][i]);
   }
   f.click("time-running");
   assert.equal(f.state.running, false);
@@ -360,13 +363,13 @@ test("preset taps survive Safari moving range focus to the ancestor mobile dialo
   preset.emit("click");
   assert.equal(f.doc.activeElement, dialog);
   assert.equal(f.get("time-toggle").getAttribute("aria-expanded"), "true");
-  assert.equal(f.get("time-range").value, "1320");
+  assert.equal(f.get("time-range").value, "1380");
   assert.equal(preset.dataset.selected, "true");
-  assert.deepEqual(f.calls, [["hour", 22]]);
+  assert.deepEqual(f.calls, [["hour", 23]]);
   assert.equal(f.changes.length, 1);
-  assert.equal(f.changes[0].hour, 22);
+  assert.equal(f.changes[0].hour, 23);
   assert.equal(f.writes.length, 1);
-  assert.deepEqual(JSON.parse(f.values.get(key)), { ...defaults, hour: 22 });
+  assert.deepEqual(JSON.parse(f.values.get(key)), { ...defaults, hour: 23 });
 });
 
 test("document pointer release and cancellation restore keyboard tab-out dismissal", () => {
@@ -443,7 +446,7 @@ test("corrupt, unknown-version, and incomplete saves preserve defaults; blocked 
     f.click("time-toggle");
     f.click(f.presets[3]);
     f.click("time-running");
-    assert.equal(f.state.hour, 22);
+    assert.equal(f.state.hour, 23);
     assert.equal(f.state.running, false);
     assert.equal(f.changes.length, 2);
   }

@@ -71,7 +71,9 @@ function surfaceCrossing(hardware, tires) {
 }
 
 test("vehicle IDs resolve to local assets or authored models, with the original car as the safe default", () => {
-  assert.deepEqual(VEHICLES.map(({ id }) => id), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40"]);
+  assert.deepEqual(VEHICLES.map(({ id }) => id), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40", "backhoe", "dhl-van"]);
+  assert.deepEqual(VEHICLES.filter(vehicle => vehicle.utility).map(({ id }) => id), ["backhoe", "dhl-van"]);
+  assert.equal(new Set(VEHICLES.map(vehicle => vehicle.action.id)).size, 7);
   for (const vehicle of VEHICLES) {
     assert.equal(getVehicle(vehicle.id), vehicle);
     if (vehicle.authored) {
@@ -79,6 +81,12 @@ test("vehicle IDs resolve to local assets or authored models, with the original 
       assert.equal(vehicle.engine, "electric");
     } else assert.match(vehicle.file, /^[a-z0-9-]+\.glb$/);
     assert.ok(PARTS.find(({ id }) => id === "engine").options.some(({ id }) => id === vehicle.engine));
+    assert.ok(vehicle.action.label && vehicle.action.description);
+    assert.ok(vehicle.action.duration > 0 && vehicle.action.cooldown >= 0);
+    assert.equal(!!vehicle.action.parked, !!vehicle.utility);
+    if (vehicle.utility) assert.equal(vehicle.color, "yellow");
+    else assert.deepEqual(vehicle.handling, { top: 1, accel: 1, steer: 1, reverse: 9, radius: 1.12, mass: 1.6,
+      height: 1.6, wheelbase: 2.9, track: 1.7, halfExtents: [1.05, .55, 2.2] });
   }
   assert.equal(getVehicle("tesla").engine, "electric");
   assert.equal(getVehicle("golf").engine, "four");
@@ -130,7 +138,7 @@ test("the downloaded Mk1 GTI retains provenance warnings and four separate wheel
   }
 });
 
-for (const vehicle of VEHICLES) test(`${vehicle.name}: production loading binds paint, four grounded wheels and every upgrade`, async () => {
+for (const vehicle of VEHICLES.filter(vehicle => !vehicle.utility)) test(`${vehicle.name}: production loading binds paint, four grounded wheels and every upgrade`, async () => {
   const { scene } = await asset(vehicle.id);
   const model = prepareVehicleModel(scene, vehicle.id);
   const stock = model.visuals.state();
@@ -284,7 +292,7 @@ test("authored EV loading is offline and rejects an already cancelled request", 
   assert.equal(fetch.mock.callCount(), 0);
 });
 
-for (const vehicle of VEHICLES) test(`${vehicle.name}: production booster mounts contact real surfaces and clear tires and ground`, async (t) => {
+for (const vehicle of VEHICLES.filter(vehicle => !vehicle.utility)) test(`${vehicle.name}: production booster mounts contact real surfaces and clear tires and ground`, async (t) => {
   const { scene } = await asset(vehicle.id);
   const model = prepareVehicleModel(scene, vehicle.id);
   t.after(() => model.dispose());

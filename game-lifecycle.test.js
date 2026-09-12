@@ -59,9 +59,16 @@ function fixture() {
     scene: { environment: {} }, sceneDirty: false, isMoon: false,
     loading: { active: false, fail() { assert.fail("Temporary GPU loss must not lock the loading screen"); } },
     modifier: { active: false }, silenced: 0, saves: 0, renders: 0, previews: 0, resized: 0, environments: 0,
+    actionSnapshot: { active: true, remaining: 2 }, actionRefreshes: 0,
     addEventListener: win.addEventListener.bind(win),
   };
   c.performance = { now: () => c.now };
+  c.actionContext = () => ({ speed: 0, airborne: false });
+  c.vehicleActions = { state(context) {
+    assert.deepEqual(context, { speed: 0, airborne: false });
+    return c.actionSnapshot;
+  }, update() { assert.fail("Interrupted frame advanced vehicle actions"); } };
+  c.vehicleActionUI = { update(snapshot) { assert.equal(snapshot, c.actionSnapshot); c.actionRefreshes++; } };
   c.audio = { silence() { c.silenced++; } };
   c.saveDrive = () => c.saves++;
   c.show = (message) => { c.message = message; };
@@ -332,6 +339,7 @@ test("the driving loop adapts desktop and touch quality but excludes non-driving
     const modes = { atmosphere: [], daylight: [], nightLighting: [], ambientEvents: [] };
     const c = {
       requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {}, itemSystem: { modifiers: () => ({}) },
+      actionContext: () => ({}), vehicleActions: { state: () => ({}) }, vehicleActionUI: { update() {} },
       loading: { active: false }, paused: false, modifier: { active: false }, document: { hidden: false },
       contextLost: false, audio: { silence() {} }, sceneDirty: false, gameReady: true,
       allowFrame: createFrameLimiter(), last: 0, qualityFrames: 0, qualityStart: 0,
@@ -366,9 +374,9 @@ test("solar clock uses active elapsed time rather than the capped physics step a
     Object.assign(c, { requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {},
       itemSystem: { modifiers: () => ({}) }, allowFrame: createFrameLimiter(), daylight });
     runInNewContext(frame, c);
-    daylight.setHour(5.4); daylight.setCycleMinutes(3);
+    daylight.setHour(4.6); daylight.setCycleMinutes(3);
     for (let i = 1; i <= fps * 10; i++) c.frame(i * 1000 / fps);
-    assert.ok(Math.abs(daylight.state().hour - (5.4 + 10 * 24 / 180)) < 0.005, `${fps} FPS reaches sunrise on schedule`);
+    assert.ok(Math.abs(daylight.state().hour - (4.6 + 10 * 24 / 180)) < 0.005, `${fps} FPS reaches sunrise on schedule`);
     assert.equal(daylight.state().period, "golden-hour");
     for (const reason of ["pause", "garage", "hidden", "contextLost", "loading"]) {
       const hour = daylight.state().hour;
@@ -377,6 +385,8 @@ test("solar clock uses active elapsed time rather than the capped physics step a
       c.loading.active = reason === "loading";
       c.frame(c.last + 30000);
       assert.equal(daylight.state().hour, hour, reason);
+      assert.equal(c.actionSnapshot.remaining, 2, "action timers are not advanced by interrupted frames");
+      assert.ok(c.actionRefreshes > 0, "action controls still refresh while interrupted");
       c.paused = c.modifier.active = c.document.hidden = c.contextLost = c.loading.active = false;
       c.frame(c.last + 100);
       assert.ok(Math.abs(daylight.state().hour - hour - 0.1 * 24 / 180) < 1e-10, "resume has no catch-up");
@@ -401,17 +411,17 @@ test("hidden compact maps do not repaint in the driving loop and refresh when vi
   assert.equal(draws, 1);
 });
 
-test("the main terrain stays receive-only after global shadow initialization", () => {
+test("only lunar terrain casts relief shadows after global shadow initialization", () => {
   const ground = source.slice(source.indexOf("  const groundSize ="), source.indexOf("  groundTex.repeat.setScalar"));
-  for (const tablet of [false, true]) {
+  for (const tablet of [false, true]) for (const isMoon of [false, true]) {
     const scene = new THREE.Scene(), material = new THREE.MeshStandardMaterial();
     const c = { THREE, scene, device: { tablet }, course: { halfSize: 20 }, isWellington: false,
-      isAmsterdam: false, isCity: false, heightAt: () => 0, roadDist: () => 0, groundmat: material,
+      isAmsterdam: false, isCity: false, isMoon, heightAt: () => 0, roadDist: () => 0, groundmat: material,
       enableGeometryShadows,
       mesh(geometry, mat) { const mesh = new THREE.Mesh(geometry, mat); mesh.castShadow = true; scene.add(mesh); return mesh; },
     };
     runInNewContext(`${ground}\nenableGeometryShadows(scene); result = ground;`, c);
-    assert.equal(c.result.castShadow, false);
+    assert.equal(c.result.castShadow, isMoon);
     assert.equal(c.result.receiveShadow, true);
     c.result.geometry.dispose(); material.dispose();
   }

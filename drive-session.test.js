@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import * as THREE from "three";
 import { moveWithBounces } from "./collision.js";
 import { sampleDrivingSurface } from "./driving-terrain.js";
+import { getVehicle } from "./vehicle-data.js";
 
 const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
 const functions = source.slice(source.indexOf("  function reset("), source.indexOf("  function show(s)"));
@@ -21,13 +22,15 @@ function fixture() {
     sceneDirty: false, boosting: true, recovering: true, boostEnds: 4000,
     flame: { visible: true }, boostButton: {}, boostText: {}, boostLabel: "Boost",
     car: new THREE.Group(), camera: new THREE.PerspectiveCamera(), cameraAnchor: new THREE.Vector3(),
+    carVisual: { position: { y: .7 } },
+    vehicleActions: { resets: 0, reset() { this.resets++; } },
     start: new THREE.Vector3(0, 0, 0), route: [new THREE.Vector3(), new THREE.Vector3(1, 0, 0)],
     speed: 20, slipX: 2, slipZ: 1, collisionCount: 3, steer: .5, heading: 0,
     surfacePose: null, checkpoint: 1, lap: 1, travel: 20, lapSeconds: 0, bestLap: 0,
     heightAt: (x, z) => x * .02 + z * .01, obstacles: [], course: { halfSize: 620 },
     coneField: field, playField: field, peopleField: field, friendRacers: field,
     ambientEvents: { resets: 0, reset() { this.resets++; } },
-    vehicleModel: { flag: { resets: 0, reset() { this.resets++; } } },
+    vehicleModel: { vehicle: getVehicle("porsche"), flag: { resets: 0, reset() { this.resets++; } } },
     jumpPhysics: { reset() { flight = { airborne: false, clearance: 0 }; }, state: () => flight },
     moveWithBounces, sampleDrivingSurface, clearCamera() {}, show() {}, resetItems() {},
   };
@@ -46,6 +49,8 @@ test("startup restores per-map pose, checkpoint and lap timing on current terrai
   assert.equal(c.boosting || c.recovering || c.flame.visible, false);
   assert.equal(resets.length, 4);
   assert.equal(c.vehicleModel.flag.resets, 1);
+  assert.equal(c.vehicleActions.resets, 1);
+  assert.equal(c.carVisual.position.y, 0, "restoration removes any special-action hop");
   assert.equal(c.ambientEvents.resets, 1);
   assert.ok(resets.every((position) => position.equals(c.car.position)));
   assert.equal(writes[0].drives.moon.x, 80, "saving this map preserves the other maps");
@@ -59,6 +64,7 @@ test("restoration resolves static collisions and bounds, while Reset explicitly 
   assert.ok(c.car.position.x <= 300 - 1.12);
   assert.ok(Math.hypot(c.car.position.x - 420, c.car.position.z + 40) > 4.12);
   api.reset();
+  assert.equal(c.vehicleActions.resets, 2, "explicit Reset also clears action timers and effects");
   assert.ok(c.car.position.equals(c.start));
   assert.equal(c.checkpoint, 1);
   assert.equal(c.lap, 1);
@@ -77,6 +83,34 @@ test("airborne or ramp-supported positions cannot replace the last safe driving 
   flight({ airborne: false, clearance: .05 });
   api.saveDrive();
   assert.equal(writes.length, 2);
+});
+
+test("utility restoration uses registry collision radius, ground footprint and camera clearance", () => {
+  for (const id of ["porsche", "backhoe", "dhl-van"]) {
+    const { api, context: c } = fixture();
+    const vehicle = getVehicle(id);
+    c.vehicleModel.vehicle = vehicle;
+    c.course.halfSize = 300;
+    api.reset(true);
+    assert.ok(Math.abs(c.car.position.x - (300 - vehicle.handling.radius)) < 1e-8);
+    assert.deepEqual(c.surfacePose, sampleDrivingSurface(c.heightAt, c.car.position.x, c.car.position.z, c.heading, vehicle.handling));
+    const expected = c.car.position.clone().add(new THREE.Vector3(
+      -Math.sin(c.heading) * vehicle.camera.distance, vehicle.camera.height, -Math.cos(c.heading) * vehicle.camera.distance));
+    assert.ok(c.camera.position.distanceTo(expected) < 1e-8);
+    assert.equal(c.cameraAnchor.y, c.car.position.y + vehicle.camera.anchor);
+  }
+});
+
+test("restoration clears low overhead obstacles for cars but resolves taller utility bodies", () => {
+  for (const id of ["porsche", "backhoe", "dhl-van"]) {
+    const { api, context: c, drive } = fixture();
+    c.vehicleModel.vehicle = getVehicle(id);
+    c.obstacles = [{ x: drive.x, z: drive.z, y: c.heightAt(drive.x, drive.z) + 2.4, hx: 6, hz: 6, height: 1 }];
+    api.reset(true);
+    const distance = Math.hypot(c.car.position.x - drive.x, c.car.position.z - drive.z);
+    if (id === "porsche") assert.equal(distance, 0);
+    else assert.ok(distance >= 6 + c.vehicleModel.vehicle.handling.radius);
+  }
 });
 
 test("longer courses preserve saved cars but retire incompatible checkpoints and best laps", () => {

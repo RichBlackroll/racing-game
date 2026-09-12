@@ -107,6 +107,20 @@ function near(actual, expected) {
   assert.ok(actual.distanceTo(expected) < 1e-9, `${actual.toArray()} != ${expected.toArray()}`);
 }
 
+test("rear camera reads switched vehicle mirror offsets in car-local coordinates", () => {
+  const { mirror, renderer, car, parent } = fixture();
+  parent.position.set(30, 4, -15); parent.rotation.set(.1, -.3, .07);
+  car.position.set(2, 1, 5); car.rotation.set(.2, .7, -.1, "YXZ");
+  for (const profile of [{ mirror: [0, 3.3, -4.5] }, { mirror: [.4, 2.9, -3.1] }, {}, undefined]) {
+    car.userData.cameraProfile = profile;
+    mirror.invalidate(); mirror.render(0);
+    const pass = renderer.passes.at(-2);
+    near(pass.position, car.localToWorld(new THREE.Vector3(...(profile?.mirror ?? [0, 1.7, -2.5]))));
+    near(pass.direction, new THREE.Vector3(0, 0, -1).applyQuaternion(car.getWorldQuaternion(new THREE.Quaternion())));
+  }
+  mirror.dispose();
+});
+
 test("rear camera follows local -Z through turns, pitch, roll, and parent transforms", () => {
   const { mirror, renderer, car, parent, visual, scene } = fixture();
   parent.position.set(30, 4, -15);

@@ -96,6 +96,44 @@ rockets and flags remain customizable. Handling is arcade, not factory data.
 Vehicle names and marks identify the depicted vehicles; no manufacturer
 affiliation or endorsement is claimed.
 
+## Backhoe loader and DHL delivery van
+
+Source geometry and colormap texture: **Car Kit 3.1** by **Kenney**.
+Source: https://kenney.nl/assets/car-kit
+Creator: https://kenney.nl/
+License: **Creative Commons Zero 1.0 (CC0)**:
+https://creativecommons.org/publicdomain/zero/1.0/
+Pack license notice: `licenses/kenney-car-kit.txt`.
+
+Downloaded on 2026-09-12 from the official pack archive:
+https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip
+Original files: `Models/GLB format/tractor-shovel.glb`,
+`Models/GLB format/van.glb`, and `Models/GLB format/Textures/colormap.png`.
+Local assets: `backhoe-loader.glb` (238,896 bytes) and
+`dhl-delivery-van.glb` (192,016 bytes). The original PNG is embedded as a data
+URI; mesh geometry, source node names and pivots are retained. Neither asset
+requires an external texture, compression decoder, or model service.
+
+Runtime adaptations in `utility-vehicles.js`: isolated paint triangles from the
+shared atlas so windows, tires and trim are not yellow-tinted; rescaled the
+models; retained four real independently spinning wheels and the original
+articulated front-loader shovel; added an original rear swing mount, boom,
+dipper, hollow toothed bucket and moving hydraulic rams to make a two-ended
+backhoe loader. The original Kenney tractor is not itself a backhoe. The van
+adds original geometric red DHL-style lettering/speed stripes on both sides
+and both rear doors, cargo panels, a cargo opening, interior floor/bulkhead,
+and two hinged animated rear doors. The source van is unbranded. The full
+backhoe and DHL appearance are assembled at runtime, not baked into the GLBs.
+Both vehicles support the game's flags, configurable paint and educational
+upgrades. These are stylized game adaptations, not manufacturer CAD replicas.
+
+**Trademark notice:** DHL and the DHL logo are marks of their respective
+owners. Kenney's CC0 license does **not** license the DHL name, logo or other
+trademark rights. The geometric lettering is an original depiction, not an
+official downloaded logo asset. No affiliation with, sponsorship by, or
+endorsement from DHL, DHL Group or Kenney is claimed. Obtain any necessary
+trademark permissions before public or commercial use of the branded depiction.
+
 ## Forest assets
 
 Forest Slope HDRI and Forest Floor material maps from Poly Haven, CC0.

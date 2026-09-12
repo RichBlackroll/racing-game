@@ -204,8 +204,34 @@ export function createCourse(level = "forest") {
   const pads = forest ? [[-30, 68], [118, 25]].filter(([x, z]) => nearest(x, z).distance > 38)
     : city ? Array.from({ length: 36 }, (_, i) => [-125 + (i % 6) * 50, -125 + Math.floor(i / 6) * 50]) : [];
   const foundations = pads.map(([x, z]) => ({ x, z, height: rawHeight(x, z) }));
+  // Sparse off-road impacts: centre X/Z, radius and depth in metres.
+  const craters = moon ? [[-100, -25, 30, 5], [100, 30, 26, 4.5], [20, -260, 38, 7],
+    [-90, 290, 32, 6], [290, 245, 28, 5], [-285, -250, 30, 5.5],
+    [370, 30, 26, 4.5], [-365, -5, 26, 4.5]] : [];
   function heightAt(x, z) {
     let height = rawHeight(x, z);
+    if (moon) {
+      // Keep rawHeight (and thus route sampling) untouched. Match the runway's
+      // exact zero mask, reserve the base, and fade detail beyond the play area.
+      const runway = (1 - smooth(145, 295, Math.abs(x))) * (1 - smooth(12, 112, Math.abs(Math.abs(z) - 140)));
+      const base = smooth(0, 28, Math.max(-56 - x, x - 40, 12 - z, z - 108));
+      const weight = (1 - runway) * base * (1 - smooth(420, 560, Math.max(Math.abs(x), Math.abs(z))));
+      if (weight > 0) {
+        let detail = 0.85 * Math.sin(x / 17 + 0.7 * Math.sin(z / 29)) * Math.sin(z / 21 - x / 43)
+          + 0.45 * Math.sin(x / 8 + z / 13 + 0.6 * Math.sin(z / 19))
+          + 0.2 * Math.sin(z / 6 - x / 11) * Math.sin(x / 15 + z / 17);
+        for (const [cx, cz, radius, depth] of craters) {
+          const dx = x - cx, dz = z - cz, distance = Math.hypot(dx, dz);
+          if (distance >= radius * 1.75) continue;
+          const angle = Math.atan2(dz, dx), phase = cx * 0.13 + cz * 0.07;
+          const r = distance / (radius * (1 + 0.065 * Math.sin(3 * angle + phase) + 0.04 * Math.sin(5 * angle - phase)));
+          const bowl = Math.max(0, 1 - r * r) ** 2;
+          const rim = smooth(0.65, 1, r) * (1 - smooth(1, 1.55, r));
+          detail += depth * (-bowl + 0.36 * rim * (0.85 + 0.15 * Math.sin(4 * angle + phase)));
+        }
+        height += detail * weight;
+      }
+    }
     // Entirely distant cells bypass even the bounded nearest-segment query.
     // City streets already share a gentle analytic grade. Keep that common
     // surface at intersections: projecting onto either arm of a tight 4 m turn

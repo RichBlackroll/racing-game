@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createFinishLine } from "./finish-line.js";
 import { moveWithBounces } from "./collision.js";
+import { enableGeometryShadows } from "./daylight.js";
 
 test("finish gantry has the exact message, readable panels on both sides, and chequered paint", (t) => {
   const text = [];
@@ -26,6 +27,9 @@ test("finish gantry has the exact message, readable panels on both sides, and ch
   assert.equal(group.children.filter(child => child.geometry?.type === "CircleGeometry").length, 10);
   const paint = group.children.filter(child => child.name === "finish-road-paint");
   assert.equal(paint.length, 2);
+  enableGeometryShadows(group);
+  assert.ok(paint.every(mesh => mesh.receiveShadow && !mesh.castShadow), "global lighting preserves receive-only road paint");
+  assert.ok(group.children.filter(mesh => mesh.name === "finish-structure").every(mesh => mesh.castShadow));
   const bounds = new THREE.Box3();
   paint.forEach(mesh => bounds.union(new THREE.Box3().setFromObject(mesh)));
   assert.ok(Math.abs(bounds.min.x + 5.8) < 1e-5);

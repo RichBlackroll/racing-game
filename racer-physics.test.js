@@ -6,6 +6,24 @@ const body = (x, z, vx, vz, mass = 1) => ({ x, y: 0, z, vx, vz, mass, radius: 1.
 const momentum = cars => cars.reduce((sum, b) => sum + b.vx * b.mass, 0);
 const energy = cars => cars.reduce((sum, b) => sum + b.mass * (b.vx ** 2 + b.vz ** 2) / 2, 0);
 
+test("vehicle heights gate overhead scenery and asymmetric racer contacts", () => {
+  for (const height of [undefined, 2.85, 3.15]) {
+    const car = { ...body(-4, 0, 100, 0), height };
+    stepRacerBodies([car], .05, [{ x: 0, z: 0, hx: 1, hz: 10, y: 2, height: 1 }], 500);
+    assert.equal(car.staticHits > 0, height !== undefined);
+    for (const reversed of [false, true]) for (const upperY of [2.4, 5]) {
+      const lower = { ...body(-4, 0, 100, 0), height }, upper = { ...body(0, 0, 0, 0), y: upperY, height: 3.15 };
+      stepRacerBodies(reversed ? [upper, lower] : [lower, upper], .05, [], 500);
+      assert.equal(lower.hits > 0, height !== undefined && upperY === 2.4, "only the lower car's height can close the vertical gap");
+    }
+  }
+  for (const y of [1.79, 1.81]) {
+    const a = body(-4, 0, 100, 0), b = { ...body(0, 0, 0, 0), y };
+    stepRacerBodies([a, b], .05, [], 500);
+    assert.equal(a.hits > 0, y < 1.8, "stock vertical tolerance stays unchanged");
+  }
+});
+
 test("car impacts transfer momentum in either direction without adding energy", () => {
   for (const direction of [-1, 1]) for (const dt of [1 / 120, 1 / 60, 1 / 30]) {
     const a = body(-8 * direction, 0, 100 * direction, 0, 1.6), b = body(0, 0, 0, 0);

@@ -1,11 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { Scene, Vector3 } from "three";
 import { createCourse } from "./course.js";
 import { createRampCourse } from "./levels.js";
+import { createTerrainBody } from "./terrain-physics.js";
 
 const courses = Object.fromEntries(["forest", "city", "stunt", "moon"].map(level => [level, createCourse(level)]));
 const close = (actual, expected, tolerance = 1e-8) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
+
+// The original smooth Moon relief, before off-road detail and road flattening.
+function moonRelief(x, z) {
+  const hill = (cx, cz, sx, sz) => Math.exp(-0.5 * (((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
+  const smooth = (a, b, value) => { const t = Math.max(0, Math.min(1, (value - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const height = 8 + 3 * Math.sin(x / 140) * Math.cos(z / 150)
+    + 12 * hill(-155, 15, 85, 100) - 9 * hill(40, -20, 65, 65) + 5 * hill(100, 30, 120, 120)
+    + 17 * hill(-290, 280, 140, 130) + 18 * hill(285, -260, 125, 140) - 5 * hill(285, 150, 110, 100);
+  return height * (1 - (1 - smooth(145, 295, Math.abs(x))) * (1 - smooth(12, 112, Math.abs(Math.abs(z) - 140))));
+}
 
 function bruteNearest(route, x, z) {
   let best = { distance: Infinity };
@@ -283,4 +295,92 @@ test("stunt and moon extend the circuit with compound bends while keeping safe r
 test("course creation is deterministic and rejects unknown levels", () => {
   for (const [level, course] of Object.entries(courses)) assert.deepEqual(createCourse(level).route, course.route);
   assert.throws(() => createCourse("unknown"), RangeError);
+});
+
+test("lunar detail preserves shipped route samples, banks and non-Moon surfaces", () => {
+  // Quantized pre-detail fingerprints cover every route vertex and a terrain grid.
+  const digest = data => createHash("sha256").update(JSON.stringify(data)).digest("hex");
+  for (const [level, routeHash, surfaceHash] of [
+    ["forest", "b7c4add6520685df2060eb308f39a3ee64d8722a8bcd2fa2d3729965f049e7ec", "232799de8f65a6e19229015a6fe23e2e410d56ab267d3dfaf293d4881e42e8b9"],
+    ["city", "0dc49589806bf7bbd712b2275a1400cc982c15a5ecd4ae33d3d5e6c6599429e3", "d9821fa7fbe20898e1d2859b4e486ccb506b5bf6941529d11e8b25f8b8f99cdc"],
+    ["stunt", "974864dec064b2cf9cbd7ba5b6976a0adc3744a109dfb261b61887e3370937f3", "817217d1536df3fafba63aa749ad6aef92ca218f0ea2cf6d59edca7d59f174a3"],
+    ["moon", "ac20be61ebb4677ce4304b4f632d457eaf621fad525607f481411fcfdd6f8823"],
+  ]) {
+    const course = courses[level];
+    assert.equal(digest(course.route.map(p => [...p.toArray(), course.nearest(p.x, p.z).bank].map(n => +n.toFixed(8)))), routeHash, level);
+    if (!surfaceHash) continue;
+    const samples = [];
+    for (let x = -course.halfSize; x <= course.halfSize; x += 37) for (let z = -course.halfSize; z <= course.halfSize; z += 41) {
+      samples.push(+course.heightAt(x, z).toFixed(8));
+    }
+    assert.equal(digest(samples), surfaceHash, `${level}: untouched terrain`);
+  }
+  close(courses.moon.length, 3630.791125751489);
+  assert.equal(courses.moon.route.length, 1038);
+});
+
+test("Moon impacts have shallow depressed basins and raised irregular rims off road", () => {
+  const course = courses.moon;
+  for (const [x, z, radius] of [[-100, -25, 30], [100, 30, 26], [20, -260, 38], [-90, 290, 32],
+    [290, 245, 28], [-285, -250, 30], [370, 30, 26], [-365, -5, 26]]) {
+    assert.ok(course.roadDistance(x, z) > radius * 1.75 + 15, "impact support clears the driving lanes");
+    const center = course.heightAt(x, z), depression = moonRelief(x, z) - center;
+    assert.ok(depression > 3 && depression < 8, `shallow basin at ${x},${z}: ${depression}`);
+    const rims = [];
+    for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8, px = x + radius * Math.cos(angle), pz = z + radius * Math.sin(angle);
+      const y = course.heightAt(px, pz);
+      assert.ok(y > center + 1.5, `basin enclosed even on the downhill rim at ${x},${z}, angle ${i}`);
+      rims.push(y - moonRelief(px, pz));
+      for (const r of [0, 0.65, 1, 1.55, 1.75]) {
+        const before = radius * r - 1e-5, after = radius * r + 1e-5;
+        close(course.heightAt(x + before * Math.cos(angle), z + before * Math.sin(angle)),
+          course.heightAt(x + after * Math.cos(angle), z + after * Math.sin(angle)), 1e-3);
+      }
+    }
+    assert.ok(rims.filter(y => y > 0.3).length >= 12, `raised ejecta at ${x},${z}`);
+    assert.ok(Math.max(...rims) - Math.min(...rims) > 0.5, "rim is not a uniform ring");
+  }
+});
+
+test("Moon regolith is deterministic, bounded and continuous across masks, rims and shoulders", () => {
+  const course = courses.moon, repeat = createCourse("moon");
+  let broken = 0;
+  for (let x = -420; x <= 420; x += 7) for (let z = -420; z <= 420; z += 7) {
+    const y = course.heightAt(x, z);
+    assert.equal(y, repeat.heightAt(x, z));
+    assert.ok(Number.isFinite(y) && Math.abs(y - moonRelief(x, z)) < 10);
+    const dx = (course.heightAt(x + 0.001, z) - course.heightAt(x - 0.001, z)) / 0.002;
+    const dz = (course.heightAt(x, z + 0.001) - course.heightAt(x, z - 0.001)) / 0.002;
+    assert.ok(Math.hypot(dx, dz) < 1, `bounded terrain grade at ${x},${z}: ${Math.hypot(dx, dz)}`);
+    if (course.roadDistance(x, z) > 40) {
+      const curvature = course.heightAt(x - 4, z) + course.heightAt(x + 4, z) - 2 * y;
+      if (Math.abs(curvature) > 0.1) broken++;
+    }
+  }
+  assert.ok(broken > 1000, `metre-scale undulations, not just smooth macro hills: ${broken}`);
+  for (const [x, z] of [[-100, -25], [130, 30], [145, 128], [295, 152], [-56, 12], [40, 108],
+    [68, 60], [420, 30], [560, 30], [-1e6, 1e6], [1e12, -1e12], [Number.MAX_VALUE, -Number.MAX_VALUE]]) {
+    assert.ok(Number.isFinite(course.heightAt(x, z)));
+    for (const [dx, dz] of [[1e-5, 0], [0, 1e-5]]) close(course.heightAt(x - dx, z - dz), course.heightAt(x + dx, z + dz), 1e-3);
+    if (Math.max(Math.abs(x), Math.abs(z)) >= 560) assert.equal(course.heightAt(x, z), moonRelief(x, z));
+  }
+});
+
+test("Moon detail leaves the central base and full ramp corridors exactly unchanged", () => {
+  const course = courses.moon;
+  for (let x = -56; x <= 40; x += 4) for (let z = 12; z <= 108; z += 4) assert.equal(course.heightAt(x, z), moonRelief(x, z));
+  for (let x = -140; x <= 140; x += 2.5) for (const side of [-1, 1]) for (let dz = -12; dz <= 12; dz++) {
+    assert.equal(course.heightAt(x, side * 140 + dz), 0, `exact runway at ${x},${side * 140 + dz}`);
+  }
+});
+
+test("Moon collision heightfield samples the same rugged surface, including crater floors and rims", () => {
+  const course = courses.moon, body = createTerrainBody(course), shape = body.shapes[0];
+  assert.equal(shape.elementSize, 4);
+  for (let i = 0; i < shape.data.length; i++) for (let j = 0; j < shape.data[i].length; j++) {
+    const x = -course.halfSize + i * shape.elementSize, z = course.halfSize - j * shape.elementSize;
+    assert.equal(shape.data[i][j], course.heightAt(x, z));
+  }
+  assert.equal(body.position.y, 0.075, "only the existing contact offset is added");
 });

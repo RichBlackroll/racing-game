@@ -21,17 +21,17 @@ export function createRoadsideLights({ scene, course, level, obstacles = [], cle
   scene.add(group);
   const standard = (color, roughness = 0.65, metalness = 0) =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
-  const warm = standard(lunar ? 0xc9e5eb : 0xffd5a0, 0.3);
-  warm.emissive.set(lunar ? 0xb5e8ff : 0xffbc70);
+  const warm = standard(lunar ? 0xd6be8c : 0xffd5a0, 0.3);
+  warm.emissive.set(lunar ? 0xffcf83 : 0xffbc70);
   warm.userData.nightIntensity = 3.2;
   warm.emissiveIntensity = 0;
-  const guide = standard(lunar ? 0xafdbe7 : 0xaedbca, 0.3);
-  guide.emissive.set(lunar ? 0x83d8ff : 0x70d9bb);
+  const guide = standard(lunar ? 0xc4994f : 0xaedbca, 0.3);
+  guide.emissive.set(lunar ? 0xe7ac4f : 0x70d9bb);
   guide.userData.nightIntensity = 1.7;
   guide.emissiveIntensity = 0;
   const materials = {
     housing: standard(0x303c3a, 0.42, 0.55),
-    post: standard(0xd9d5bf, 0.74),
+    post: standard(lunar ? 0x8b8980 : 0xd9d5bf, 0.74),
     timber: standard(lunar || urban ? 0x919fa3 : 0x795239, 0.66, lunar || urban ? 0.5 : 0),
     panel: standard(0x203e55, 0.22, 0.48),
     reflector: retroreflectiveMaterial(standard(0xffffff, 0.48)),
@@ -101,7 +101,7 @@ export function createRoadsideLights({ scene, course, level, obstacles = [], cle
     part("warm", lx, y + 4.30, lz, 0.48, 0.15, 0.48, inward);
     // The source sits below its opaque shade, never inside the mast or lens.
     group.userData.nightLights.push({ position: [lx, y + 4.18, lz],
-      color: lunar ? 0xb5e8ff : 0xffc184, intensity: 310, distance: 28 });
+      color: lunar ? 0xffcf83 : 0xffc184, intensity: 310, distance: 28 });
     counts.lanterns++;
   }
   const geometry = new THREE.BoxGeometry();

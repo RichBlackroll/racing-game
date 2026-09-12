@@ -12,15 +12,23 @@ const palette = {
   nightGround: new THREE.Color(0x222e4a), dayGround: new THREE.Color(0x555b43),
 };
 
-/** A deliberately cinematic 24-hour solar arc, not a latitude/date ephemeris. */
+/** A deliberately cinematic summer solar arc, not a latitude/date ephemeris. */
 export function sampleDaylight(hour, level = "forest", result = {}) {
   hour = Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : 16.5;
-  const angle = (hour - 6) / 24 * Math.PI * 2;
+  // Stretch the sun's visible half-orbit across 05:00-21:00; keep the clock uniform.
+  const sinceSunrise = (hour - 5 + 24) % 24;
+  let angle = Math.PI * sinceSunrise / 16;
+  if (sinceSunrise >= 16) {
+    const t = (sinceSunrise - 16) / 8;
+    // Match daytime speed at both horizons, accelerating only through deep night.
+    angle = Math.PI * (1 + t / 2 + 1.5 * t ** 2 - t ** 3);
+  }
   result.hour = hour;
   result.sunDirection ??= new THREE.Vector3();
   result.moonDirection ??= new THREE.Vector3();
-  result.sunDirection.set(Math.cos(angle), Math.sin(angle) * 0.88,
-    Math.sin(angle) * Math.sqrt(1 - 0.88 ** 2) * (level === "wellington" ? 1 : -1));
+  const solarArc = level === "moon" ? 0.48 : 0.88;
+  result.sunDirection.set(Math.cos(angle), Math.sin(angle) * solarArc,
+    Math.sin(angle) * Math.sqrt(1 - solarArc ** 2) * (level === "wellington" ? 1 : -1));
   result.moonDirection.copy(result.sunDirection).negate();
   const elevation = result.sunDirection.y;
   result.daylight = smoothstep(elevation, -0.15, 0.2);
@@ -43,6 +51,9 @@ export function sampleDaylight(hour, level = "forest", result = {}) {
   result.sunColor.copy(palette.warmSun).lerp(palette.noonSun, smoothstep(elevation, 0.02, 0.65));
   if (level === "moon") {
     result.horizon.set(0); result.zenith.set(0); result.sunColor.set(0xffffff);
+    // A low, unfiltered sun sculpts the relief; Earthshine is the only night fill.
+    result.sunIntensity = 3.6 * smoothstep(elevation, -0.015, 0.075);
+    result.moonIntensity = 0.42 * result.night * smoothstep(-elevation, 0.015, 0.3);
   }
   return result;
 }
@@ -80,7 +91,8 @@ export function createDaylight({ scene, renderer, level, tablet = false,
     Object.assign(light.shadow.camera, { left: -radius, right: radius, top: radius, bottom: -radius, near: 1, far: 1400 });
     light.shadow.camera.updateProjectionMatrix();
     light.shadow.bias = -0.00008;
-    light.shadow.normalBias = 0.065;
+    light.shadow.normalBias = level === "moon" ? 0.045 : 0.065;
+    if (level === "moon") light.shadow.radius = 0.65;
     scene.add(light, light.target);
   }
   scene.add(ambient);
@@ -98,9 +110,16 @@ export function createDaylight({ scene, renderer, level, tablet = false,
     if (level !== "moon") ambient.color.lerp(palette.blueAmbient, value.blueHour * 0.8)
       .lerp(palette.warmAmbient, value.warmGlow * 0.22);
     ambient.groundColor.copy(palette.nightGround).lerp(palette.dayGround, value.daylight);
-    ambient.intensity = lerp(0.24, level === "moon" ? 0.65 : 0.85, value.daylight) * (1 - value.twilight * 0.22);
-    scene.environmentIntensity = lerp(0.075, level === "moon" ? 0.65 : 0.7, value.daylight) * (1 - value.twilight * 0.28);
-    renderer.toneMappingExposure = lerp(1.12, 1.02, value.daylight);
+    if (level === "moon") {
+      ambient.color.set(0xadb9ca); ambient.groundColor.set(0x242326);
+      ambient.intensity = lerp(0.045, 0.10, value.daylight);
+      scene.environmentIntensity = lerp(0.018, 0.075, value.daylight);
+      renderer.toneMappingExposure = lerp(1.02, 0.93, value.daylight);
+    } else {
+      ambient.intensity = lerp(0.24, 0.85, value.daylight) * (1 - value.twilight * 0.22);
+      scene.environmentIntensity = lerp(0.075, 0.7, value.daylight) * (1 - value.twilight * 0.28);
+      renderer.toneMappingExposure = lerp(1.12, 1.02, value.daylight);
+    }
     for (const [light, direction] of [[sun, value.sunDirection], [moon, value.moonDirection]]) {
       // Snap in light space, not world X/Z: a following shadow frustum otherwise crawls over surfaces.
       right.crossVectors(worldUp, direction).normalize();

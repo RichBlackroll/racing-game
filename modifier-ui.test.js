@@ -6,6 +6,7 @@ import { createModifierCar } from "./modifier-car.js";
 import { createGaragePreview } from "./modifier-preview.js";
 import { DEFAULTS, PARTS, PRESETS, computeTuning } from "./modifier-data.js";
 import { createSession } from "./session.js";
+import { getVehicle } from "./vehicle-data.js";
 
 class Element extends EventTarget {
   constructor(doc, tag = "div") {
@@ -138,9 +139,9 @@ function garage(t, { localStorage, ...options } = {}) {
     render(scene) { this.scene = scene; scene.updateMatrixWorld(true); },
   };
   const preview = createGaragePreview({ renderer, car });
-  const changes = [], events = [], toasts = [], vehicleRequests = [];
+  const changes = [], events = [], vehicleRequests = [];
   doc.addEventListener("driving-overlay-change", (event) => events.push(event.detail));
-  const modifier = createModifier({ visuals, preview, show: (text) => toasts.push(text),
+  const modifier = createModifier({ visuals, preview,
     onVehicleChange(id, nextConfig, signal) {
       const next = vehicleModel();
       return new Promise((resolve, reject) => vehicleRequests.push({ id, nextConfig, signal, next, reject,
@@ -161,7 +162,7 @@ function garage(t, { localStorage, ...options } = {}) {
     },
     ...options,
   });
-  return { modifier, panel, configure, preview, doc, win, canvas, driving, car, body, visuals, pose, renderer, changes, events, toasts, vehicleRequests };
+  return { modifier, panel, configure, preview, doc, win, canvas, driving, car, body, visuals, pose, renderer, changes, events, vehicleRequests };
 }
 
 function fakeAudio() {
@@ -194,22 +195,24 @@ test("garage close resolves a visible focus target after the compact breakpoint 
 
 test("production panel edits the live model, focuses parts, and restores canvas, pose and focus", (t) => {
   let allowed = false;
-  const { modifier, panel, configure, preview, doc, canvas, driving, car, body, pose, renderer, changes, events, toasts } = garage(t, { canOpen: () => allowed });
+  const { modifier, panel, configure, preview, doc, canvas, driving, car, body, pose, renderer, changes, events } = garage(t, { canOpen: () => allowed });
   const host = panel.querySelector(".mod-viewport");
   assert.ok(panel.contains(host), "preview and controls belong to the same modal");
   const picker = panel.querySelector(".mod-vehicle-picker"), vehicles = panel.querySelector(".mod-vehicles").children;
   assert.equal(panel.querySelector(".mod-workbench").firstElementChild, picker);
-  assert.equal(picker.nextSibling, panel.querySelector(".mod-choice-head"), "car choices sit above parts inside the scrolling workbench");
-  assert.equal(picker.firstElementChild.textContent, "Choose your car");
-  assert.equal(picker.getAttribute("aria-labelledby"), picker.firstElementChild.id);
+  assert.equal(picker.nextSibling, panel.querySelector(".mod-choice-head"), "a compact car switcher sits above parts");
+  assert.equal(picker.tagName, "DETAILS");
+  assert.equal(picker.open, false, "the full car list stays out of the way until requested");
+  assert.equal(picker.firstElementChild.tagName, "SUMMARY");
+  assert.equal(picker.firstElementChild.getAttribute("aria-label"), "Change car. Porsche 911 GT3 RS");
   assert.equal(picker.getAttribute("aria-busy"), "false");
-  assert.deepEqual(vehicles.map((button) => button.dataset.vehicle), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40"]);
-  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-label")), ["Porsche 911 GT3 RS", "Tesla Model 3", "Volkswagen Golf GTI Mk1", "BYD Atto 1", "Volvo EX40"]);
-  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-pressed")), ["true", "false", "false", "false", "false"]);
+  assert.deepEqual(vehicles.map((button) => button.dataset.vehicle), ["porsche", "tesla", "golf", "byd-atto-1", "volvo-ex40", "backhoe", "dhl-van"]);
+  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-label")), ["Porsche 911 GT3 RS", "Tesla Model 3", "Volkswagen Golf GTI Mk1", "BYD Atto 1", "Volvo EX40", "Giant Backhoe Digger", "DHL Delivery Van"]);
+  assert.deepEqual(vehicles.map((button) => button.getAttribute("aria-pressed")), ["true", "false", "false", "false", "false", "false", "false"]);
   assert.equal(vehicles[2].querySelector(".mod-vehicle-name").textContent, "Volkswagen Golf GTI Mk1");
   assert.equal(vehicles[2].querySelector(".mod-vehicle-description").textContent, "1976 hot hatch");
   const silhouettes = vehicles.map((button) => button.querySelector(".mod-picture").innerHTML);
-  assert.equal(new Set(silhouettes).size, 5, "each car has a distinct silhouette");
+  assert.equal(new Set(silhouettes).size, 7, "each vehicle has a distinct silhouette");
   for (const button of vehicles) {
     assert.equal(button.querySelector(".mod-picture").getAttribute("aria-hidden"), "true");
     assert.match(button.querySelector(".mod-picture").innerHTML, /<svg viewBox="0 0 80 56"/);
@@ -229,7 +232,7 @@ test("production panel edits the live model, focuses parts, and restores canvas,
   assert.equal(configure.getAttribute("aria-expanded"), "true");
   assert.equal(doc.activeElement.id, "mod-title");
   const summary = panel.querySelector(".mod-builds").firstElementChild;
-  assert.equal(summary.textContent, "Try a parts setup");
+  assert.equal(summary.textContent, "Quick setups");
   summary.focus();
   const tab = new Event("keydown", { cancelable: true });
   Object.assign(tab, { key: "Tab", shiftKey: false });
@@ -243,20 +246,23 @@ test("production panel edits the live model, focuses parts, and restores canvas,
   assert.equal(canvas.parentNode, host);
   assert.notEqual(car.parent, driving);
   assert.equal(panel.open, true);
-  const bench = panel.querySelector(".mod-workbench"), partsHeading = panel.querySelector(".mod-choice-head");
-  assert.equal(bench.scrollTop, 0, "opening makes the car picker discoverable again");
-  partsHeading.offsetTop = 250;
+  const bench = panel.querySelector(".mod-workbench");
+  assert.equal(bench.scrollTop, 0, "opening shows the compact switcher and saved part together");
   panel.find((node) => node.dataset.option === "blue").click();
   assert.equal(modifier.visuals.paint, "#2a6fdb");
   panel.querySelector(".mod-undo").click();
   assert.equal(modifier.visuals.paint, "#c60920", "Undo restores the actual model as well as selection");
   for (const part of PARTS) {
+    picker.open = true;
+    bench.scrollTop = 250;
     panel.find((node) => node.classList.contains("mod-tab") && node.dataset.part === part.id).click();
     assert.equal(preview.state().part, part.id);
-    assert.equal(bench.scrollTop, 250, "tabs bring parts into view below the car picker, even in short landscapes");
+    assert.equal(picker.open, false, "choosing a part dismisses the car list");
+    assert.equal(bench.scrollTop, 0, "tabs reveal the new choices without scrolling past all cars");
     for (const option of part.options) {
       panel.find((node) => node.dataset.option === option.id).click();
       assert.equal(modifier.config[part.id], option.id);
+      assert.equal(panel.querySelector(".mod-choice-value").textContent, option.name);
       assert.equal(doc.activeElement.dataset.option, option.id, "option rerender preserves focus");
       assert.deepEqual(modifier.tuning, computeTuning(modifier.config));
       preview.render(1);
@@ -305,7 +311,69 @@ test("production panel edits the live model, focuses parts, and restores canvas,
   assert.equal(modifier.active, true, "late close events cannot close a reopened modal");
   assert.equal(preview.state().active, true);
   modifier.close();
-  assert.ok(toasts.length > PARTS.length);
+});
+
+test("paint has named swatches, one selected label, and reselecting a fitted part does not save or rebuild it", (t) => {
+  const session = createSession({});
+  const { modifier, panel, visuals, preview } = garage(t, { session });
+  modifier.open();
+  const colors = PARTS.find((part) => part.id === "color").options;
+  assert.equal(panel.querySelector(".mod-options").children.length, colors.length);
+  for (const color of colors) {
+    const button = panel.find((node) => node.dataset.option === color.id);
+    assert.equal(button.getAttribute("aria-label"), color.name);
+    assert.equal(button.title, color.name);
+  }
+  assert.equal(panel.querySelector(".mod-choice-title").textContent, "Paint");
+  assert.equal(panel.querySelector(".mod-choice-value").textContent, "Red");
+  assert.equal(panel.querySelector(".mod-fact-text").textContent, colors[0].fact);
+  const apply = t.mock.method(visuals, "apply"), update = t.mock.method(session, "update"), focus = t.mock.method(preview, "focus");
+  const before = modifier.config;
+  panel.find((node) => node.dataset.option === "red").click();
+  assert.equal(modifier.config, before);
+  assert.equal(apply.mock.callCount(), 0);
+  assert.equal(update.mock.callCount(), 0);
+  assert.equal(focus.mock.callCount(), 0);
+  assert.equal(panel.querySelector(".mod-feedback").textContent, "");
+  assert.equal(panel.querySelector(".mod-undo").disabled, true);
+  panel.find((node) => node.dataset.option === "blue").click();
+  assert.equal(panel.querySelector(".mod-feedback").textContent, "Blue fitted!");
+  panel.find((node) => node.dataset.option === "blue").click();
+  assert.equal(apply.mock.callCount(), 1);
+  assert.equal(update.mock.callCount(), 1);
+  panel.querySelector(".mod-undo").click();
+  assert.equal(modifier.config.color, "red");
+  assert.equal(panel.querySelector(".mod-undo").disabled, true, "repeated taps never add Undo steps");
+  modifier.close();
+});
+
+test("car disclosure closes after a successful swap and on reopen, without stealing focus from other controls", async (t) => {
+  const { modifier, panel, doc, vehicleRequests } = garage(t);
+  const picker = panel.querySelector(".mod-vehicle-picker"), summary = picker.firstElementChild;
+  modifier.open();
+  picker.open = true;
+  panel.find((node) => node.dataset.vehicle === "tesla").click();
+  assert.equal(doc.activeElement, summary, "focus stays visible while car buttons are disabled");
+  assert.equal(picker.open, true);
+  vehicleRequests.at(-1).resolve();
+  await Promise.resolve();
+  assert.equal(picker.open, false);
+  assert.equal(doc.activeElement, summary);
+  assert.equal(summary.getAttribute("aria-label"), "Change car. Tesla Model 3");
+  assert.equal(summary.querySelector(".mod-vehicle-name").textContent, "Tesla Model 3");
+  picker.open = true;
+  panel.find((node) => node.dataset.vehicle === "golf").click();
+  const turn = panel.querySelector(".mod-turn");
+  turn.click();
+  vehicleRequests.at(-1).resolve();
+  await Promise.resolve();
+  assert.equal(picker.open, false);
+  assert.equal(doc.activeElement, turn, "finishing a load must not pull focus away from another control");
+  picker.open = true;
+  modifier.close();
+  modifier.open();
+  assert.equal(picker.open, false);
+  modifier.close();
 });
 
 test("saved vehicle, configuration and part hydrate before the first render, with invalid values ignored", async (t) => {
@@ -356,7 +424,7 @@ test("saved vehicle, configuration and part hydrate before the first render, wit
 test("vehicle swaps preserve parts, lock edits while loading, and use the new live visuals with part-only Undo", async (t) => {
   const session = createSession({}), audio = fakeAudio();
   session.update({ config: { color: "blue", wheels: "monster", suspension: "lift", engine: "six", spoiler: "mega", rocket: "big" }, selectedPart: "engine" });
-  const { modifier, panel, preview, car, body, visuals, renderer, driving, vehicleRequests, toasts } = garage(t, { session, audio });
+  const { modifier, panel, preview, car, body, visuals, renderer, driving, vehicleRequests } = garage(t, { session, audio });
   modifier.open();
   panel.find((node) => node.dataset.option === "eight").click();
   const undo = panel.querySelector(".mod-undo"), hear = panel.querySelector(".mod-engine-listen");
@@ -437,7 +505,7 @@ test("vehicle swaps preserve parts, lock edits while loading, and use the new li
   preview.render(1);
   assert.equal(renderer.scene.getObjectById(request.next.body.id), request.next.body);
   assert.equal(renderer.scene.getObjectById(body.id), undefined);
-  assert.equal(toasts.at(-1), "Tesla Model 3 ready!");
+  assert.equal(feedback.textContent, "Tesla Model 3 ready!");
   panel.find((node) => node.dataset.option === "six").click();
   assert.equal(request.next.visuals.state().engine.cylinders, 6, "subsequent edits target the returned controller");
   tesla.click();
@@ -473,7 +541,7 @@ test("vehicle swaps preserve parts, lock edits while loading, and use the new li
   assert.equal(panel.find((node) => node.dataset.option === "four").getAttribute("aria-pressed"), "true");
   assert.equal(modifier.visuals.engine.cylinders, 4);
   assert.deepEqual(modifier.visuals, golfRequest.next.visuals.state());
-  assert.equal(toasts.at(-1), "Volkswagen Golf GTI Mk1 ready!");
+  assert.equal(feedback.textContent, "Volkswagen Golf GTI Mk1 ready!");
   assert.equal(undo.disabled, true);
   panel.find((node) => node.dataset.option === "six").click();
   golf.click();
@@ -495,6 +563,41 @@ test("vehicle swaps preserve parts, lock edits while loading, and use the new li
   assert.equal(car.parent, driving, "the preview still restores the stable car holder after multiple swaps");
 });
 
+test("utility swaps use registry yellow and engine defaults while retaining every other customized part", async (t) => {
+  const session = createSession({});
+  session.update({ config: { color: "blue", engine: "eight", wheels: "monster", suspension: "lift", spoiler: "mega", rocket: "big" } });
+  const { modifier, panel, vehicleRequests } = garage(t, { session });
+  modifier.open();
+  for (const id of ["backhoe", "dhl-van"]) {
+    panel.find(node => node.classList.contains("mod-tab") && node.dataset.part === "color").click();
+    panel.find(node => node.dataset.option === "blue").click();
+    panel.find(node => node.classList.contains("mod-tab") && node.dataset.part === "engine").click();
+    panel.find(node => node.dataset.option === "eight").click();
+    const before = modifier.config, saved = session.value, vehicle = getVehicle(id);
+    assert.equal(vehicle.color, "yellow");
+    panel.find(node => node.dataset.vehicle === id).click();
+    const request = vehicleRequests.at(-1);
+    const expected = { ...before, color: vehicle.color, engine: vehicle.engine };
+    assert.equal(request.id, id);
+    assert.deepEqual(request.nextConfig, expected);
+    assert.equal(modifier.config, before, "defaults do not replace live parts before the model is ready");
+    assert.deepEqual(session.value, saved);
+    request.resolve();
+    await Promise.resolve();
+    assert.deepEqual(modifier.config, expected);
+    assert.deepEqual(session.value.config, expected);
+    assert.equal(session.value.vehicle, id);
+    assert.equal(modifier.visuals.paint, PARTS.find(part => part.id === "color").options.find(option => option.id === "yellow").hex);
+    assert.equal(modifier.visuals.engine.cylinders, 4);
+    assert.equal(modifier.visuals.wheels.id, "monster");
+    assert.equal(modifier.visuals.height.springs, 4);
+    assert.equal(modifier.visuals.spoiler.added, true);
+    assert.deepEqual(modifier.visuals.rocket.scale, [1.8, 1.8, 1.8]);
+    assert.equal(panel.querySelector(".mod-undo").disabled, true);
+  }
+  modifier.close();
+});
+
 test("failed vehicle loads retain the car, config, saved selection and Undo, and the same button can retry", async (t) => {
   const session = createSession({});
   const { modifier, panel, car, body, vehicleRequests } = garage(t, { session });
@@ -504,6 +607,7 @@ test("failed vehicle loads retain the car, config, saved selection and Undo, and
   const update = t.mock.method(session, "update");
   const tesla = panel.find((node) => node.dataset.vehicle === "tesla"), picker = panel.querySelector(".mod-vehicle-picker");
   const feedback = panel.querySelector(".mod-feedback"), undo = panel.querySelector(".mod-undo");
+  picker.open = true;
   tesla.click();
   vehicleRequests[0].reject(new Error("model download failed"));
   await Promise.resolve();
@@ -517,6 +621,7 @@ test("failed vehicle loads retain the car, config, saved selection and Undo, and
   assert.equal(panel.find((node) => node.dataset.vehicle === "porsche").getAttribute("aria-pressed"), "true");
   assert.match(panel.querySelector(".mod-viewport").getAttribute("aria-label"), /^Porsche 911 GT3 RS/);
   assert.equal(picker.getAttribute("aria-busy"), "false");
+  assert.equal(picker.open, true, "a failed load leaves the choices available for retry");
   assert.equal(tesla.disabled, false);
   assert.equal(undo.disabled, false);
   assert.match(feedback.textContent, /Could not load Tesla Model 3.*unchanged.*again to retry/);
@@ -700,7 +805,7 @@ test("Hear engine auditions only on click, uses the selected profile even when m
     assert.equal(hear.hidden, part.id !== "engine");
   }
   panel.find((node) => node.classList.contains("mod-tab") && node.dataset.part === "engine").click();
-  assert.match(panel.querySelector(".mod-choice-hint").textContent, /Hear engine/);
+  assert.equal(panel.querySelector(".mod-choice-title").textContent, "Engine");
   assert.ok(!hear.disabled, "driving mute does not disable auditions");
   for (const option of PARTS.find((part) => part.id === "engine").options) {
     const count = audio.requests.length, silences = audio.silences;

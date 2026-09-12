@@ -202,6 +202,7 @@ export function createPeopleField({
     collisionFilterMask: 3 | 16,
   });
   carBody.addShape(new CANNON.Box(new CANNON.Vec3(1.05, 0.55, 2.2)));
+  let carOffset = 0.7, contactReach = 0;
   world.addBody(carBody);
 
   addSceneryBodies(world, obstacles, terrain, 3 | 16);
@@ -620,11 +621,12 @@ export function createPeopleField({
       p.stateT += dt;
       const dist = Math.hypot(B.pelvis.position.x - carX, B.pelvis.position.z - carZ);
       const ground = groundAt(B.pelvis.position.x, B.pelvis.position.z);
-      const atCarHeight = Math.abs(B.pelvis.position.y - (car.position.y + 0.7)) < 0.7 + p.S * 0.6;
+      const contactDist = dist - contactReach;
+      const atCarHeight = Math.abs(B.pelvis.position.y - (car.position.y + carOffset)) < carOffset + p.S * 0.6;
 
       // --- state machine --------------------------------------------------------
       if (p.state === "stand" || p.state === "panic") {
-        if (dist < 2.4 && atCarHeight && speed > 2.5) {
+        if (contactDist < 2.4 && atCarHeight && speed > 2.5) {
           knock(p, speed, car.heading, p.state === "panic" ? 1.5 : 1.15);
           p.state = "tumble";
           p.stateT = 0;
@@ -639,7 +641,7 @@ export function createPeopleField({
         }
         if (p.state !== "panic") p.panicT = 0;
       } else if (p.state === "tumble") {
-        if (dist < 2.5 && atCarHeight && speed > 2) {
+        if (contactDist < 2.5 && atCarHeight && speed > 2) {
           // Car parked on top: pancake.
           p.crush = Math.min(1, p.crush + dt * 2.2);
           p.flatT += dt;
@@ -664,7 +666,7 @@ export function createPeopleField({
         }
       } else if (p.state === "down") {
         p.crush = Math.max(0, p.crush - dt * 2.5);
-        if (p.stateT > 0.5 && dist > 3.4) {
+        if (p.stateT > 0.5 && contactDist > 3.4) {
           p.state = "rise";
           p.stateT = 0;
           p.riseFrom = Object.fromEntries(Object.entries(B).map(([key, body]) => [key, {
@@ -673,7 +675,7 @@ export function createPeopleField({
           settle(p);
         }
       } else if (p.state === "rise") {
-        if (dist < 2 && atCarHeight && speed > 3) {
+        if (contactDist < 2 && atCarHeight && speed > 3) {
           knock(p, speed, car.heading, 0.9);
           p.state = "tumble";
           p.stateT = 0;
@@ -798,7 +800,7 @@ export function createPeopleField({
     // Step before uploading transforms so meshes match the current physics pose.
     if (sim && dt > 0) {
       const teleport = prevCar.distanceTo(car.position) > 30;
-      carBody.position.set(teleport ? car.position.x : prevCar.x, (teleport ? car.position.y : prevCar.y) + 0.7, teleport ? car.position.z : prevCar.z);
+      carBody.position.set(teleport ? car.position.x : prevCar.x, (teleport ? car.position.y : prevCar.y) + carOffset, teleport ? car.position.z : prevCar.z);
       carBody.velocity.set(teleport ? 0 : (car.position.x - prevCar.x) / dt, teleport ? 0 : (car.position.y - prevCar.y) / dt, teleport ? 0 : (car.position.z - prevCar.z) / dt);
       carBody.quaternion.setFromEuler(0, car.heading, 0);
       carBody.aabbNeedsUpdate = true;
@@ -899,11 +901,26 @@ export function createPeopleField({
     }
   }
 
+  function setVehicleSize(halfExtents = [1.05, 0.55, 2.2]) {
+    if (halfExtents?.length !== 3 || ![0, 1, 2].every(i => Number.isFinite(halfExtents[i]) && halfExtents[i] > 0))
+      throw new RangeError("Vehicle half extents must be three positive finite numbers");
+    const [x, y, z] = halfExtents, size = carBody.shapes[0].halfExtents;
+    if (size.x === x && size.y === y && size.z === z) return;
+    carBody.removeShape(carBody.shapes[0]);
+    carBody.addShape(new CANNON.Box(new CANNON.Vec3(x, y, z)));
+    const offset = 0.7 + (y - 0.55);
+    carBody.position.y += offset - carOffset; carOffset = offset;
+    carBody.previousPosition.copy(carBody.position); carBody.interpolatedPosition.copy(carBody.position);
+    carBody.aabbNeedsUpdate = true; world.broadphase.dirty = true;
+    // Expand the existing radial hit checks without changing stock thresholds.
+    contactReach = Math.hypot(x, z) - Math.hypot(1.05, 2.2);
+  }
+
   function reset(position = new THREE.Vector3(), heading = 0) {
     hits = 0;
     world.accumulator = 0;
     prevCar.copy(position);
-    carBody.position.set(position.x, position.y + 0.7, position.z);
+    carBody.position.set(position.x, position.y + carOffset, position.z);
     carBody.velocity.setZero();
     carBody.quaternion.setFromEuler(0, heading, 0);
     carBody.aabbNeedsUpdate = true;
@@ -926,6 +943,7 @@ export function createPeopleField({
   return {
     update,
     reset,
+    setVehicleSize,
     state: () => ({
       count: people.length,
       hits,

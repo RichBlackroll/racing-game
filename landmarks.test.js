@@ -339,7 +339,7 @@ for (const level of Object.keys(expected)) {
           assert.ok(Math.hypot(end.x - site.x, end.z - site.z) <= site.radius + EPS, `${name}: path reaches inside clearing`);
           assert.ok(world.clearings.some(c => c.end && c.x === start.x && c.z === start.z && c.end.x === end.x && c.end.z === end.z && c.radius >= 7));
           const node = world.group.getObjectByName(name);
-          const paths = node.children.filter(mesh => !mesh.material.map && mesh.material.color.getHex() === (level === "moon" ? 0x909fad : 0xb2a18a));
+          const paths = node.children.filter(mesh => !mesh.material.map && mesh.material.color.getHex() === (level === "moon" ? 0x595954 : 0xb2a18a));
           assert.equal(paths.length, 1, `${name}: actual path mesh`);
           const mesh = paths[0], position = mesh.geometry.attributes.position;
           const direction = new THREE.Vector3((end.x - start.x) / length, 0, (end.z - start.z) / length);
@@ -435,7 +435,7 @@ for (const level of Object.keys(expected)) {
         if (level === "forest") {
           assert.ok(treeInfo.length >= 600);
           assert.ok(added.length > treeInfo.length + 20, "exercise rocks as well as trees");
-        } else if (level === "moon") assert.equal(added.length, 70);
+        } else if (level === "moon") assert.equal(added.length, 120);
         for (const tree of treeInfo) {
           assert.equal(inClearing(world.clearings, tree.x, tree.z, 6), false, `tree ${at(tree)}`);
           for (const clearing of world.clearings) assert.ok(clearingDistance(tree, clearing) >= clearing.radius + 6 - EPS, `tree ${at(tree)} invades ${clearing.end ? "path" : "site"} ${at(clearing)}`);
@@ -461,7 +461,7 @@ for (const level of Object.keys(expected)) {
           }
         });
         if (level === "forest") assert.ok(instances > 20, "rendered rock footprints are checked independently of colliders");
-        if (level === "moon") assert.equal(instances, 137, "rocks, craters, cheese and cheese holes all avoid clearings");
+        if (level === "moon") assert.equal(instances, 480, "basalt outcrops and loose scree all avoid clearings");
         for (const site of world.sites) drive(world, site.access.start, site.access.end, `${site.name}: path after landscaping`);
         if (level === "moon" || level === "stunt") {
           const site = world.sites.find(s => s.name === (level === "moon" ? "Moonberry Biosphere" : "Confetti Big Top"));

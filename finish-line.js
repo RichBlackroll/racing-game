@@ -106,7 +106,7 @@ export function createFinishLine({ scene, position, heading, obstacles, heightAt
     }
     const mesh = new THREE.Mesh(mergeGeometries(geometries), material);
     mesh.name = material === whitePaint || material === blackPaint ? "finish-road-paint" : "finish-structure";
-    mesh.castShadow = mesh.name === "finish-structure";
+    mesh.castShadow = mesh.userData.castShadow = mesh.name === "finish-structure";
     mesh.receiveShadow = true;
     group.add(mesh);
     geometries.forEach(geometry => geometry.dispose());

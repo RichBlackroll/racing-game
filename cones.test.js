@@ -7,6 +7,47 @@ import { moveWithBounces } from "./collision.js";
 import { createAmsterdamCourse } from "./amsterdam-course.js";
 import { AMSTERDAM, amsterdamPathLength, sampleAmsterdamPath, waterAt, bridgeAt } from "./amsterdam-layout.js";
 
+test("cone car proxy resizes safely, wakes parked contacts, and restores stock dimensions", (t) => {
+  let proxy;
+  const addBody = CANNON.World.prototype.addBody;
+  t.mock.method(CANNON.World.prototype, "addBody", function (body) {
+    addBody.call(this, body);
+    if (body.collisionFilterGroup === 4) proxy = body;
+  });
+  const route = Array.from({ length: 240 }, (_, i) => new THREE.Vector3(i * 2, 0, 0));
+  const field = createConeField({ scene: new THREE.Scene(), route, obstacles: [], onChange() {} });
+  const [x, , z] = field.state().first, position = new THREE.Vector3(x - 2, 0, z);
+  field.reset(position);
+  field.update(1 / 120, position, 0);
+  assert.equal(field.state().hits, 0);
+  for (const size of [[1.7, 1.45, 2.7], [1.6, 1.35, 2.85], undefined]) {
+    field.setVehicleSize(size);
+    const expected = size ?? [1.05, .55, 2.2], shape = proxy.shapes[0];
+    assert.deepEqual(shape.halfExtents.toArray(), expected);
+    assert.equal(proxy.shapes.length, 1);
+    assert.ok(Math.abs(proxy.position.y - (.7 + expected[1] - .55)) < 1e-9);
+    assert.equal(proxy.aabbNeedsUpdate, true);
+    assert.equal(proxy.world.broadphase.dirty, true);
+    assert.ok(Math.abs(proxy.boundingRadius - Math.hypot(...expected)) < 1e-9);
+    proxy.updateAABB();
+    assert.ok(Math.abs(proxy.aabb.lowerBound.y - .15) < 1e-9, "clearance does not grow with the roof");
+    assert.ok(Math.abs(proxy.aabb.upperBound.x - position.x - expected[0]) < 1e-9);
+    field.setVehicleSize(size);
+    assert.equal(proxy.shapes[0], shape, "unchanged sizes do not rebuild the shape");
+    field.update(1 / 120, position, 0);
+    assert.equal(proxy.velocity.lengthSquared(), 0, "resizing adds no artificial vertical velocity");
+    assert.equal(proxy.world.contacts.some(contact => contact.bi === proxy || contact.bj === proxy), Boolean(size),
+      "only the wider parked car overlaps the cone, including after a reset");
+    field.reset(position);
+    assert.ok(Math.abs(proxy.position.y - (.7 + expected[1] - .55)) < 1e-9, "reset keeps the selected size");
+  }
+  const shape = proxy.shapes[0];
+  for (const size of [null, [], [1, 2], [0, 1, 2], [1, -1, 2], [1, NaN, 2], [1, 2, Infinity]]) {
+    assert.throws(() => field.setVehicleSize(size), RangeError);
+    assert.equal(proxy.shapes[0], shape, "invalid sizes cannot damage the active shape");
+  }
+});
+
 test("solid impacts have a gentle rebound and preserve tangential movement", () => {
   const result = moveWithBounces({ x: 0, z: 0 }, { x: 20, z: 3 }, 0.1, [{ x: 3, z: 0, hx: 0.5, hz: 10 }]);
   assert.ok(result.hits > 0);

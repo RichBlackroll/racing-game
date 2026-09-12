@@ -25,6 +25,42 @@ or full storage keeps the game playable but cannot retain choices across reloads
 `session.js` owns `wildrun-session-v1` in localStorage. It does not sync devices.
 An explicit valid `?level=` link overrides the last map saved on this device.
 
+## Utility vehicles and special actions
+
+My garage now includes a Giant Backhoe Digger and a DHL Delivery Van, alongside
+the five cars. Both use local CC0 Kenney Car Kit models, adapted for this game;
+see `CREDITS.md` for sources, modifications and the DHL trademark notice.
+The backhoe is 8.8 metres long in its travel pose, versus roughly 4-4.6 metres
+for the cars. It has slower acceleration, steering and top speed, larger contact
+dimensions, and a higher, wider chase camera with extra portrait-screen clearance.
+The van sits between the backhoe and ordinary cars in speed and camera distance.
+Selecting either utility vehicle starts with yellow paint; garage upgrades still work.
+
+Click/tap the vehicle action button, or press **E**:
+
+| Vehicle | Special action |
+| --- | --- |
+| Porsche | Sprint: a short speed increase with golden trails |
+| Tesla | Light pulse: a decorative electric wave |
+| Golf | Hop: a playful visual suspension bounce |
+| BYD Atto 1 | Bubbles: a floating bubble trail |
+| Volvo EX40 | Beacon: a sweeping amber light effect |
+| Giant Backhoe | Dig: lower the scoop, lift soil and tip out a heap |
+| DHL Delivery Van | Deliver: open the rear doors and drop a parcel |
+
+Park before digging or delivering. Digging also needs clear off-road soil, away
+from water and buildings. The vehicle stays parked during its working cycle;
+each action has a visible cooldown. Dig marks, soil and parcels are bounded visual
+props, not terrain deformation or collision obstacles. At most 12 deposits remain
+for 30 gameplay seconds. Actions freeze on pause and reset on vehicle changes,
+garage entry and Reset. Reduced motion reduces particle density and the Golf hop.
+Collected items still use **F**, and rockets still use **Shift**.
+
+`vehicle-data.js` owns handling, camera and action profiles; `utility-vehicles.js`
+preserves model articulation. `vehicle-actions.js` owns pause-safe cycles and pooled
+effects, and `vehicle-action-ui.js` handles keyboard, touch and accessibility.
+`gameState().specialAction` exposes readiness, cooldown and live deposit counts.
+
 ## Time of day
 
 The toolbar clock shows live 24-hour game time, not your device's local time.
@@ -33,7 +69,7 @@ the clock and its controls stay inside the scrollable, paused drive menu rather
 than covering the road or pedals. Desktop keeps the toolbar clock.
 
 - Drag Game time, or use its arrow keys, Home and End, to choose any minute.
-- Dawn (06:00), Day (12:00), Golden hour (17:30), and Night (22:00) jump immediately.
+- Dawn (05:00), Day (12:00), Golden hour (19:30), and Night (23:00) jump immediately.
 - Auto cycle toggles Running/Frozen. Freezing holds the time without pausing the car;
   choosing a time or preset does not automatically freeze the cycle.
 - Minutes / day selects 3, 12, or 30 real minutes per full game day.
@@ -194,15 +230,18 @@ for placement, swept collisions, item effects, visuals, and input/lifecycle test
 
 Rendering retains physically based materials and HDR reflections. `daylight.js`
 coordinates moving sun and moon lights, sky colors, ambient light, exposure and
-reflection intensity. Texel-snapped local shadow maps follow the car, including
+reflection intensity. All maps use summer timings: sunrise at 05:00 and sunset at
+21:00 give 16 hours of daylight and 8 hours of night. At the default 12-minute
+cycle, that is 8 active minutes above the horizon and 4 below, with twilight
+blending at each crossing. Texel-snapped local shadow maps follow the car, including
 moving vehicles, people and props; ground contact occlusion remains directionless.
 `night-lights.js` fades occupied windows, street lamps and vehicle lenses at dusk.
 Two scene-owned headlights with soft dipped-beam patterns illuminate the road even
 in cockpit view, and a bounded pool of nearby streetlights casts shadows (four on
 desktop, two on tablet).
 `roadside-lights.js` adds warm hanging lanterns, solar-capped guide posts and
-drive-over cat's-eyes along the routes. Lunar fixtures use silver housings and
-cool light; existing urban lamps and landmark access paths retain their space.
+drive-over cat's-eyes along the routes. Lunar fixtures use weathered metal and
+amber light; existing urban lamps and landmark access paths retain their space.
 Lantern pools use the same shadow-light budget, while small guide lenses glow
 at dusk without allocating a light per post. All hardware remains visible by day.
 Roadside lights, guide posts and city street lamps are non-colliding scenery:
@@ -231,6 +270,13 @@ facades and planted terraces, forest visitor pavilions, and stunt-park canopy.
 stars, a dusty Milky Way, a cratered moon, stylized planets (including ringed Saturn),
 and green/teal/violet aurora curtains. Moon Run retains its black vacuum sky and
 Earth landmark, without an atmospheric aurora or a second moon.
+Its expedition palette pairs charcoal regolith and fractured basalt with muted
+metal habitats and amber route markings. A low white sun, minimal ambient and
+reflection fill, and no bloom separate sunlit faces from deep shadows. Eight
+impact basins and broken off-road relief share the driving/physics height sampler;
+the circuit, base and flat ramp runways stay unchanged. Local terrain and rocks
+cast shadows, while distant ridges and thin road ribbons remain receive-only to
+avoid blacking out the route or producing self-shadow stripes.
 Reduced-motion preferences stop decorative wind, water, cloud, aurora and pollen motion.
 Road surfaces, four-point chassis grounding, cameras, buildings, and scenery all
 sample the same elevations. `terrain-physics.js` supplies matching Cannon

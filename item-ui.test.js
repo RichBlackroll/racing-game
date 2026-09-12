@@ -121,13 +121,20 @@ test("production lifecycle never advances items in a pause, loading screen, gara
   const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
   const frame = source.slice(source.indexOf("  function frame(now)"), source.indexOf("    daylight.advance(")) + "\n}";
   for (const mode of ["paused", "loading", "hidden", "contextLost", "garage"]) {
+    const actionContext = { speed: 0, airborne: false }, actionSnapshot = { active: true, remaining: 2 };
+    let actionRefreshes = 0;
     const context = { requestAnimationFrame() {}, itemUI: { update() {} }, itemSnapshot: {},
+      actionContext: () => actionContext,
+      vehicleActions: { state(value) { assert.equal(value, actionContext); return actionSnapshot; },
+        update() { assert.fail("Interrupted vehicle action advanced"); } },
+      vehicleActionUI: { update(value) { assert.equal(value, actionSnapshot); actionRefreshes++; } },
       itemSystem: { modifiers: () => ({}), update() { assert.fail("Paused items advanced"); } },
       loading: { active: mode === "loading" }, paused: mode === "paused", modifier: { active: mode === "garage" },
       document: { hidden: mode === "hidden" }, contextLost: mode === "contextLost",
       audio: { silence() {} }, sceneDirty: false, last: 0, allowFrame: () => true, garagePreview: { render() {} } };
     runInNewContext(`${frame}; frame(1000);`, context);
     assert.equal(context.last, 1000);
+    assert.equal(actionRefreshes, 1, `${mode} still refreshes action availability without advancing timers`);
   }
   assert.ok(source.indexOf("    itemSystem.update(dt, targets)") > source.indexOf("    const motion = friendRacers.update"));
   const reset = source.slice(source.indexOf("  function reset("), source.indexOf("  function saveDrive("));

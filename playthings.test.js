@@ -6,6 +6,40 @@ import { createPlaythings } from "./playthings.js";
 import { createAmsterdamCourse } from "./amsterdam-course.js";
 import { AMSTERDAM, amsterdamPathLength, sampleAmsterdamPath, waterAt, bridgeAt } from "./amsterdam-layout.js";
 
+test("toy car proxy supports live vehicle sizes, stationary contacts, and empty fields", (t) => {
+  let proxy;
+  const addBody = CANNON.World.prototype.addBody;
+  t.mock.method(CANNON.World.prototype, "addBody", function (body) {
+    addBody.call(this, body);
+    if (body.collisionFilterGroup === 4) proxy = body;
+  });
+  const options = { scene: new THREE.Scene(), route: Array.from({ length: 240 }, (_, i) => new THREE.Vector3(i / 4, 0, 0)), roadDist: () => 99 };
+  const field = createPlaythings({ ...options, kinds: { block: { count: 1, sizeRange: [1, 1] } } });
+  const [x, , z] = field.state().first, position = new THREE.Vector3(x - 2.05, 0, z);
+  field.reset(position); field.update(1 / 120, position, 0);
+  assert.equal(field.state().hits, 0);
+  for (const size of [[1.7, 1.45, 2.7], [1.6, 1.35, 2.85], undefined]) {
+    field.setVehicleSize(size);
+    const expected = size ?? [1.05, .55, 2.2], shape = proxy.shapes[0];
+    assert.equal(proxy.shapes.length, 1);
+    assert.deepEqual(shape.halfExtents.toArray(), expected);
+    assert.ok(Math.abs(proxy.boundingRadius - Math.hypot(...expected)) < 1e-9);
+    assert.equal(proxy.aabbNeedsUpdate, true);
+    field.setVehicleSize(size); assert.equal(proxy.shapes[0], shape);
+    field.update(1 / 120, position, 0);
+    assert.equal(proxy.velocity.lengthSquared(), 0);
+    assert.equal(proxy.world.contacts.some(contact => contact.bi === proxy || contact.bj === proxy), Boolean(size));
+    position.y = 6;
+    field.reset(position);
+    assert.ok(Math.abs(proxy.position.y - position.y - (.7 + expected[1] - .55)) < 1e-9);
+    position.y = 0; field.reset(position);
+  }
+  assert.throws(() => field.setVehicleSize([1, NaN, 2]), RangeError);
+  const empty = createPlaythings(options);
+  empty.setVehicleSize([1.7, 1.45, 2.7]); empty.setVehicleSize(); empty.reset();
+  assert.deepEqual(empty.state(), { count: 0, hits: 0 });
+});
+
 test("toys sit off-road, are pushed by the car, settle, and reset cleanly", () => {
   const scene = new THREE.Scene();
   // Compact straight route keeps every spawn inside the world bounds.

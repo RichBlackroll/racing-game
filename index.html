@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="time-controls.css" />
     <link rel="stylesheet" href="mobile-ui.css" />
     <link rel="stylesheet" href="items.css" />
+    <link rel="stylesheet" href="vehicle-actions.css" />
   </head>
   <body>
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
@@ -181,17 +182,17 @@
         </button>
         <section id="time-panel" role="dialog" aria-modal="false" aria-labelledby="time-title" hidden>
           <div class="time-heading">
-            <div><h2 id="time-title">Time of day</h2><p id="time-period">Golden hour</p></div>
+            <div><h2 id="time-title">Time of day</h2><p id="time-period">Daylight</p></div>
             <button type="button" id="time-close" aria-label="Close time controls"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
           </div>
           <div class="time-range-label"><label for="time-range">Game time</label><span id="time-reading" aria-hidden="true">16:30</span></div>
           <input id="time-range" type="range" min="0" max="1439" step="1" value="990" aria-valuetext="16:30 game time" />
           <div class="time-scale" aria-hidden="true"><span>00:00</span><span>12:00</span><span>23:59</span></div>
           <div class="time-presets" role="group" aria-label="Time presets">
-            <button type="button" data-time-hour="6"><span>Dawn</span><small>06:00</small></button>
+            <button type="button" data-time-hour="5"><span>Dawn</span><small>05:00</small></button>
             <button type="button" data-time-hour="12"><span>Day</span><small>12:00</small></button>
-            <button type="button" data-time-hour="17.5"><span>Golden hour</span><small>17:30</small></button>
-            <button type="button" data-time-hour="22"><span>Night</span><small>22:00</small></button>
+            <button type="button" data-time-hour="19.5"><span>Golden hour</span><small>19:30</small></button>
+            <button type="button" data-time-hour="23"><span>Night</span><small>23:00</small></button>
           </div>
           <div class="time-cycle-row">
             <button type="button" id="time-running" aria-label="Auto cycle" aria-pressed="true" aria-describedby="time-cycle-hint"><span>Auto cycle</span><span id="time-running-state" aria-hidden="true">Running</span></button>
@@ -229,7 +230,7 @@
     <div class="bottom">
       <div class="controls" aria-label="Keyboard driving controls">
         <span class="instrument-label">AT THE WHEEL</span>
-        <div><span><kbd>W</kbd><kbd>S</kbd> Drive / reverse</span><span><kbd>A</kbd><kbd>D</kbd> Steer</span><span><kbd>Space</kbd> Handbrake</span></div>
+        <div><span><kbd>W</kbd><kbd>S</kbd> Drive / reverse</span><span><kbd>A</kbd><kbd>D</kbd> Steer</span><span><kbd>Space</kbd> Handbrake</span><span class="special-action-help"><kbd>E</kbd> Special action</span></div>
       </div>
       <div class="speed" aria-label="Speedometer">
         <div class="instrument-label">GROUND SPEED</div>
@@ -242,6 +243,7 @@
     <button id="boost" title="Activate boost (Shift)">
       <svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg><span data-label>Boost</span><kbd>Shift</kbd>
     </button>
+    <div id="drive-actions">
     <section id="item-slot" aria-label="Collected item" data-ready="false" data-effect="false">
       <p id="item-status" role="status" aria-live="polite" aria-atomic="true">Item slot empty. Drive through a floating item to collect it.</p>
       <button type="button" id="use-item" disabled aria-label="Item slot empty. Drive through a floating item to collect it." aria-describedby="item-hint" aria-keyshortcuts="F">
@@ -250,6 +252,15 @@
       </button>
       <p id="item-hint">Drive through a floating item to collect it. Try off-road too!</p>
     </section>
+    <section id="vehicle-action-slot" aria-label="Vehicle special action" data-state="ready" hidden>
+      <button type="button" id="vehicle-action" disabled aria-label="Special action: press E or tap." aria-describedby="vehicle-action-hint" aria-keyshortcuts="E">
+        <svg id="vehicle-action-icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false"></svg>
+        <span class="vehicle-action-copy"><strong id="vehicle-action-label">Special action</strong><span class="vehicle-action-feedback"><kbd aria-hidden="true">E</kbd><span id="vehicle-action-state">Ready</span></span></span>
+      </button>
+      <p id="vehicle-action-hint" class="sr-only"></p>
+      <p id="vehicle-action-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+    </section>
+    </div>
     <div class="touch" aria-label="Touch driving controls">
       <div class="steering-control">
         <span class="instrument-label">STEERING</span>

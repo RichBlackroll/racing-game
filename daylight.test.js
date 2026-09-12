@@ -5,9 +5,9 @@ import * as THREE from "three";
 import { sampleDaylight, createDaylight, enableGeometryShadows } from "./daylight.js";
 
 test("solar arc rises in the east, moves overhead and sets in the west with opposite moon", () => {
-  assert.ok(sampleDaylight(6).sunDirection.x > 0.99);
+  assert.ok(sampleDaylight(5).sunDirection.x > 0.99);
   assert.ok(sampleDaylight(12).sunDirection.y > 0.85);
-  assert.ok(sampleDaylight(18).sunDirection.x < -0.99);
+  assert.ok(sampleDaylight(21).sunDirection.x < -0.99);
   for (let hour = 0; hour < 24; hour += 0.05) {
     const state = sampleDaylight(hour);
     assert.ok(Math.abs(state.sunDirection.length() - 1) < 1e-12);
@@ -18,8 +18,29 @@ test("solar arc rises in the east, moves overhead and sets in the west with oppo
   assert.equal(sampleDaylight(12, "wellington").sunDirection.z, -sampleDaylight(12).sunDirection.z);
 });
 
+test("summer has 16 hours above the horizon and 8 below on every map", () => {
+  for (const level of ["forest", "city", "stunt", "amsterdam", "wellington", "moon"]) {
+    let daylightMinutes = 0;
+    for (let minute = 0; minute < 1440; minute++) {
+      const hour = (minute + 0.5) / 60;
+      const aboveHorizon = sampleDaylight(hour, level).sunDirection.y > 0;
+      assert.equal(aboveHorizon, hour > 5 && hour < 21, `${level} at ${hour}`);
+      if (aboveHorizon) daylightMinutes++;
+    }
+    assert.equal(daylightMinutes, 960);
+    assert.equal(1440 - daylightMinutes, 480);
+    for (const hour of [0, 5, 21]) {
+      const before = sampleDaylight(hour - 1e-6, level), after = sampleDaylight(hour + 1e-6, level);
+      assert.ok(before.sunDirection.distanceTo(after.sunDirection) < 1e-6, "continuous horizon and midnight crossings");
+      const direction = sampleDaylight(hour, level).sunDirection;
+      assert.ok(direction.clone().sub(before.sunDirection).distanceTo(after.sunDirection.clone().sub(direction)) < 1e-10,
+        "solar speed stays smooth across horizon and midnight crossings");
+    }
+  }
+});
+
 test("lamps fade in at dusk before stars, with cool moonlight and no midnight sunlight", () => {
-  const day = sampleDaylight(12), dusk = sampleDaylight(18), night = sampleDaylight(0);
+  const day = sampleDaylight(12), dusk = sampleDaylight(21), night = sampleDaylight(0);
   assert.equal(day.night + day.stars + day.moonIntensity, 0);
   assert.ok(day.sunIntensity > 2.5);
   assert.ok(dusk.night > 0.3 && dusk.night < 0.8);
@@ -44,14 +65,14 @@ test("clock wraps continuously and state storage is reusable", () => {
 
 test("both horizons cross warm sunrise/sunset and a distinct cool blue hour without color jumps", () => {
   for (const level of ["forest", "city", "stunt", "amsterdam", "wellington"]) {
-    for (const [hour, period] of [[6, "sunrise"], [18, "sunset"]]) {
+    for (const [hour, period] of [[5, "sunrise"], [21, "sunset"]]) {
       const state = sampleDaylight(hour, level);
       assert.equal(state.period, period);
       assert.ok(state.warmGlow > 0.95 && state.blueHour < 0.05);
       assert.ok(state.horizon.r > state.horizon.b * 2, "amber/rose horizon");
       assert.ok(state.sunColor.r > state.sunColor.b * 2, "warm direct sunlight");
     }
-    for (const hour of [5.4, 18.6]) {
+    for (const hour of [4.3, 21.7]) {
       const state = sampleDaylight(hour, level);
       assert.equal(state.period, "blue-hour");
       assert.equal(state.warmGlow, 0, "warm haze and clouds must not wash out blue hour");
@@ -92,6 +113,34 @@ function setup(tablet = false, reducedMotion = false) {
   return { scene, renderer, daylight };
 }
 
+test("Moon lighting uses a low hard sun, restrained fill and readable Earthshine in both quality modes", () => {
+  for (const tablet of [false, true]) {
+    const scene = new THREE.Scene(), renderer = { toneMappingExposure: 1.02, shadowMap: {} };
+    const daylight = createDaylight({ scene, renderer, level: "moon", tablet, reducedMotion: true });
+    const ambient = scene.getObjectByName("DaylightAmbient"), sun = scene.getObjectByName("DaylightSun");
+    for (const performance of [false, true]) {
+      daylight.setPerformanceMode(performance);
+      for (let hour = 0; hour < 24; hour += 0.25) {
+        daylight.setHour(hour);
+        const state = daylight.update();
+        assert.ok(Math.abs(state.sunDirection.length() - 1) < 1e-12);
+        assert.ok(Math.abs(state.sunDirection.y) <= 0.48);
+        assert.equal(state.sunColor.getHex(), 0xffffff);
+        assert.ok(ambient.intensity >= 0.045 && ambient.intensity <= 0.101);
+        assert.ok(scene.environmentIntensity >= 0.018 && scene.environmentIntensity <= 0.076);
+        assert.ok(renderer.toneMappingExposure >= 0.92 && renderer.toneMappingExposure <= 1.02);
+      }
+      daylight.setHour(12); daylight.update();
+      assert.ok(sun.intensity / ambient.intensity > 30, "sunlit faces separate strongly from shadows");
+      assert.equal(sun.shadow.radius, 0.65);
+      daylight.setHour(0); daylight.update();
+      assert.equal(sun.intensity, 0);
+      assert.ok(scene.getObjectByName("DaylightMoon").intensity >= 0.4, "night retains directional terrain cues");
+    }
+    daylight.dispose();
+  }
+});
+
 test("clock honors freeze, speed, reduced motion, invalid dt and resume without catch-up", () => {
   const { daylight } = setup(false, true);
   assert.equal(daylight.state().running, false);
@@ -119,15 +168,19 @@ for (const minutes of [3, 12, 30]) test(`${minutes}-minute days repeatedly retur
   const sun = scene.getObjectByName("DaylightSun"), moon = scene.getObjectByName("DaylightMoon");
   const phases = ["daylight"];
   for (let cycle = 0; cycle < 2; cycle++) {
+    let daylightFrames = 0;
     for (let frame = 1; frame <= minutes * 60 * 4; frame++) {
       daylight.advance(0.25);
       const state = daylight.state();
+      if (state.sunDirection.y > 0) daylightFrames++;
       if (phases.at(-1) !== state.period) phases.push(state.period);
       if (frame === minutes * 60 * 2) {
         daylight.update();
         assert.equal(sun.intensity, 0); assert.ok(moon.intensity > 0.5);
       }
     }
+    assert.ok(Math.abs(daylightFrames - minutes * 60 * 4 * 2 / 3) <= 1,
+      "daylight takes two thirds of the configured cycle at every speed");
     const state = daylight.update();
     assert.ok(Math.abs(state.hour - 12) < 1e-7, "full active day has the configured duration, even at 4 FPS");
     assert.equal(state.daylight, 1); assert.equal(state.stars, 0); assert.equal(state.night, 0);

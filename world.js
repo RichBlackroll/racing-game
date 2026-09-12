@@ -22,7 +22,11 @@ export function terrainHeight(x, z, level = "forest", terrain) {
     + Math.abs(Math.sin(x * 0.022 + z * 0.017) * Math.sin(z * 0.023 - x * 0.011)) * 38;
   const coast = level === "moon" ? 0 : THREE.MathUtils.smoothstep(x, boundary + 60, boundary + 230)
     * (1 - THREE.MathUtils.smoothstep(Math.abs(z + 120), 180, 470));
-  const distant = (26 + ridge * (level === "moon" ? 105 : 170) + detail) * (1 - coast) - coast * 10;
+  const lunarRidge = Math.pow(1 - Math.abs(Math.sin(x * 0.007 + Math.cos(z * 0.005) * 1.5)), 2.4);
+  const fractures = Math.abs(Math.sin(x * 0.031 - z * 0.019)) * 38
+    + Math.abs(Math.sin(z * 0.047 + x * 0.023)) * 19;
+  const distant = level === "moon" ? 20 + lunarRidge * 195 + detail * 1.25 + fractures
+    : (26 + ridge * 170 + detail) * (1 - coast) - coast * 10;
   return THREE.MathUtils.lerp(base, distant, edge);
 }
 
@@ -48,15 +52,22 @@ export function createLandscape({ scene, ground, level, roadDist, route, obstacl
         #include <map_fragment>
         float broad = landscapeNoise(vLandscapePosition.xz * 0.055);
         float fine = landscapeNoise(vLandscapePosition.xz * 1.7);
-        diffuseColor.rgb *= 1.0 + (broad - 0.5) * ${strength.toFixed(2)} + (fine - 0.5) * 0.09;
+        diffuseColor.rgb *= 1.0 + (broad - 0.5) * ${strength.toFixed(2)} + (fine - 0.5) * ${moon ? "0.22" : "0.09"};
+        ${moon ? `
+          float deposits = landscapeNoise(vLandscapePosition.xz * 0.018 + 31.0);
+          float strata = landscapeNoise(vLandscapePosition.xz * vec2(0.14, 0.035));
+          diffuseColor.rgb *= mix(vec3(0.52, 0.55, 0.60), vec3(1.12, 1.07, 0.97), smoothstep(0.25, 0.72, deposits));
+          diffuseColor.rgb *= mix(0.68, 1.12, smoothstep(0.28, 0.65, strata));
+        ` : ""}
       `);
     };
-    material.customProgramCacheKey = () => "landscape-surface-" + strength;
+    material.customProgramCacheKey = () => "landscape-surface-" + strength + "-" + moon;
   }
   if (forest || level === "stunt") {
     ground.material.color.set(forest ? 0x829a76 : 0x9ca28f);
     surface(ground.material, 0.65);
   }
+  if (moon) surface(ground.material, 1.05);
 
   // Four joined strips leave a real hole, so no backdrop triangle can cut
   // through the main ground or a road, even on the enlarged forest course.
@@ -82,8 +93,8 @@ export function createLandscape({ scene, ground, level, roadDist, route, obstacl
   const position = relief.attributes.position;
   relief.computeVertexNormals();
   const colors = new Float32Array(position.count * 3);
-  const color = new THREE.Color(), moss = new THREE.Color(moon ? 0x727986 : 0x68796b);
-  const stone = new THREE.Color(moon ? 0xa8acb7 : 0x93958c), snow = new THREE.Color(0xd8dfd9);
+  const color = new THREE.Color(), moss = new THREE.Color(moon ? 0x41434a : 0x68796b);
+  const stone = new THREE.Color(moon ? 0x858075 : 0x93958c), snow = new THREE.Color(0xd8dfd9);
   for (let i = 0; i < position.count; i++) {
     const y = position.getY(i), slope = 1 - relief.attributes.normal.getY(i);
     color.copy(moss).lerp(stone, THREE.MathUtils.clamp(slope * 3 + y / 260, 0, 1));
@@ -91,10 +102,12 @@ export function createLandscape({ scene, ground, level, roadDist, route, obstacl
     color.multiplyScalar(0.86 + random() * 0.14).toArray(colors, i * 3);
   }
   relief.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.96 });
-  surface(terrainMaterial, 0.3);
+  const terrainMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.96, flatShading: moon });
+  surface(terrainMaterial, moon ? 0.95 : 0.3);
   const mountains = new THREE.Mesh(relief, terrainMaterial);
   mountains.name = "landscape/continuous-mountain-relief";
+  // The distant silhouette must not black out the whole circuit at a low sun angle.
+  if (moon) mountains.userData.castShadow = false;
   group.add(mountains);
 
   if (!moon) {

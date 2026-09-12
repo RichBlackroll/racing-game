@@ -9,7 +9,7 @@ import { createRampCourse } from "./levels.js";
 import { createFriendRacers, FRIEND_RACERS } from "./friend-racers.js";
 import { computeTuning } from "./modifier-data.js";
 
-function fixture(level = "forest", obstacles = [], course = createCourse(level)) {
+function fixture(level = "forest", obstacles = [], course = createCourse(level), playerProfile) {
   const scene = new THREE.Scene(), labels = [], notices = [];
   const ramps = ["stunt", "moon"].includes(level) ? createRampCourse(new THREE.Scene(), course.route, level === "moon") : [];
   const previous = globalThis.document;
@@ -18,11 +18,53 @@ function fixture(level = "forest", obstacles = [], course = createCourse(level))
     return { getContext: () => ({ fillRect() {}, fillText(text) { labels.push(text); } }) };
   } };
   try {
-    const field = createFriendRacers({ scene, course, ramps, obstacles, gravity: level === "moon" ? 3.2 : 9.82, onRace: text => notices.push(text) });
+    const field = createFriendRacers({ scene, course, ramps, obstacles, playerProfile, gravity: level === "moon" ? 3.2 : 9.82, onRace: text => notices.push(text) });
     return { field, scene, course, labels, notices };
   } finally { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; }
 }
 const absent = new THREE.Vector3(1e5, 0, 1e5);
+
+test("live player profiles supply collision radius, mass, and height without mutating handling", () => {
+  let profile = {}, calls = 0;
+  const { field } = fixture("forest", [], fastCircuit(), () => { calls++; return profile; });
+  const victim = field.state()[0], right = new THREE.Vector3(Math.cos(victim.heading), 0, -Math.sin(victim.heading));
+  const strike = (handling, distance, speed, y = victim.position[1]) => {
+    profile = Object.freeze(handling); field.reset();
+    const player = new THREE.Vector3(...victim.position).addScaledVector(right, -distance); player.y = y;
+    return field.update(.05, player, victim.heading + Math.PI / 2, speed, { x: right.x * speed, z: right.z * speed });
+  };
+  assert.equal(strike({}, 3.15, 2).hits, 0);
+  for (const handling of [{ radius: 1.8, mass: 5, height: 3.15 }, { radius: 1.65, mass: 2.5, height: 2.85 }]) {
+    assert.ok(strike(handling, 3.15, 2).hits > 0, "larger vehicles reach the adjacent friend");
+    assert.ok(strike(handling, 3.15, 2, victim.position[1] - 2.4).hits > 0, "taller lower vehicles contact raised friends");
+  }
+  assert.equal(strike({ radius: 1.8 }, 3.15, 2, victim.position[1] - 2.4).hits, 0);
+  const light = strike({ radius: 1.8, mass: 1.6 }, 6, 110);
+  const heavy = strike({ radius: 1.8, mass: 5 }, 6, 110);
+  assert.ok(heavy.vx * right.x + heavy.vz * right.z > light.vx * right.x + light.vz * right.z, "heavier vehicles retain more momentum");
+  const before = calls;
+  for (const dt of [0, -1, NaN, Infinity]) field.update(dt, absent, 0, 0);
+  assert.equal(calls, before, "paused updates do not read handling");
+  assert.equal(before, 8, "handling is sampled once per valid update");
+});
+
+test("traffic planning reads the current player's width and vertical reach", () => {
+  let profile = {};
+  const { field } = fixture("forest", [], fastCircuit(), () => profile);
+  const victim = field.state()[0];
+  const player = new THREE.Vector3(...victim.position)
+    .addScaledVector(new THREE.Vector3(Math.sin(victim.heading), 0, Math.cos(victim.heading)), 10)
+    .addScaledVector(new THREE.Vector3(Math.cos(victim.heading), 0, -Math.sin(victim.heading)), 3.2);
+  player.y -= 2.4;
+  const lane = handling => {
+    profile = handling; field.reset(); field.update(.05, player, victim.heading, 0);
+    return field.state()[0].lane;
+  };
+  const stock = lane({});
+  assert.equal(lane({ radius: 1.8 }), stock, "traffic on a separate vertical level is ignored");
+  assert.equal(lane({ height: 3.15 }), stock, "a narrow vehicle clears the lane");
+  assert.ok(lane({ radius: 1.8, height: 3.15 }) < stock - .05, "friends steer around the wider, taller vehicle");
+});
 
 test("all five existing friends have distinct valid builds, visible parts, and two readable roof faces", () => {
   const { field, scene, labels } = fixture();
@@ -202,7 +244,7 @@ test("item targets have stable IDs, car-root heights and radii, and detached sna
 
 test("optional item callbacks preserve default driving and receive every stable racer ID", () => {
   const { field } = fixture("forest", [], fastCircuit());
-  const { field: explicit } = fixture("forest", [], fastCircuit());
+  const { field: explicit } = fixture("forest", [], fastCircuit(), () => ({ radius: 1.12, mass: 1.6, height: 1.6 }));
   const neutral = Object.freeze({ speedFactor: 1, wobble: 0, shield: 0, turbo: 0 }), calls = [];
   const modifiers = id => { calls.push(id); return neutral; };
   for (let i = 0; i < 160; i++) {

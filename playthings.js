@@ -114,7 +114,7 @@ export function createPlaythings({
       });
     }
   }
-  if (!toys.length) return { update() {}, reset() {}, state: () => ({ count: 0, hits: 0 }) };
+  if (!toys.length) return { update() {}, reset() {}, setVehicleSize() {}, state: () => ({ count: 0, hits: 0 }) };
 
   const world = new CANNON.World({
     gravity: new CANNON.Vec3(0, -gravity, 0),
@@ -136,6 +136,7 @@ export function createPlaythings({
     collisionFilterMask: 3,
   });
   carBody.addShape(new CANNON.Box(new CANNON.Vec3(1.05, 0.55, 2.2)));
+  let carOffset = 0.7;
   world.addBody(carBody);
   addSceneryBodies(world, obstacles, terrain, 3);
   for (const ramp of ramps) {
@@ -321,11 +322,26 @@ export function createPlaythings({
     node.lo = { x: 0, y: 0, z: 0, w: 1 };
   }
 
+  function setVehicleSize(halfExtents = [1.05, 0.55, 2.2]) {
+    if (halfExtents?.length !== 3 || ![0, 1, 2].every(i => Number.isFinite(halfExtents[i]) && halfExtents[i] > 0))
+      throw new RangeError("Vehicle half extents must be three positive finite numbers");
+    const [x, y, z] = halfExtents, size = carBody.shapes[0].halfExtents;
+    if (size.x === x && size.y === y && size.z === z) return;
+    carBody.removeShape(carBody.shapes[0]);
+    carBody.addShape(new CANNON.Box(new CANNON.Vec3(x, y, z)));
+    const offset = 0.7 + (y - 0.55);
+    carBody.position.y += offset - carOffset; carOffset = offset;
+    carBody.previousPosition.copy(carBody.position); carBody.interpolatedPosition.copy(carBody.position);
+    carBody.aabbNeedsUpdate = true; world.broadphase.dirty = true;
+    // A larger parked proxy can now overlap sleeping props.
+    nodes.forEach(({ body }) => body.wakeUp());
+  }
+
   function reset(position = new THREE.Vector3(), heading = 0) {
     hits = 0;
     world.accumulator = 0;
     previous.copy(position);
-    carBody.position.set(position.x, position.y + 0.7, position.z);
+    carBody.position.set(position.x, position.y + carOffset, position.z);
     carBody.velocity.setZero();
     carBody.quaternion.setFromEuler(0, heading, 0);
     carBody.aabbNeedsUpdate = true;
@@ -345,7 +361,7 @@ export function createPlaythings({
     const teleport = previous.distanceToSquared(position) > 144;
     carBody.position.set(
       teleport ? position.x : previous.x,
-      (teleport ? position.y : previous.y) + 0.7,
+      (teleport ? position.y : previous.y) + carOffset,
       teleport ? position.z : previous.z,
     );
     carBody.velocity.set(
@@ -376,6 +392,7 @@ export function createPlaythings({
   return {
     update,
     reset,
+    setVehicleSize,
     state: () => ({
       count: nodes.length,
       hits,

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
+import * as CANNON from "cannon-es";
 import { createPeopleField } from "./people.js";
 import { createAmsterdamCourse } from "./amsterdam-course.js";
 
@@ -32,6 +33,33 @@ function step(field, car, heading, speed, seconds, t0 = 0) {
     field.update(dt, { position: car, heading }, speed, t0 + i * dt);
   }
 }
+
+test("pedestrian contacts and the Cannon proxy follow vehicle footprint and height", (t) => {
+  let proxy;
+  const addBody = CANNON.World.prototype.addBody;
+  t.mock.method(CANNON.World.prototype, "addBody", function (body) {
+    addBody.call(this, body);
+    if (body.collisionFilterGroup === 4) proxy = body;
+  });
+  const { field } = makeField(1), [x, , z] = field.state().positions[0];
+  const position = new THREE.Vector3(x, 0, z - 2.8);
+  for (const size of [undefined, [1.7, 1.45, 2.7], [1.6, 1.35, 2.85], undefined]) {
+    field.setVehicleSize(size);
+    const expected = size ?? [1.05, .55, 2.2], shape = proxy.shapes[0];
+    assert.deepEqual(shape.halfExtents.toArray(), expected);
+    assert.equal(proxy.shapes.length, 1);
+    assert.ok(Math.abs(proxy.boundingRadius - Math.hypot(...expected)) < 1e-9);
+    field.setVehicleSize(size); assert.equal(proxy.shapes[0], shape);
+    for (const y of [0, -2, 5]) {
+      position.y = y; field.reset(position);
+      assert.ok(Math.abs(proxy.position.y - y - (.7 + expected[1] - .55)) < 1e-9);
+      field.update(1 / 120, { position, heading: 0 }, 3, 0);
+      assert.equal(field.state().hits, size && y !== 5 ? 1 : 0, "larger vehicles reach farther and higher, but never hit people below their base");
+      assert.equal(proxy.velocity.lengthSquared(), 0);
+    }
+  }
+  assert.throws(() => field.setVehicleSize([1, -1, 2]), RangeError);
+});
 
 test("people spawn standing with finite poses and shared instanced draw calls", () => {
   const { field, scene } = makeField(6);

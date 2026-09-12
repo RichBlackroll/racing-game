@@ -21,9 +21,14 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
   const counts = { sites: 0, parts: 0, meshes: 0, triangles: 0 };
   const transform = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0);
   const detail = tablet ? 12 : 20;
+  const lunarPalette = new Map([
+    [0xffedcc, 0xaaa79b], [0x288f91, 0x3e4e51], [0xf07868, 0x9f5f35], [0xf4c958, 0xc18d3e],
+    [0x283f50, 0x20252b], [0xb8c7cf, 0x686e70], [0x9edee5, 0x466879], [0x77b878, 0x57614e],
+  ]);
   const colorMaterial = (color, night = false) => {
     if (!materials.has(color)) materials.set(color, new THREE.MeshStandardMaterial({
-      color, roughness: 0.66, metalness: level === "moon" ? 0.2 : 0.08,
+      color: level === "moon" ? lunarPalette.get(color) ?? color : color,
+      roughness: level === "moon" ? 0.83 : 0.66, metalness: level === "moon" ? 0.2 : 0.08,
     }));
     const material = materials.get(color);
     if (night && material.userData.nightIntensity === undefined) {
@@ -110,6 +115,7 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
     }
     function label(text, px, py, pz, color = 0xffedcc, background = 0x287d80, width = 6, height = 1.5, heading = 0) {
       if (typeof document === "undefined") return;
+      if (level === "moon") { color = 0xd2bd8d; background = 0x292e31; }
       const canvas = document.createElement("canvas");
       canvas.width = 768; canvas.height = 128;
       const c = canvas.getContext("2d");
@@ -213,7 +219,7 @@ export function createLandmarks({ scene, level, terrain, obstacles, buildingInfo
         THREE.MathUtils.lerp(start.z, end.z, t) - z + nz * side * 4]);
       if (i < steps) { const j = i * 2; indices.push(j, j + 1, j + 2, j + 1, j + 3, j + 2); }
     }
-    const pathColor = level === "moon" ? 0x909fad : 0xb2a18a;
+    const pathColor = level === "moon" ? 0x595954 : 0xb2a18a;
     const pathMaterial = colorMaterial(pathColor);
     pathMaterial.polygonOffset = true;
     pathMaterial.polygonOffsetFactor = pathMaterial.polygonOffsetUnits = -1;

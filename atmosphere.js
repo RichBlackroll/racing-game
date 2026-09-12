@@ -143,7 +143,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
       uSource: { value: target.texture },
       uTexel: { value: new THREE.Vector2(1, 1) },
       uRadius: { value: 4 },
-      uBloom: { value: moon ? 0.025 : 0.065 },
+      uBloom: { value: moon ? 0 : 0.065 },
       uGrade: { value: moon ? 0 : 1 },
     },
     vertexShader: /* glsl */ `
@@ -198,7 +198,7 @@ export function createAtmosphere({ scene, renderer, camera, level, tablet = fals
     celestial.update({ state });
     if (fog && state.horizon?.isColor) fog.color.copy(state.horizon);
     const night = sky.material.uniforms.uNight.value;
-    if (resolve) resolve.material.uniforms.uBloom.value = moon ? 0.025 + night * 0.015 : 0.065 + night * 0.04;
+    if (resolve) resolve.material.uniforms.uBloom.value = moon ? 0 : 0.065 + night * 0.04;
     if (pollen) {
       const light = sky.material.uniforms.uDaylight.value * (1 - night);
       pollen.material.uniforms.uDaylight.value = light;

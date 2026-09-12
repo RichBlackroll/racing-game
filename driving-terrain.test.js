@@ -3,6 +3,26 @@ import assert from "node:assert/strict";
 import { createCourse } from "./course.js";
 import { sampleDrivingSurface } from "./driving-terrain.js";
 
+test("vehicle wheelbase and track control contact spacing with independent stock defaults", () => {
+  for (const dimensions of [{}, { wheelbase: 3.1, track: 2.5 }, { wheelbase: 3.55, track: 2.65 }, { wheelbase: 4 }, { track: 3 }]) {
+    const wheelbase = dimensions.wheelbase ?? 2.9, track = dimensions.track ?? 1.7;
+    for (const heading of [0, .7, Math.PI / 2]) {
+      const samples = [], heightAt = (x, z) => x * x + z * z * z;
+      const pose = sampleDrivingSurface((x, z) => { samples.push([x, z]); return heightAt(x, z); }, 5, 7, heading, dimensions);
+      const expected = [[Math.sin(heading) * wheelbase / 2, Math.cos(heading) * wheelbase / 2],
+        [-Math.sin(heading) * wheelbase / 2, -Math.cos(heading) * wheelbase / 2],
+        [Math.cos(heading) * track / 2, -Math.sin(heading) * track / 2],
+        [-Math.cos(heading) * track / 2, Math.sin(heading) * track / 2]].map(([x, z]) => [5 + x, 7 + z]);
+      assert.deepEqual(samples, expected);
+      const [front, rear, right, left] = expected.map(([x, z]) => heightAt(x, z));
+      assert.deepEqual(pose, { height: (front + rear + right + left) / 4,
+        pitch: Math.atan2(front - rear, wheelbase), roll: Math.atan2(right - left, track), grade: (front - rear) / wheelbase });
+    }
+  }
+  const heightAt = (x, z) => x * x + z * z;
+  assert.deepEqual(sampleDrivingSurface(heightAt, 2, 3, .7), sampleDrivingSurface(heightAt, 2, 3, .7, {}));
+});
+
 test("chassis follows altitude, longitudinal grade, and banking in either direction", () => {
   const heightAt = (x, z) => 40 + x * .12 + z * .2;
   for (const heading of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {

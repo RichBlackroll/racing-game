@@ -24,6 +24,8 @@ import { createFriendRacers } from "./friend-racers.js";
 import { createItemSystem } from "./item-system.js";
 import { createItemWorld } from "./item-world.js";
 import { createItemUI } from "./item-ui.js";
+import { createVehicleActions } from "./vehicle-actions.js";
+import { createVehicleActionUI } from "./vehicle-action-ui.js";
 import { createModifier } from "./modifier-ui.js";
 import { createGaragePreview } from "./modifier-preview.js";
 import { loadVehicleModel } from "./vehicle-model.js";
@@ -92,7 +94,7 @@ export async function main(loading) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = isMoon ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.02;
   let contextLost = false, gameReady = false, graphicsNeedRefresh = false;
@@ -133,7 +135,7 @@ export async function main(loading) {
   const [env, groundTex, groundNorm, groundRough] = await Promise.all([
     isMoon ? null : new RGBELoader().loadAsync("forest.hdr"),
     hasRamps || isAmsterdam ? canvasTex(512, (c,n) => {
-      c.fillStyle = isAmsterdam ? "#bcb5a6" : isMoon ? "#a8a9b1" : "#7c9677"; c.fillRect(0,0,n,n);
+      c.fillStyle = isAmsterdam ? "#bcb5a6" : isMoon ? "#696762" : "#7c9677"; c.fillRect(0,0,n,n);
       let state = 91;
       const noise = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
       for (let i=0;i<16000;i++) { c.fillStyle = "rgba(35,40,48," + noise()*0.2 + ")"; c.fillRect(noise()*n,noise()*n,1+noise()*2,1+noise()*2); }
@@ -192,6 +194,9 @@ export async function main(loading) {
   }
   const groundmat = mat(isAmsterdam ? 0xb1a890 : hasRamps ? 0xffffff : 0x4b5834, {
     map: groundTex,
+    bumpMap: isMoon ? groundTex : null,
+    bumpScale: isMoon ? 0.16 : 1,
+    roughness: isMoon ? 1 : 0.85,
     normalMap: groundNorm,
     normalScale: new THREE.Vector2(0.25, 0.25),
     roughnessMap: groundRough,
@@ -213,7 +218,7 @@ export async function main(loading) {
     }
     groundGeometry.computeVertexNormals();
     ground = mesh(groundGeometry, groundmat);
-    ground.castShadow = ground.userData.castShadow = false;
+    ground.castShadow = ground.userData.castShadow = isMoon;
   }
   groundTex.repeat.setScalar(groundSize / 7);
   // Fine sand and small stones, generated once as a repeating surface texture.
@@ -227,7 +232,7 @@ export async function main(loading) {
     return t;
   }
   const dirtTex = canvasTex(512, (c, s) => {
-    c.fillStyle = "#363d40";
+    c.fillStyle = isMoon ? "#25282b" : "#363d40";
     c.fillRect(0, 0, s, s);
     for (let i = 0; i < 50000; i++) {
       let v = 37 + rnd() * 35;
@@ -249,7 +254,7 @@ export async function main(loading) {
     map: dirtTex,
     bumpMap: dirtTex,
     bumpScale: 0.045,
-    roughness: 0.76,
+    roughness: isMoon ? 0.96 : 0.76,
     side: THREE.DoubleSide,
   });
   // Shared mitered vertices keep both edges continuous, including city corners.
@@ -281,10 +286,14 @@ export async function main(loading) {
   };
   const rg = ribbon(-5.8, 5.8, 0.075);
   const routeMesh = mesh(rg, roadmat);
+  // Thin, double-sided ribbons self-shadow into stripes under the lunar grazing light.
+  if (isMoon) routeMesh.castShadow = routeMesh.userData.castShadow = false;
   for (let parity = 0; parity < 2; parity++) {
     if (isCity || isWellington || isAmsterdam) break;
     const strips = [ribbon(-6.5, -5.65, 0.10, parity), ribbon(5.65, 6.5, 0.10, parity)];
-    mesh(mergeGeometries(strips), mat(parity ? 0xe7e2d4 : hasRamps ? 0xbb634e : 0x7b8274, { side: THREE.DoubleSide }));
+    const curb = mesh(mergeGeometries(strips), mat(isMoon ? (parity ? 0xb8ad91 : 0x976324)
+      : parity ? 0xe7e2d4 : hasRamps ? 0xbb634e : 0x7b8274, { side: THREE.DoubleSide }));
+    if (isMoon) curb.castShadow = curb.userData.castShadow = false;
     strips.forEach((g) => g.dispose());
   }
   const obstacles = [], treeInfo = [], buildingInfo = [];
@@ -312,7 +321,7 @@ export async function main(loading) {
     moonEnvironment?.dispose();
     moonEnvironment = pmrem.fromScene(room, 0.04);
     scene.environment = moonEnvironment.texture;
-    scene.environmentIntensity = 0.65;
+    scene.environmentIntensity = 0.075;
     room.dispose(); pmrem.dispose();
   }
   if (isMoon) updateMoonEnvironment();
@@ -373,7 +382,7 @@ export async function main(loading) {
     recovering = false,
     boosting = false;
   function activateBoost() {
-    if (modifier.active) return;
+    if (modifier.active || vehicleActions.modifiers().locked) return;
     if (modifier.config.rocket === "none") {
       show("Add a rocket in the 🛠 CAR panel to boost!");
       return;
@@ -552,7 +561,7 @@ export async function main(loading) {
     lap = 1,
     travel = 0,
     toastUntil = 5;
-  let surfacePose = sampleDrivingSurface(heightAt, route[0].x, route[0].z, heading);
+  let surfacePose = sampleDrivingSurface(heightAt, route[0].x, route[0].z, heading, vehicleModel.vehicle.handling);
   let lapSeconds = 0, bestLap = 0;
   const start = route[0];
   const coneField = createConeField({ scene, route, obstacles, ramps, terrain: course, gravity: isMoon ? 3.2 : 9.82, onChange: () => { sceneDirty = true; } });
@@ -595,6 +604,50 @@ export async function main(loading) {
   const friendRacers = createFriendRacers({
     scene, course, obstacles, ramps, gravity: isMoon ? 3.2 : 9.82,
     contactTexture: contact, reducedMotion, onRace: show,
+    playerProfile: () => vehicleModel.vehicle.handling,
+  });
+  function syncVehicleSize() {
+    const { handling, camera } = vehicleModel.vehicle;
+    car.userData.cameraProfile = camera;
+    for (const field of [coneField, playField, peopleField]) field.setVehicleSize(handling.halfExtents);
+    const positions = carShadow.geometry.attributes.position;
+    const dimensions = vehicleModel.car.userData.dimensions;
+    // Keep shadow coordinates local; renderFrame projects them onto the terrain.
+    for (let i = 0; i < positions.count; i++) {
+      shadowCoordinates[i * 3] = (i % 2 ? 1 : -1) * (dimensions ? dimensions.width * .8 : 1.75);
+      shadowCoordinates[i * 3 + 1] = (i < 2 ? 1 : -1) * (dimensions ? dimensions.length * .6 : 3.05);
+    }
+  }
+  syncVehicleSize();
+  const vehicleActions = createVehicleActions({
+    scene, car, getModel: () => vehicleModel, heightAt, roadDistance: roadDist, reducedMotion, onMessage: show,
+    isSafePosition: (x, z, radius) => Math.abs(x) + radius < course.halfSize && Math.abs(z) + radius < course.halfSize
+      && (!course.isSafePosition || course.isSafePosition(x, z, radius))
+      && !obstacles.some(o => {
+        const ground = heightAt(x, z);
+        if (ground + 1 < (o.y ?? -Infinity) || ground > (o.y ?? 0) + (o.height ?? Infinity)) return false;
+        const dx = x - o.x, dz = z - o.z, c = Math.cos(o.heading ?? 0), s = Math.sin(o.heading ?? 0);
+        return o.hx === undefined ? Math.hypot(dx, dz) < o.r + radius
+          : Math.hypot(Math.max(0, Math.abs(c * dx - s * dz) - o.hx), Math.max(0, Math.abs(s * dx + c * dz) - o.hz)) < radius;
+      }),
+  });
+  const actionContext = () => ({ speed: Math.hypot(speed, slipX, slipZ), airborne: !!jumpPhysics?.state().airborne });
+  const vehicleActionUI = createVehicleActionUI({
+    enabled: () => gameReady && !loading.active && !paused && !modifier.active
+      && !mobileUI.active && !document.hidden && !contextLost,
+    activate() {
+      if (!vehicleActions.activate(actionContext())) return;
+      if (vehicleActions.modifiers().locked) {
+        speed = slipX = slipZ = 0;
+        boosting = recovering = false;
+        flame.visible = false;
+        boostEnds = 0;
+        boostButton.disabled = false;
+        boostText.textContent = boostLabel;
+      }
+      sceneDirty = true;
+      vehicleActionUI.update(vehicleActions.state(actionContext()));
+    },
   });
   const itemSystem = createItemSystem({
     course, obstacles, ramps,
@@ -618,7 +671,7 @@ export async function main(loading) {
   });
   function itemTargets() {
     return [{ id: "player", x: car.position.x, y: car.position.y, z: car.position.z,
-      heading, speed, radius: 1.12 }, ...friendRacers.targets()];
+      heading, speed, radius: vehicleModel.vehicle.handling.radius }, ...friendRacers.targets()];
   }
   function resetItems() {
     itemSystem.reset();
@@ -635,7 +688,7 @@ export async function main(loading) {
   });
   // The same editable model and renderer serve both the road and the garage.
   const modifier = createModifier({
-    visuals: vehicleModel.visuals, show, preview: garagePreview, session, audio,
+    visuals: vehicleModel.visuals, preview: garagePreview, session, audio,
     async onVehicleChange(id, config, signal) {
       const next = await loadVehicleModel(id, { signal });
       try {
@@ -648,9 +701,11 @@ export async function main(loading) {
       }
       // Keep the driving root and garage holder intact; commit only a ready model.
       const previous = vehicleModel;
+      vehicleActions.reset();
       carVisual.add(next.car);
       vehicleModel = next;
       ({ wheels, flame } = next);
+      syncVehicleSize();
       previous.dispose();
       sceneDirty = true;
       return next.visuals;
@@ -662,6 +717,8 @@ export async function main(loading) {
       saveDrive();
       for (const id of ["camera", "reset"]) document.getElementById(id).disabled = open;
       if (open) {
+        vehicleActions.reset();
+        carVisual.position.y = 0;
         speed = slipX = slipZ = steer = 0;
         vehicleModel.flag.reset();
         boosting = recovering = false;
@@ -683,6 +740,8 @@ export async function main(loading) {
     },
   });
   function reset(restore = false) {
+    vehicleActions.reset();
+    carVisual.position.y = 0;
     let drive = restore === true ? saved.drives[level] : null;
     sceneDirty = true;
     boosting = false;
@@ -696,7 +755,7 @@ export async function main(loading) {
       // Resolve against today's terrain and static scenery, never restore live velocity.
       const ground = heightAt(drive.x, drive.z);
       const position = moveWithBounces(drive, { x: 0, z: 0 }, 0,
-        obstacles.filter((o) => ground + 1.6 > (o.y ?? -Infinity) && ground < (o.y ?? 0) + (o.height ?? Infinity)), course.halfSize);
+        obstacles.filter((o) => ground + vehicleModel.vehicle.handling.height > (o.y ?? -Infinity) && ground < (o.y ?? 0) + (o.height ?? Infinity)), course.halfSize, vehicleModel.vehicle.handling.radius);
       if (!course.isSafePosition || course.isSafePosition(position.x, position.z, 2.5))
         car.position.set(position.x, heightAt(position.x, position.z), position.z);
       else drive = null;
@@ -707,7 +766,7 @@ export async function main(loading) {
     collisionCount = 0;
     steer = 0;
     heading = drive?.heading ?? Math.atan2(route[1].x - start.x, route[1].z - start.z);
-    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading);
+    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading, vehicleModel.vehicle.handling);
     car.rotation.set(-surfacePose.pitch, heading, surfacePose.roll, "YXZ");
     coneField.reset(car.position, heading);
     playField.reset(car.position, heading);
@@ -728,11 +787,11 @@ export async function main(loading) {
       lapSeconds = bestLap = 0;
     }
     camera.position.set(
-      car.position.x - Math.sin(heading) * 9,
-      car.position.y + 3.6,
-      car.position.z - Math.cos(heading) * 9,
+      car.position.x - Math.sin(heading) * vehicleModel.vehicle.camera.distance,
+      car.position.y + vehicleModel.vehicle.camera.height,
+      car.position.z - Math.cos(heading) * vehicleModel.vehicle.camera.distance,
     );
-    cameraAnchor.copy(car.position).y += 1.7;
+    cameraAnchor.copy(car.position).y += vehicleModel.vehicle.camera.anchor;
     clearCamera(cameraAnchor, camera.position);
     saveDrive();
     show("Back on the trail");
@@ -969,6 +1028,7 @@ export async function main(loading) {
   let lastSave = 0;
   function frame(now) {
     requestAnimationFrame(frame);
+    vehicleActionUI.update(vehicleActions.state(actionContext()));
     if (loading.active || (paused && !modifier.active) || document.hidden || contextLost) {
       itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
       audio.silence();
@@ -1008,8 +1068,19 @@ export async function main(loading) {
         (Number.isFinite(keys.steering) ? THREE.MathUtils.clamp(keys.steering, -1, 1) : 0),
       offroad = roadDist(car.position.x, car.position.z) > 6;
     const tune = modifier.tuning;
-    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading);
-    if (!keys[" "] && (Math.abs(speed) > .1 || throttle) && !jumpPhysics?.state().airborne)
+    const handling = vehicleModel.vehicle.handling;
+    vehicleActions.update(dt, actionContext());
+    const special = vehicleActions.modifiers();
+    if (special.locked) {
+      throttle = turn = 0;
+      speed = slipX = slipZ = 0;
+      boosting = recovering = false;
+      flame.visible = false;
+      boostButton.disabled = false;
+      boostText.textContent = boostLabel;
+    }
+    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading, handling);
+    if (!special.locked && !keys[" "] && (Math.abs(speed) > .1 || throttle) && !jumpPhysics?.state().airborne)
       speed -= Math.sin(surfacePose.pitch) * (isMoon ? 3.2 : 9.82) * .55 * dt;
     const itemEffect = itemSystem.modifiers("player");
     if (itemEffect.speedFactor < playerItemFactor) {
@@ -1024,7 +1095,7 @@ export async function main(loading) {
       boostText.textContent = boostLabel;
     }
     const cruiseMax = (off) => (off ? 17 * tune.offroadTop : 32 * tune.top)
-      * itemEffect.speedFactor * (itemEffect.turbo > 0 ? 1.45 : 1);
+      * handling.top * special.speedFactor * itemEffect.speedFactor * (itemEffect.turbo > 0 ? 1.45 : 1);
     // Rockets amplify the fitted engine and tyres instead of capping upgraded cars.
     const boostMax = (off) => cruiseMax(off) * 1.5 * tune.boostTop;
     if (boosting && (now >= boostEnds || throttle < 0 || keys[" "])) {
@@ -1036,7 +1107,7 @@ export async function main(loading) {
     }
     if (boosting) {
       const boostTarget = boostMax(offroad);
-      const boostThrust = (24 + 10 * tune.accel) * tune.boostTop;
+      const boostThrust = (24 + 10 * tune.accel) * tune.boostTop * handling.accel * special.accelFactor;
       speed += THREE.MathUtils.clamp(boostTarget - speed, -14 * dt, boostThrust * dt);
       vehicleModel.visuals.boosters.animateFlame(
         1 + Math.sin(now * 0.04) * 0.12,
@@ -1056,10 +1127,10 @@ export async function main(loading) {
         boostText.textContent = boostLabel;
       }
     } else {
-      speed += throttle * (speed * throttle < 0 ? 22 : 10) * tune.accel * dt;
-      if (itemEffect.turbo > 0 && throttle > 0 && !keys[" "]) speed += 20 * dt;
+      speed += throttle * (speed * throttle < 0 ? 22 : 10 * handling.accel * special.accelFactor) * tune.accel * dt;
+      if (itemEffect.turbo > 0 && throttle > 0 && !keys[" "]) speed += 20 * handling.accel * dt;
       speed *= Math.exp(-(keys[" "] ? 3.4 : throttle ? 0.13 : 0.6) * dt);
-      speed = THREE.MathUtils.clamp(speed, -9, cruiseMax(offroad));
+      speed = THREE.MathUtils.clamp(speed, -handling.reverse, cruiseMax(offroad));
       if (!throttle && Math.abs(speed) < 0.03) speed = 0;
     }
     document.body.classList.toggle("boosting", boosting);
@@ -1069,7 +1140,7 @@ export async function main(loading) {
       Math.min(32 * Math.max(tune.top, 1), Math.max(-9, speed)) *
       0.032 *
       (1 + .8 * (1 - THREE.MathUtils.smoothstep(Math.abs(speed), 12, 32))) *
-      tune.steer *
+      tune.steer * handling.steer *
       dt *
       (keys[" "] ? 1.6 : 1) *
       (jumpPhysics?.state().airborne ? 0.3 : 1);
@@ -1083,7 +1154,7 @@ export async function main(loading) {
     car.position.x = motion.x;
     car.position.z = motion.z;
     const flight = jumpPhysics?.update(dt, car.position);
-    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading);
+    surfacePose = sampleDrivingSurface(heightAt, car.position.x, car.position.z, heading, handling);
     car.position.y = flight ? flight.height : surfacePose.height;
     if (flight?.landed && flight.longest > 0.25) show("Lovely landing!");
     if (motion.hits) {
@@ -1107,6 +1178,7 @@ export async function main(loading) {
     itemUI.update(itemSnapshot, itemSystem.modifiers("player"));
     // Wobble only the exterior model: steering and the child's camera stay steady.
     carVisual.rotation.z = reducedMotion ? 0 : Math.sin(itemEffect.wobble * 12) * Math.min(.09, itemEffect.wobble * .09);
+    carVisual.position.y = special.hop;
     coneField.update(dt, car.position, heading);
     playField.update(dt, car.position, heading);
     peopleField.update(dt, { position: car.position, heading }, Math.abs(speed), now / 1000);
@@ -1156,29 +1228,35 @@ export async function main(loading) {
     renderFrame();
   }
   function updateCamera(dt) {
+    const profile = vehicleModel.vehicle.camera;
+    // Tall vehicles need extra horizontal framing in portrait as well as height.
+    const framing = vehicleModel.vehicle.utility ? Math.max(1, Math.min(1.5, 1 / camera.aspect)) : 1;
     let f = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading)),
       target = car.position.clone(),
       desired = target.clone();
     if (camMode === 0) {
-      desired.addScaledVector(f, hasRamps ? -12 : -9);
-      desired.y += 3.6;
-      target.addScaledVector(f, 6);
-      target.y = heightAt(target.x, target.z) + 1.3 + Math.max(0, car.position.y - surfacePose.height);
+      desired.addScaledVector(f, -Math.max(hasRamps ? 12 : 9, profile.distance) * framing);
+      desired.y += profile.height * framing;
+      desired.x += Math.cos(heading) * profile.side * framing;
+      desired.z -= Math.sin(heading) * profile.side * framing;
+      // Rear tools belong above the bottom HUD, with a three-quarter view of their work.
+      target.addScaledVector(f, profile.lookAhead);
+      target.y = heightAt(target.x, target.z) + profile.targetHeight + Math.max(0, car.position.y - surfacePose.height);
     } else if (camMode === 1) {
       desired.addScaledVector(f, -6);
-      desired.y += 25;
+      desired.y += profile.overhead * framing;
       target.addScaledVector(f, 4);
     } else {
       // Driver's eye position, following the car's pitch on hills and ramps.
-      desired.set(.35, 1.45, .1).applyQuaternion(car.quaternion).add(car.position);
-      target.set(.35, 1.45, 20).applyQuaternion(car.quaternion).add(car.position);
+      desired.fromArray(profile.eye).applyQuaternion(car.quaternion).add(car.position);
+      target.set(profile.eye[0], profile.eye[1], profile.eye[2] + 20).applyQuaternion(car.quaternion).add(car.position);
     }
     desired.y = Math.max(desired.y, heightAt(desired.x, desired.z) + (camMode === 2 ? 1.25 : 2.2));
     camera.position.lerp(desired, camMode === 2 ? 1 : 1 - Math.exp(-5 * dt));
     if (camera.position.distanceToSquared(desired) < 0.00001)
       camera.position.copy(desired);
     // Resolve after smoothing so entering a roof or turning beside a wall snaps clear immediately.
-    cameraAnchor.copy(car.position).y += 1.7;
+    cameraAnchor.copy(car.position).y += profile.anchor;
     // Terrain is sampled instead of raycasting every triangle in the large heightfield.
     for (const t of [.25, .5, .75, 1]) {
       const x = THREE.MathUtils.lerp(cameraAnchor.x, camera.position.x, t);
@@ -1287,6 +1365,10 @@ export async function main(loading) {
     webgl: renderer.info.render.calls,
     carModel: vehicleModel.vehicle.name,
     vehicle: vehicleModel.vehicle.id,
+    specialAction: vehicleActions.state(actionContext()),
+    vehicleHandling: vehicleModel.vehicle.handling,
+    vehicleDimensions: vehicleModel.car.userData.dimensions ?? null,
+    cameraPosition: camera.position.toArray(),
     level,
     timeOfDay: { hour: daylight.state().hour, period: daylight.state().period,
       running: daylight.state().running, cycleMinutes: daylight.state().cycleMinutes,

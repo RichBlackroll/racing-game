@@ -16,6 +16,7 @@ export function createConeField({ scene, route, obstacles, onChange, gravity = 9
   // Only cones interact with this world; driving retains its existing collision model.
   const carBody = new CANNON.Body({ type: CANNON.Body.KINEMATIC, collisionFilterGroup: 4, collisionFilterMask: 2 });
   carBody.addShape(new CANNON.Box(new CANNON.Vec3(1.05, 0.55, 2.2)));
+  let carOffset = 0.7;
   world.addBody(carBody);
   addSceneryBodies(world, obstacles, terrain, 2);
   for (const ramp of ramps) {
@@ -100,10 +101,24 @@ export function createConeField({ scene, route, obstacles, onChange, gravity = 9
     body.velocity.setZero(); body.angularVelocity.setZero(); body.force.setZero(); body.torque.setZero();
     body.aabbNeedsUpdate = true; body.sleep();
   }
+  function setVehicleSize(halfExtents = [1.05, 0.55, 2.2]) {
+    if (halfExtents?.length !== 3 || ![0, 1, 2].every(i => Number.isFinite(halfExtents[i]) && halfExtents[i] > 0))
+      throw new RangeError("Vehicle half extents must be three positive finite numbers");
+    const [x, y, z] = halfExtents, size = carBody.shapes[0].halfExtents;
+    if (size.x === x && size.y === y && size.z === z) return;
+    carBody.removeShape(carBody.shapes[0]);
+    carBody.addShape(new CANNON.Box(new CANNON.Vec3(x, y, z)));
+    const offset = 0.7 + (y - 0.55);
+    carBody.position.y += offset - carOffset; carOffset = offset;
+    carBody.previousPosition.copy(carBody.position); carBody.interpolatedPosition.copy(carBody.position);
+    carBody.aabbNeedsUpdate = true; world.broadphase.dirty = true;
+    // A larger parked proxy can now overlap sleeping props.
+    cones.forEach(({ body }) => body.wakeUp());
+  }
   function reset(position = new THREE.Vector3(), heading = 0) {
     hitCount = 0; world.accumulator = 0;
     previous.copy(position);
-    carBody.position.set(position.x, position.y + 0.7, position.z);
+    carBody.position.set(position.x, position.y + carOffset, position.z);
     carBody.velocity.setZero(); carBody.quaternion.setFromEuler(0, heading, 0); carBody.aabbNeedsUpdate = true;
     cones.forEach(resetCone);
     world.broadphase.dirty = true; sync(true);
@@ -112,7 +127,7 @@ export function createConeField({ scene, route, obstacles, onChange, gravity = 9
     if (dt <= 0) return;
     if (previous.distanceToSquared(position) < 1e-10 && cones.every(({ body }) => body.sleepState === CANNON.Body.SLEEPING)) return;
     const teleport = previous.distanceToSquared(position) > 144;
-    carBody.position.set(teleport ? position.x : previous.x, (teleport ? position.y : previous.y) + 0.7, teleport ? position.z : previous.z);
+    carBody.position.set(teleport ? position.x : previous.x, (teleport ? position.y : previous.y) + carOffset, teleport ? position.z : previous.z);
     carBody.velocity.set(teleport ? 0 : (position.x - previous.x) / dt, teleport ? 0 : (position.y - previous.y) / dt, teleport ? 0 : (position.z - previous.z) / dt);
     carBody.quaternion.setFromEuler(0, heading, 0); carBody.aabbNeedsUpdate = true;
     world.step(1 / 120, Math.min(dt, 0.05), 8);
@@ -125,7 +140,7 @@ export function createConeField({ scene, route, obstacles, onChange, gravity = 9
     previous.copy(position); sync();
   }
   reset();
-  return { update, reset, state: () => ({ count: cones.length, hits: hitCount,
+  return { update, reset, setVehicleSize, state: () => ({ count: cones.length, hits: hitCount,
     awake: cones.filter(({ body }) => body.sleepState !== CANNON.Body.SLEEPING).length,
     moved: cones.filter(({ body, origin }) => Math.hypot(body.position.x - origin.x, body.position.z - origin.z) > 0.35).length,
     first: cones[0]?.body.position.toArray() ?? null,

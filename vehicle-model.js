@@ -6,6 +6,7 @@ import { getVehicle } from "./vehicle-data.js";
 import { createCarFlag } from "./car-flag.js";
 import { createBydAtto1 } from "./byd-atto-1.js";
 import { createVolvoEx40 } from "./volvo-ex40.js";
+import { prepareUtilityVehicleModel } from "./utility-vehicles.js";
 
 function resourcesOf(model) {
   const resources = new Set();
@@ -59,6 +60,7 @@ export async function loadVehicleModel(id, { signal } = {}) {
 // Each load owns its resources. +Y is up and +Z is forward in the local assets.
 export function prepareVehicleModel(model, id) {
   const vehicle = getVehicle(id), tesla = vehicle.id === "tesla", golf = vehicle.id === "golf", authored = vehicle.authored;
+  if (vehicle.utility) return prepareUtilityVehicleModel(model, vehicle);
   const car = new THREE.Group();
   car.name = vehicle.id;
   car.userData.nightVehicle = true;

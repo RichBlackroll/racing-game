@@ -16,7 +16,8 @@ export const FRIEND_RACERS = friends.map((friend, i) => ({ ...friend, config: bu
 const clamp = THREE.MathUtils.clamp;
 const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function createFriendRacers({ scene, course, obstacles = [], ramps = [], gravity = 9.82, contactTexture = null, reducedMotion = false, onRace = () => {} }) {
+export function createFriendRacers({ scene, course, obstacles = [], ramps = [], gravity = 9.82, contactTexture = null, reducedMotion = false, onRace = () => {},
+  playerProfile = () => ({ radius: 1.12, mass: 1.6, height: 1.6 }) }) {
   const { route, length, heightAt } = course;
   const distances = [0];
   for (let i = 1; i <= route.length; i++) distances.push(distances[i - 1] + route[i - 1].distanceTo(route[i % route.length]));
@@ -128,6 +129,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
   function update(dt, player, playerHeading, playerSpeed, velocity = { x: Math.sin(playerHeading) * playerSpeed, z: Math.cos(playerHeading) * playerSpeed },
     itemModifiers = () => ({ speedFactor: 1, wobble: 0, shield: 0, turbo: 0 })) {
     if (!Number.isFinite(dt) || dt <= 0) return { x: player.x, z: player.z, vx: velocity.x, vz: velocity.z, hits: 0, staticHits: 0 };
+    const { radius = 1.12, mass = 1.6, height = 1.6 } = playerProfile();
     dt = Math.min(dt, .05); noticeCooldown = Math.max(0, noticeCooldown - dt);
     const playerRoad = course.nearest(player.x, player.z);
     for (const r of racers) {
@@ -193,9 +195,9 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       }
       const traffic = racers.filter(other => other !== r && Math.abs(other.body.y - r.body.y) < 1.8)
         .map(other => ({ ahead: gap(other.along, r.along), lane: other.lane, speed: other.speed, radius: other.body.radius }));
-      if (playerRoad.distance < 9 && Math.abs(player.y - r.body.y) < 1.8) traffic.push({
+      if (playerRoad.distance < 9 && player.y < r.body.y + (r.body.height ?? 1.6) + .2 && r.body.y < player.y + height + .2) traffic.push({
         ahead: gap(playerRoad.along, r.along), lane: playerLane,
-        speed: Math.max(0, velocity.x * Math.sin(playerPoint.heading) + velocity.z * Math.cos(playerPoint.heading)), radius: 1.12,
+        speed: Math.max(0, velocity.x * Math.sin(playerPoint.heading) + velocity.z * Math.cos(playerPoint.heading)), radius,
       });
       const rival = traffic.filter(other => other.ahead > 0 && other.ahead < 90).sort((a, b) => a.ahead - b.ahead)[0];
       r.passTime = Math.max(0, r.passTime - dt);
@@ -239,7 +241,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
       return { vx: r.body.vx + dx * correction, vz: r.body.vz + dz * correction };
     });
     racers.forEach((r, i) => Object.assign(r.body, plans[i]));
-    const playerBody = { x: player.x, y: player.y, z: player.z, vx: velocity.x, vz: velocity.z, radius: 1.12, mass: 1.6, hits: 0, staticHits: 0 };
+    const playerBody = { x: player.x, y: player.y, z: player.z, vx: velocity.x, vz: velocity.z, radius, mass, height, hits: 0, staticHits: 0 };
     const bodies = racers.map(r => r.body);
     if (Math.abs(player.x) <= course.halfSize + 10 && Math.abs(player.z) <= course.halfSize + 10) bodies.push(playerBody);
     stepRacerBodies(bodies, dt, obstacles, course.halfSize, course.isSafePosition);

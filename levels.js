@@ -23,9 +23,9 @@ export function createRampCourse(scene,route,moon) {
     const p=route[i], next=route[(i+1)%route.length];
     return {x,z,heading:Math.atan2(next.x-p.x,next.z-p.z),width:9.5,length:18,height:moon?2.4:3};
   });
-  const topMaterial = new THREE.MeshStandardMaterial({color:moon?0x8ba8b8:0x1c8992,roughness:0.7,side:THREE.DoubleSide});
-  const sideMaterial = new THREE.MeshStandardMaterial({color:moon?0xd2d5d9:0xeeeeea,roughness:0.8,side:THREE.DoubleSide});
-  const edgeMaterial = new THREE.MeshStandardMaterial({color:moon?0xffcc4a:0xff6653,roughness:0.7});
+  const topMaterial = new THREE.MeshStandardMaterial({color:moon?0x444b50:0x1c8992,roughness:moon?0.9:0.7,side:THREE.DoubleSide});
+  const sideMaterial = new THREE.MeshStandardMaterial({color:moon?0x696b67:0xeeeeea,roughness:0.8,side:THREE.DoubleSide});
+  const edgeMaterial = new THREE.MeshStandardMaterial({color:moon?0xd6a64b:0xff6653,roughness:0.7});
   ramps.forEach(ramp => {
     const group=new THREE.Group(); group.position.set(ramp.x,0.075,ramp.z);group.rotation.y=ramp.heading;scene.add(group);
     const w=ramp.width/2,l=ramp.length,h=ramp.height;
@@ -78,62 +78,72 @@ export function createLevelScenery(scene,moon,roadDist,obstacles,terrain,clearin
   for(let i=0;i<1500;i++) {const v=130+Math.floor(random()*125);skyContext.fillStyle='rgb('+v+','+v+',255)';const size=random()<0.06?2:1;skyContext.fillRect(random()*2048,random()*1024,size,size);}
   const skyTexture=new THREE.CanvasTexture(starCanvas);skyTexture.mapping=THREE.EquirectangularReflectionMapping;skyTexture.colorSpace=THREE.SRGBColorSpace;
   scene.background=skyTexture;scene.backgroundIntensity=1;
-  const rockMaterial=new THREE.MeshStandardMaterial({color:0x898d96,roughness:1});
-  const rocks=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),rockMaterial,70);
-  const craters=new THREE.InstancedMesh(new THREE.TorusGeometry(1,0.14,6,24),new THREE.MeshStandardMaterial({color:0xb2b3b9,roughness:1}),35);
+  const rockMaterial=new THREE.MeshStandardMaterial({color:0x72716b,roughness:1,flatShading:true});
+  const rockGeometry=new THREE.IcosahedronGeometry(1,1);
+  const vertices=rockGeometry.attributes.position;
+  for(let i=0;i<vertices.count;i++) {
+    const x=vertices.getX(i),y=vertices.getY(i),z=vertices.getZ(i);
+    const fracture=0.78+0.2*Math.sin(x*17+y*11+z*23);
+    vertices.setXYZ(i,x*fracture,y*fracture,z*fracture);
+  }
+  rockGeometry.computeVertexNormals();rockGeometry.computeBoundingBox();
+  const rocks=new THREE.InstancedMesh(rockGeometry,rockMaterial,120);
+  const scree=new THREE.InstancedMesh(rockGeometry,rockMaterial,360);
+  rocks.name="moon/fractured-basalt";scree.name="moon/regolith-scree";
   const dummy=new THREE.Object3D();
+  const shade=new THREE.Color();
   let placed=0;
-  while(placed<70) {
+  for(let attempt=0;placed<120&&attempt<6000;attempt++) {
     const x=(random()-0.5)*780,z=(random()-0.5)*780;
-    if(roadDist(x,z)<18 || inClearing(clearings,x,z,12)) continue;
-    const size=1+random()*3,y=heightAt(x,z);
-    obstacles.push({x,y,z,r:size*0.8,height:size*0.75});
-    dummy.position.set(x,y+size*0.22,z);dummy.scale.set(size,size*0.45,size);dummy.rotation.set(0,random()*6,0);dummy.updateMatrix();rocks.setMatrixAt(placed,dummy.matrix);
-    if(placed<35) {dummy.position.set(x,y+0.13,z);dummy.scale.setScalar(3+random()*5);dummy.rotation.set(Math.PI/2,0,0);dummy.updateMatrix();craters.setMatrixAt(placed,dummy.matrix);}
+    const size=placed%4===0?4+random()*4:1.2+random()*2.8;
+    const distance=roadDist(x,z);
+    if(distance<16+size || (placed%3!==0&&distance>90) || inClearing(clearings,x,z,size+2)) continue;
+    const y=heightAt(x,z),sy=size*(0.65+random()*0.55);
+    obstacles.push({x,y,z,r:size,height:size*0.18+sy*rockGeometry.boundingBox.max.y});
+    dummy.position.set(x,y+size*0.18,z);dummy.scale.set(size,sy,size*(0.7+random()*0.3));
+    dummy.rotation.set(0,random()*Math.PI*2,0);dummy.updateMatrix();rocks.setMatrixAt(placed,dummy.matrix);
+    rocks.setColorAt(placed,shade.setScalar(0.6+random()*0.5));
     placed++;
   }
-  scene.add(rocks,craters);
+  rocks.count=placed;
+  // Low shards add near-ground texture without new driving obstacles or draw calls per stone.
+  placed=0;
+  for(let attempt=0;placed<360&&attempt<12000;attempt++) {
+    const x=(random()-0.5)*790,z=(random()-0.5)*790;
+    if(roadDist(x,z)<8 || inClearing(clearings,x,z,1)) continue;
+    const size=0.25+random()*0.6;
+    dummy.position.set(x,heightAt(x,z)+0.035,z);dummy.scale.set(size,0.12+random()*0.12,size*0.7);
+    dummy.rotation.set(0,random()*Math.PI*2,0);dummy.updateMatrix();scree.setMatrixAt(placed,dummy.matrix);
+    scree.setColorAt(placed,shade.setScalar(0.45+random()*0.55));
+    placed++;
+  }
+  scree.count=placed;
+  rocks.computeBoundingSphere();scree.computeBoundingSphere();
+  scene.add(rocks,scree);
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;
-  const c=canvas.getContext('2d');c.fillStyle='#167bc1';c.fillRect(0,0,512,256);
+  const c=canvas.getContext('2d');c.fillStyle='#164669';c.fillRect(0,0,512,256);
   const continents=[[[38,38],[94,23],[143,55],[127,88],[99,99],[80,79],[61,83]],[[117,101],[155,122],[147,176],[124,213],[106,162]],[[241,51],[275,41],[301,68],[288,85],[299,116],[275,172],[247,137],[231,88]],[[285,43],[346,26],[421,39],[457,66],[410,107],[355,87],[329,111]],[[397,151],[439,143],[461,171],[426,186],[399,174]]];
-  c.fillStyle='#78ad79';continents.forEach(points=>{c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();});
-  c.fillStyle='#e2f3ff';c.fillRect(0,0,512,10);c.fillRect(0,245,512,11);
-  c.strokeStyle='#ffffff99';c.lineWidth=5;
+  c.fillStyle='#58675f';continents.forEach(points=>{c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();});
+  c.fillStyle='#c4c8c5';c.fillRect(0,0,512,10);c.fillRect(0,245,512,11);
+  c.strokeStyle='#c5cbd180';c.lineWidth=5;
   for(let i=0;i<16;i++){c.beginPath();c.ellipse(random()*512,25+random()*200,16+random()*42,4,random(),0,Math.PI*1.5);c.stroke();}
   const earthTexture=new THREE.CanvasTexture(canvas);earthTexture.colorSpace=THREE.SRGBColorSpace;
-  const earth=new THREE.Mesh(new THREE.SphereGeometry(20,40,24),new THREE.MeshStandardMaterial({map:earthTexture,roughness:1,emissive:0x07354b,emissiveIntensity:0.2,fog:false}));
+  const earth=new THREE.Mesh(new THREE.SphereGeometry(20,40,24),new THREE.MeshStandardMaterial({map:earthTexture,roughness:1,emissive:0x07354b,emissiveIntensity:0.05,fog:false}));
   // Earth stays a world-space sky landmark, not a terrain-grounded prop.
   earth.userData.celestial = true;
   earth.position.set(180,terrain?105:25,145);earth.rotation.z=0.25;scene.add(earth);
-  const silver=new THREE.MeshStandardMaterial({color:0xe7eaf0,roughness:0.5,metalness:0.25});
-  const solar=new THREE.MeshStandardMaterial({color:0x246aba,roughness:0.35,metalness:0.3,side:THREE.DoubleSide});
+  const silver=new THREE.MeshStandardMaterial({color:0x92948e,roughness:0.82,metalness:0.25});
+  const solar=new THREE.MeshStandardMaterial({color:0x1d3448,roughness:0.5,metalness:0.3,side:THREE.DoubleSide});
   for(const x of [-38,-8,22]) {
     const dome=new THREE.Mesh(new THREE.SphereGeometry(5,20,12,0,Math.PI*2,0,Math.PI/2),silver);dome.position.set(x,heightAt(x,65),65);scene.add(dome);
     const panel=new THREE.Mesh(new THREE.BoxGeometry(9,0.15,4),solar);panel.position.set(x,heightAt(x,53)+3,53);panel.rotation.x=-0.35;scene.add(panel);
     const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.2,3,8),silver);mast.position.set(x,heightAt(x,53)+1.5,53);scene.add(mast);
   }
-  // Cheese boulders and crater holes: the Moon is made of cheese, after all.
-  const cheeseMaterial=new THREE.MeshStandardMaterial({color:0xf4e489,roughness:0.55});
-  const holeMaterial=new THREE.MeshStandardMaterial({color:0x7a5a26,roughness:1});
-  const cheese=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,8),cheeseMaterial,16);
-  const cheeseHoles=new THREE.InstancedMesh(new THREE.TorusGeometry(1,0.15,6,16),holeMaterial,16);
-  let cheesePlaced=0;
-  while(cheesePlaced<16) {
-    const x=(random()-0.5)*760,z=(random()-0.5)*760;
-    if(roadDist(x,z)<22 || inClearing(clearings,x,z,5)) continue;
-    const s=1.4+random()*1.8,y=heightAt(x,z);
-    dummy.position.set(x,y+s*0.4,z);dummy.scale.set(s,s*0.8,s);dummy.rotation.set(0,random()*6,0);dummy.updateMatrix();
-    cheese.setMatrixAt(cheesePlaced,dummy.matrix);
-    dummy.position.set(x,y+s*0.78,z);dummy.scale.set(s*0.75,s*0.45,s*0.75);dummy.rotation.set(Math.PI/2,random()*6,0);dummy.updateMatrix();
-    cheeseHoles.setMatrixAt(cheesePlaced,dummy.matrix);
-    cheesePlaced++;
-  }
-  scene.add(cheese,cheeseHoles);
   // A tiny astronaut friend waves a flag beside the base.
   const astro=new THREE.Group();astro.position.set(8,heightAt(8,70),70);
   const suit=new THREE.MeshStandardMaterial({color:0xf2f4f6,roughness:0.5,metalness:0.06});
   const visor=new THREE.MeshStandardMaterial({color:0x1f5c8c,metalness:0.55,roughness:0.3});
-  const flagMaterial=new THREE.MeshStandardMaterial({color:0xdd6f9c,roughness:0.7,side:THREE.DoubleSide});
+  const flagMaterial=new THREE.MeshStandardMaterial({color:0xc18d3e,roughness:0.7,side:THREE.DoubleSide});
   const flagSilver=new THREE.MeshStandardMaterial({color:0xd8dbe0,metalness:0.7,roughness:0.3});
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.16,0.28,6,10),suit);body.position.set(0,0.58,0);astro.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,12,10),suit);head.position.set(0,1.0,0);astro.add(head);

@@ -8,7 +8,7 @@ export function stepRacerBodies(bodies, dt, obstacles, limit, isSafePosition) {
   const nearby = bodies.map(b => {
     b.hits = b.staticHits = b.impact = 0;
     const reach = Math.hypot(b.vx, b.vz) * dt + b.radius + 8;
-    return obstacles.filter(o => b.y + 1.6 > (o.y ?? -Infinity) && b.y < (o.y ?? 0) + (o.height ?? Infinity) &&
+    return obstacles.filter(o => b.y + (b.height ?? 1.6) > (o.y ?? -Infinity) && b.y < (o.y ?? 0) + (o.height ?? Infinity) &&
       Math.abs(o.x - b.x) < reach + (o.hx ?? o.r) && Math.abs(o.z - b.z) < reach + (o.hz ?? o.r));
   });
   for (let step = 0; step < steps; step++) {
@@ -20,7 +20,8 @@ export function stepRacerBodies(bodies, dt, obstacles, limit, isSafePosition) {
     });
     for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
       const a = bodies[i], b = bodies[j];
-      if (Math.abs(a.y - b.y) > 1.8) continue;
+      // Keep the stock .2 m contact tolerance, measured above each car's root.
+      if (a.y > b.y + (b.height ?? 1.6) + .2 || b.y > a.y + (a.height ?? 1.6) + .2) continue;
       const dx = b.x - a.x, dz = b.z - a.z, distance = Math.hypot(dx, dz);
       if (distance >= a.radius + b.radius) continue;
       const nx = distance > 1e-8 ? dx / distance : 1, nz = distance > 1e-8 ? dz / distance : 0;

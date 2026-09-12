@@ -3,12 +3,12 @@ import { createSession } from "./session.js";
 import { VEHICLES, getVehicle } from "./vehicle-data.js";
 
 const LABELS = {
-  color: { name: "Paint", title: "Pick a paint", hint: "Tap a colour. Watch your car change!" },
-  wheels: { name: "Wheels", title: "Pick your wheels", hint: "Small, wide, or MONSTER-sized?" },
-  suspension: { name: "Springs", title: "Low or high?", hint: "Watch the body move above the wheels." },
-  engine: { name: "Engine", title: "Choose your power", hint: "Pick an engine, then tap Hear engine to try its sound!" },
-  spoiler: { name: "Wing", title: "Pick a wing", hint: "A bigger wing helps with corners." },
-  rocket: { name: "Rocket", title: "Pick a booster", hint: "Two on the sides, or one big rocket at the back!" },
+  color: "Paint",
+  wheels: "Wheels",
+  suspension: "Springs",
+  engine: "Engine",
+  spoiler: "Wing",
+  rocket: "Rocket",
 };
 const SHORT_NAMES = {
   wheels: { standard: "Road", wide: "Wide", monster: "Monster", hub: "4 motors" },
@@ -28,10 +28,13 @@ function el(tag, className, text) {
 function icon(name) {
   const paths = {
     garage: '<path d="M3 10 12 3l9 7v11H3Z"/><path d="M7 21V11h10v10M7 15h10M7 18h10"/>',
-    drive: '<path d="m14 6 6 6-6 6M3 12h17"/>',
+    drive: '<path d="m8 4 12 8-12 8Z" fill="currentColor" stroke="none"/>',
     undo: '<path d="m8 3-5 5 5 5M3 8h10a7 7 0 0 1 0 14"/>',
     turn: '<path d="M20 9a8 8 0 1 0-1 9M20 3v6h-6"/>',
     check: '<path d="m5 12 4 4L19 6"/>',
+    chevron: '<path d="m6 9 6 6 6-6"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.01"/>',
+    paint: '<path d="M12 3a9 9 0 1 0 0 18h1a3 3 0 0 0 2-5c-1-1 0-3 2-3h1a3 3 0 0 0 3-3c0-4-4-7-9-7Z"/><circle cx="7" cy="11" r="1" fill="#e8ad96"/><circle cx="10" cy="7" r="1" fill="#bfc4ee"/><circle cx="15" cy="7" r="1" fill="#d6eb9a"/>',
     speak: '<path d="M3 9v6h4l5 4V5L7 9ZM16 8a6 6 0 0 1 0 8M19 4a11 11 0 0 1 0 16"/>',
   };
   const node = el("span", "mod-icon");
@@ -51,7 +54,11 @@ function picture(part, option = "standard", hex) {
   }
   let shapes = "";
   if (part === "vehicle") {
-    if (option === "byd-atto-1") {
+    if (option === "backhoe") {
+      shapes = '<path d="M14 41V28h14V12h19v16h14v13Z" fill="#e9b354"/><path d="M32 16h11v15H32Z" fill="#e8f3ee"/><path d="M27 11h22M48 31l16-12 8 14" stroke="#e9b354" stroke-width="6"/><path d="m66 31 11-3v13H66Z" fill="#e9b354"/><path d="m16 31-7-16-5 22m-2 0h11l-3 8H2" fill="#e9b354"/><path d="M49 30v9m-21-4h16"/>';
+    } else if (option === "dhl-van") {
+      shapes = '<path d="M6 42V12h40l10 8 9 12 8 2v8Z" fill="#f4cf48"/><path d="M49 21h5l8 11H49Z" fill="#e8f3ee"/><path d="M45 14v27M50 36h5M7 37h34"/><path d="M10 24h10m-10 5h7m18-5h6m-9 5h9" stroke="#c93d39" stroke-width="3"/><path d="m23 21 8 6-8 6Z" fill="#c93d39" stroke="#c93d39"/>';
+    } else if (option === "byd-atto-1") {
       shapes = '<path d="M9 42V25l7-12 29 1 15 15 12 5v8Z" fill="#b7cf77"/><path d="m14 25 5-9h23l13 13-40 3Z" fill="#e8f3ee"/><path d="m17 15-3 13m17-12 1 15m-20 7 42-5M30 33l1 8M13 29v5m48-4 6 4M38 35h4M20 36h4"/>';
     } else if (option === "volvo-ex40") {
       shapes = '<path d="M8 42V24l9-11h29l11 13 14 4v12Z" fill="#afbcb9"/><path d="m13 25 6-9h25l9 11-24 1-7-3Z" fill="#e8f3ee"/><path d="M15 13h31m-30-3h26M31 16v12m-1 1v11M9 22v12h5m50-2h6m-2-2v6M18 32h4m16 0h4M8 39h63"/>';
@@ -100,7 +107,7 @@ function picture(part, option = "standard", hex) {
   return node;
 }
 
-export function createModifier({ visuals, onVehicleChange, show, preview, audio, session = createSession(), onOpenChange, canOpen = () => true }) {
+export function createModifier({ visuals, onVehicleChange, preview, audio, session = createSession(), onOpenChange, canOpen = () => true }) {
   const panel = document.getElementById("modifier");
   const configure = document.getElementById("configure");
   const saved = session.value;
@@ -117,39 +124,41 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
   const shell = el("div", "mod-shell");
   const head = el("div", "mod-head");
   const brand = el("div", "mod-brand");
-  const wordmark = el("div");
-  wordmark.append(el("small", "mod-eyebrow", "ELIOS' WORKSHOP"));
-  const title = el("h2", "mod-title", "My garage");
+  const title = el("h2", "mod-title", "Garage");
   title.id = "mod-title";
   title.tabIndex = -1;
-  wordmark.append(title);
-  brand.append(icon("garage"), wordmark);
+  brand.append(icon("garage"), title);
   const actions = el("div", "mod-head-actions");
   const undo = el("button", "mod-undo");
   undo.type = "button";
   undo.setAttribute("aria-label", "Undo last change");
-  undo.append(icon("undo"), el("span", null, "Undo"));
+  undo.title = "Undo last change";
+  undo.append(icon("undo"), el("span", "mod-sr-only", "Undo"));
   undo.disabled = true;
   const drive = el("button", "mod-close");
   drive.type = "button";
-  drive.append(el("span", null, "Let's drive"), icon("drive"));
-  actions.append(undo, drive);
+  drive.setAttribute("aria-label", "Drive");
+  drive.title = "Drive";
+  drive.append(icon("drive"), el("span", "mod-drive-label", "Drive"));
+  const turn = el("button", "mod-turn");
+  turn.type = "button";
+  turn.setAttribute("aria-label", "Rotate car");
+  turn.title = "Rotate car";
+  turn.append(icon("turn"), el("span", "mod-sr-only", "Rotate car"));
+  actions.append(drive, undo, turn);
   head.append(brand, actions);
 
   const stage = el("div", "mod-stage");
   const viewport = el("div", "mod-viewport");
   viewport.id = "mod-viewport";
   viewport.setAttribute("role", "img");
-  const stageLabel = el("div", "mod-stage-label", "YOUR CAR. YOUR IDEAS.");
   const feedback = el("div", "mod-feedback");
   feedback.setAttribute("role", "status");
   feedback.setAttribute("aria-live", "polite");
   const tools = el("div", "mod-preview-tools");
-  const turn = el("button", "mod-turn");
-  turn.type = "button";
-  turn.append(icon("turn"), el("span", null, "Turn car"));
-  tools.append(el("span", "mod-drag-hint", "Swipe to look around"), turn);
-  stage.append(viewport, stageLabel, feedback, tools);
+  tools.append(icon("turn"), el("span", "mod-drag-hint", "Swipe to explore"));
+  tools.setAttribute("aria-hidden", "true");
+  stage.append(viewport, feedback, tools);
 
   const tabs = el("nav", "mod-tabs");
   tabs.setAttribute("aria-label", "Car parts");
@@ -158,7 +167,8 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     button.type = "button";
     button.dataset.part = part.id;
     button.setAttribute("aria-controls", "mod-options");
-    button.append(picture(part.id, part.id === "engine" ? "eight" : "standard"), el("span", null, LABELS[part.id].name));
+    button.setAttribute("aria-label", LABELS[part.id]);
+    button.append(part.id === "color" ? icon("paint") : picture(part.id, part.id === "engine" ? "eight" : "standard"), el("span", null, LABELS[part.id]));
     button.addEventListener("click", () => {
       if (vehicleRequest) return;
       stopAudio();
@@ -166,7 +176,8 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
       session.update({ selectedPart });
       renderOptions();
       renderSelection();
-      bench.scrollTop = choiceHead.offsetTop;
+      vehiclePicker.open = false;
+      bench.scrollTop = 0;
       preview?.focus(selectedPart);
     });
     tabs.append(button);
@@ -174,10 +185,11 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
 
   const bench = el("section", "mod-workbench");
   bench.setAttribute("aria-label", "Car and parts");
-  const vehiclePicker = el("section", "mod-vehicle-picker");
-  vehiclePicker.setAttribute("aria-labelledby", "mod-vehicles-title");
-  const vehicleTitle = el("h3", "mod-choice-title", "Choose your car");
-  vehicleTitle.id = "mod-vehicles-title";
+  const vehiclePicker = el("details", "mod-vehicle-picker");
+  const vehicleSummary = el("summary", "mod-vehicle-summary");
+  const vehicleCopy = el("span", "mod-vehicle-copy");
+  const vehicleName = el("strong", "mod-vehicle-name");
+  vehicleCopy.append(el("small", "mod-vehicle-label", "Change car"), vehicleName);
   const vehicles = el("div", "mod-vehicles");
   for (const choice of VEHICLES) {
     const button = el("button", "mod-vehicle");
@@ -192,12 +204,12 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     button.addEventListener("click", () => changeVehicle(choice));
     vehicles.append(button);
   }
-  vehiclePicker.append(vehicleTitle, vehicles);
+  vehiclePicker.append(vehicleSummary, vehicles);
   const choiceHead = el("div", "mod-choice-head");
   const choiceTitle = el("h3", "mod-choice-title");
   choiceTitle.id = "mod-options-title";
-  const choiceHint = el("p", "mod-choice-hint");
-  choiceHead.append(choiceTitle, choiceHint);
+  const choiceValue = el("span", "mod-choice-value");
+  choiceHead.append(choiceTitle, choiceValue);
   const options = el("div", "mod-options");
   options.id = "mod-options";
   options.setAttribute("role", "group");
@@ -206,21 +218,26 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
   engineListen.type = "button";
   engineListen.append(icon("speak"), el("span", null, "Hear engine"));
   const fact = el("div", "mod-fact");
-  const factCopy = el("div", "mod-fact-copy");
-  const factName = el("strong", "mod-fact-name");
+  const factDisclosure = el("details", "mod-fact-disclosure");
+  const factSummary = el("summary", "mod-fact-summary");
+  factSummary.append(icon("info"), el("span", null, "Fun fact"), icon("chevron"));
   const factText = el("p", "mod-fact-text");
-  factCopy.append(factName, factText);
+  factDisclosure.append(factSummary, factText);
   const listen = el("button", "mod-speak");
   listen.type = "button";
-  listen.append(icon("speak"), el("span", null, "Read fact"));
-  fact.append(factCopy, listen);
+  listen.append(icon("speak"), el("span", "mod-sr-only", "Read fact"));
+  fact.append(factDisclosure, listen);
   const builds = el("details", "mod-builds");
-  builds.append(el("summary", null, "Try a parts setup"));
+  const buildsSummary = el("summary");
+  buildsSummary.append(icon("garage"), el("span", null, "Quick setups"), icon("chevron"));
+  builds.append(buildsSummary);
   const presets = el("div", "mod-presets");
   for (const preset of PRESETS) {
-    const button = el("button", "mod-preset", preset.name);
+    const button = el("button", "mod-preset");
     button.type = "button";
     button.dataset.preset = preset.id;
+    button.setAttribute("aria-label", preset.name);
+    button.append(preset.id === "monster" ? picture("wheels", "monster") : picture("engine", preset.config.engine), el("span", null, preset.name));
     button.addEventListener("click", () => {
       change({ ...DEFAULTS, color: config.color, ...preset.config }, preset.id === "monster" ? "wheels" : "engine", `${preset.name} ready!`);
     });
@@ -233,8 +250,7 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
 
   function renderOptions() {
     const part = PARTS.find((p) => p.id === selectedPart);
-    choiceTitle.textContent = LABELS[selectedPart].title;
-    choiceHint.textContent = LABELS[selectedPart].hint;
+    choiceTitle.textContent = LABELS[selectedPart];
     engineListen.hidden = selectedPart !== "engine";
     options.dataset.part = selectedPart;
     options.style.setProperty("--option-count", Math.min(4, part.options.length));
@@ -245,6 +261,7 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
       button.dataset.part = part.id;
       button.dataset.option = option.id;
       button.setAttribute("aria-label", option.name);
+      button.title = option.name;
       const check = el("span", "mod-check");
       check.append(icon("check"));
       button.append(picture(selectedPart, option.id, option.hex), el("span", "mod-option-name", SHORT_NAMES[selectedPart]?.[option.id] || option.name), check);
@@ -256,6 +273,9 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
   function renderSelection() {
     const loading = vehicleRequest !== null;
     vehiclePicker.setAttribute("aria-busy", String(loading));
+    vehicleName.textContent = vehicle.name;
+    vehicleSummary.setAttribute("aria-label", `Change car. ${vehicle.name}`);
+    vehicleSummary.replaceChildren(picture("vehicle", vehicle.id), vehicleCopy, icon("chevron"));
     viewport.setAttribute("aria-label", `${vehicle.name} in the garage. Swipe to look around.`);
     for (const button of vehicles.children) {
       const selected = button.dataset.vehicle === vehicle.id;
@@ -268,6 +288,7 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
       tab.classList.toggle("selected", selected);
       tab.setAttribute("aria-pressed", String(selected));
       tab.disabled = loading;
+      if (selected && opened) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
     for (const button of options.children) {
       const selected = button.dataset.option === config[selectedPart];
@@ -277,9 +298,11 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     }
     for (const button of [...presets.children, engineListen, listen]) button.disabled = loading;
     const option = optionOf();
-    factName.textContent = option.name;
+    choiceValue.textContent = option.name;
     factText.textContent = option.fact;
+    factSummary.setAttribute("aria-label", `Fun fact about ${option.name}`);
     listen.setAttribute("aria-label", `Read fact about ${option.name}`);
+    listen.title = `Read fact about ${option.name}`;
     if (selectedPart === "engine") engineListen.setAttribute("aria-label", `Hear engine: ${option.name}`);
     undo.disabled = loading || history.length === 0;
   }
@@ -288,8 +311,9 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     if (!opened || !panel.open || vehicleRequest || nextVehicle.id === vehicle.id) return;
     const request = new AbortController();
     vehicleRequest = request;
-    const nextConfig = { ...config, engine: nextVehicle.engine };
+    const nextConfig = { ...config, engine: nextVehicle.engine, color: nextVehicle.color ?? config.color };
     stopAudio();
+    if (vehiclePicker.contains(document.activeElement)) vehicleSummary.focus({ preventScroll: true });
     renderSelection();
     feedback.textContent = `Loading ${nextVehicle.name}...`;
     try {
@@ -303,9 +327,12 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
       session.update({ vehicle: vehicle.id, config: { ...config }, selectedPart });
       renderOptions();
       preview?.focus(selectedPart);
+      const restoreFocus = vehiclePicker.contains(document.activeElement);
+      vehiclePicker.open = false;
+      bench.scrollTop = 0;
+      if (restoreFocus) vehicleSummary.focus({ preventScroll: true });
       const message = `${vehicle.name} ready!`;
       feedback.replaceChildren(icon("check"), el("span", null, message));
-      show?.(message);
     } catch {
       if (vehicleRequest === request && !request.signal.aborted && opened && panel.open) {
         feedback.textContent = `Could not load ${nextVehicle.name}. Your car is unchanged. Tap its car button again to retry.`;
@@ -322,11 +349,12 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     if (vehicleRequest) return;
     stopAudio();
     const changed = PARTS.some((p) => config[p.id] !== next[p.id]);
+    const differentPart = selectedPart !== part;
+    if (!changed && !differentPart) return;
     if (remember && changed) {
       history.push({ config: { ...config }, part: selectedPart });
       if (history.length > 20) history.shift();
     }
-    const differentPart = selectedPart !== part;
     selectedPart = part;
     config = { ...next };
     session.update({ config: { ...config }, selectedPart });
@@ -339,7 +367,6 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       feedback.animate?.([{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 220 });
     }
-    show?.(message);
   }
 
   function stopAudio() {
@@ -349,8 +376,11 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     feedback.replaceChildren();
   }
 
-  function playbackFailed(request, message) {
-    if (opened && panel.open && request === playbackRequest) feedback.textContent = message;
+  function playbackFailed(request, message, revealFact = false) {
+    if (opened && panel.open && request === playbackRequest) {
+      feedback.textContent = message;
+      if (revealFact) factDisclosure.open = true;
+    }
   }
 
   function overlayChanged(active) {
@@ -385,7 +415,10 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
       returnFocus = document.activeElement;
       panel.showModal();
       opened = true;
+      vehiclePicker.open = false;
+      factDisclosure.open = false;
       bench.scrollTop = 0;
+      renderSelection();
       document.body.classList.toggle("configuring", true);
       configure.setAttribute("aria-expanded", "true");
       feedback.replaceChildren();
@@ -424,17 +457,17 @@ export function createModifier({ visuals, onVehicleChange, show, preview, audio,
     try {
       const synth = window.speechSynthesis, Utterance = window.SpeechSynthesisUtterance;
       if (typeof synth?.speak !== "function" || typeof Utterance !== "function") {
-        playbackFailed(request, "Reading aloud is unavailable in this browser. You can read the fact below.");
+        playbackFailed(request, "Reading aloud is unavailable in this browser. You can read the fact below.", true);
         return;
       }
       const speech = new Utterance(`${optionOf().name}. ${optionOf().fact}`);
       speech.lang = "en-GB";
       speech.rate = 0.88;
       speech.onerror = (event) => {
-        if (event.error !== "canceled" && event.error !== "interrupted") playbackFailed(request, message);
+        if (event.error !== "canceled" && event.error !== "interrupted") playbackFailed(request, message, true);
       };
       synth.speak(speech);
-    } catch { playbackFailed(request, message); }
+    } catch { playbackFailed(request, message, true); }
   });
   turn.addEventListener("click", () => preview?.turn());
   drive.addEventListener("click", () => api.close());

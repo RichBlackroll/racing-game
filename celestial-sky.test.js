@@ -124,7 +124,7 @@ test("sky and fog recover daylight after blue hour on both sides of repeated nig
   for (const tablet of [false, true]) {
     const f = fixture({ tablet }), a = f.atmosphere, u = a.sky.material.uniforms;
     for (let cycle = 0; cycle < 2; cycle++) {
-      for (const hour of [12, 17, 18, 18.6, 0, 5.4, 6, 7, 12]) {
+      for (const hour of [12, 19.5, 21, 21.7, 0, 4.3, 5, 6.5, 12]) {
         const state = sampleDaylight(hour);
         a.setDaylight(state); a.render();
         assert.equal(u.uWarmGlow.value, state.warmGlow);
@@ -343,7 +343,9 @@ test("Moon atmosphere enforces vacuum fog and never owns scenery; cleanup respec
   assert.equal(f.scene.fog, null); assert.equal(f.atmosphere.pollen, null);
   f.atmosphere.setDaylight(daylight({ night: 1, stars: 0 })); f.atmosphere.render(0);
   assert.equal(f.scene.fog, null);
-  close(f.calls[1].scene.children[0].material.uniforms.uBloom.value, 0.04);
+  close(f.calls[1].scene.children[0].material.uniforms.uBloom.value, 0);
+  f.atmosphere.setDaylight(daylight({ night: 0, stars: 1 })); f.atmosphere.render(1);
+  close(f.calls.at(-1).scene.children[0].material.uniforms.uBloom.value, 0);
   f.dispose(); assert.equal(f.scene.fog, f.previousFog);
   const g = fixture();
   const replacement = new THREE.Fog(0x123456, 1, 100); g.scene.fog = replacement;

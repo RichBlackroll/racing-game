@@ -59,7 +59,12 @@ test("mountain triangles and sea stay wholly outside the course ground and share
     scene.add(ground);
     const landscape = createLandscape({ scene, ground, level, terrain, route: terrain.route,
       roadDist: () => 0, obstacles: [], treeInfo: [], buildingInfo: [], tablet: true });
-    const geometry = landscape.group.getObjectByName("landscape/continuous-mountain-relief").geometry;
+    const mountains = landscape.group.getObjectByName("landscape/continuous-mountain-relief");
+    const geometry = mountains.geometry;
+    if (level === "moon") {
+      assert.equal(mountains.userData.castShadow, false, "distant ridges do not shadow the entire course");
+      assert.equal(mountains.material.flatShading, true);
+    }
     const positions = geometry.attributes.position, index = geometry.index;
     let edgeVertices = 0;
     for (let i = 0; i < positions.count; i++) {
@@ -229,14 +234,14 @@ for (const tablet of [false, true]) {
   });
 }
 
-test("Moon props retain their designs and relative heights on lunar terrain; Earth stays in world space", (t) => {
+test("Moon basalt and scree follow lunar terrain; Earth stays in world space", (t) => {
   canvasDocument(t);
   const terrain = createCourse("moon"), flat = new THREE.Scene(), elevated = new THREE.Scene();
   const flatObstacles = [], obstacles = [];
   createLevelScenery(flat, true, terrain.roadDistance, flatObstacles);
   createLevelScenery(elevated, true, terrain.roadDistance, obstacles, terrain);
   assert.equal(flat.children.length, elevated.children.length);
-  assert.equal(obstacles.length, 70);
+  assert.equal(obstacles.length, 120);
   for (let i = 0; i < obstacles.length; i++) {
     const o = obstacles[i];
     assert.deepEqual(o, { ...flatObstacles[i], y: terrain.heightAt(o.x, o.z) });
@@ -266,7 +271,34 @@ test("Moon props retain their designs and relative heights on lunar terrain; Ear
       if (isEarth) { assert.equal(placed.position.y, 105); earth++; }
     }
   }
-  assert.equal(instances, 137);
+  assert.equal(instances, 480);
   assert.equal(earth, 1);
   dispose(flat); dispose(elevated);
+});
+
+test("lunar rock silhouettes are faceted, bounded by their colliders, and clear of the track", t => {
+  canvasDocument(t);
+  const scene = new THREE.Scene(), terrain = createCourse("moon"), obstacles = [];
+  createLevelScenery(scene, true, terrain.roadDistance, obstacles, terrain);
+  const rocks = scene.getObjectByName("moon/fractured-basalt"), scree = scene.getObjectByName("moon/regolith-scree");
+  assert.equal(rocks.material.flatShading, true);
+  assert.equal(rocks.material.roughness, 1);
+  assert.equal(rocks.geometry, scree.geometry, "shared geometry keeps the extra detail inexpensive");
+  assert.ok(rocks.instanceColor && scree.instanceColor, "mineral tones vary between instances");
+  const matrix = new THREE.Matrix4(), vertex = new THREE.Vector3();
+  for (let i = 0; i < rocks.count; i++) {
+    const obstacle = obstacles[i];
+    assert.ok(terrain.roadDistance(obstacle.x, obstacle.z) >= obstacle.r + 16);
+    rocks.getMatrixAt(i, matrix);
+    let top = -Infinity;
+    for (let j = 0; j < rocks.geometry.attributes.position.count; j++) {
+      vertex.fromBufferAttribute(rocks.geometry.attributes.position, j).applyMatrix4(matrix);
+      assert.ok(Math.hypot(vertex.x - obstacle.x, vertex.z - obstacle.z) <= obstacle.r + 0.0001);
+      top = Math.max(top, vertex.y);
+    }
+    assert.ok(Math.abs(top - obstacle.y - obstacle.height) < 0.0001);
+  }
+  assert.ok(obstacles.some(o => o.height > 6), "large outcrops break up the horizon");
+  assert.equal(scene.children.some(o => o.geometry?.type === "TorusGeometry"), false, "craters are terrain, not smooth torus props");
+  dispose(scene);
 });

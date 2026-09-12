@@ -102,7 +102,7 @@ export function createRearView({ renderer, scene, car, tablet = false, element }
       if (!fresh || now < lastRender || now - lastRender >= interval) {
         invalidate();
         car.updateWorldMatrix(true, false);
-        camera.position.set(0, 1.7, -2.5).applyMatrix4(car.matrixWorld);
+        camera.position.fromArray(car.userData.cameraProfile?.mirror ?? [0, 1.7, -2.5]).applyMatrix4(car.matrixWorld);
         // Cameras look down local -Z, opposite the car's local +Z forward.
         car.getWorldQuaternion(camera.quaternion);
         renderer.setRenderTarget(target);

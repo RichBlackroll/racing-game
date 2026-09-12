@@ -171,7 +171,7 @@ export function createCelestialSky({ scene, level, tablet = false }) {
             float lane = smoothstep(0.40, 0.68, noise(d * 28.0 + 31.0));
             vec3 galaxy = mix(vec3(0.016, 0.023, 0.042), vec3(0.043, 0.031, 0.026), nebula);
             galaxy *= band * (0.35 + nebula) * (1.0 - lane * 0.78);
-            color += (starlight + galaxy) * uStars * celestialVisibility;
+            color += (starlight + galaxy) * uStars * celestialVisibility * mix(1.0, 0.22 + uNight * 0.38, uVacuum);
           }
 
           if (uVacuum < 0.5 && uStars > 0.0) {

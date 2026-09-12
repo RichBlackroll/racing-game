@@ -90,10 +90,11 @@ test("rocket dial reflects fitted duration, remaining boost, recovery and no-roc
 test("inside view follows the driver seat on turns and grades without altering exterior camera modes", async () => {
   const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
   const cameraSource = source.slice(source.indexOf("  function updateCamera(dt)"), source.indexOf("  await loading.phase(4"));
-  const update = new Function("THREE", "car", "camera", "camMode", "heading", "surfacePose", "boosting", `
+  const { getVehicle } = await import("./vehicle-data.js");
+  const update = new Function("vehicleModel", "THREE", "car", "camera", "camMode", "heading", "surfacePose", "boosting", `
     const hasRamps = false, heightAt = () => 0, clearCamera = () => {}, cameraAnchor = new THREE.Vector3();
     ${cameraSource}; updateCamera(1);
-  `);
+  `).bind(null, { vehicle: getVehicle("porsche") });
   for (const heading of [0, 1.5, -2]) {
     const car = new THREE.Group(), camera = new THREE.PerspectiveCamera();
     car.position.set(20, 3, 40);
