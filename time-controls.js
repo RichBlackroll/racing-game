@@ -92,6 +92,7 @@ export function createTimeControls({ daylight, onChange = () => {} }) {
     for (const preset of presets) {
       const selected = String(minute === Math.round(Number(preset.dataset.timeHour) * 60));
       if (preset.dataset.selected !== selected) preset.dataset.selected = selected;
+      if (preset.getAttribute("aria-pressed") !== selected) preset.setAttribute("aria-pressed", selected);
     }
   }
 

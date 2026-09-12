@@ -9,7 +9,7 @@ test("picnic UI is absent while the route map, gifts and standalone people voice
     assert.doesNotMatch(readFileSync(new URL(file, import.meta.url), "utf8"), /friend-|delivery-|basket-|picnic-|drive-menu-adventure|friends\.css/i, file);
   }
   assert.equal(existsSync(new URL("./friends.css", import.meta.url)), false);
-  assert.match(html, /<details id="drive-menu-route"><summary>Route map<\/summary>/);
+  assert.match(html, /<details id="drive-menu-route"><summary aria-label="Route map">[\s\S]*?<use href="#i-map"/);
   assert.match(html, /<canvas id="map"/);
   assert.match(html, /<section id="item-slot"/);
   assert.match(html, /<button[^>]+id="use-item"/);
@@ -19,8 +19,25 @@ test("picnic UI is absent while the route map, gifts and standalone people voice
   assert.match(voice, /aria-label="People voices"/);
   assert.match(voice, /aria-pressed="false"/);
   assert.match(voice, /title="Turn people voices on"/);
-  assert.match(voice, /<use href="#i-volume"/);
+  assert.match(voice, /<use href="#i-voices"/);
   assert.match(voice, /<span class="toolbar-label" data-label>Voices<\/span>/);
+});
+
+test("pictogram controls keep accessible names, state changes and a single power dock", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const css = readFileSync(new URL("./ui.css", import.meta.url), "utf8");
+  for (const id of ["home", "configure", "camera", "reset", "pause", "sound", "people-voice", "boost", "handbrake"]) {
+    assert.match(html, new RegExp(`<button\\b[^>]*id="${id}"[^>]*aria-label="[^"]+"`));
+  }
+  assert.match(html, /id="pause"[^>]*aria-pressed="false"[\s\S]*?class="icon pause-picture"[\s\S]*?class="icon resume-picture"/);
+  assert.match(css, /#pause\[aria-pressed="true"\] \.resume-picture \{ display: block;/);
+  const dock = html.slice(html.indexOf('<div id="drive-actions"'), html.indexOf('<div class="touch"'));
+  for (const id of ["boost", "use-item", "vehicle-action"]) {
+    assert.match(dock, new RegExp(`id="${id}"`));
+    assert.equal([...html.matchAll(new RegExp(`id="${id}"`, "g"))].length, 1, "live actions are grouped, not duplicated");
+  }
+  assert.match(css, /--ui-touch: 56px/);
+  assert.match(html, /class="steering-thumb"[^>]*>[\s\S]*?<use href="#i-wheel"/);
 });
 
 // Only the component's DOM surface, including capture/bubble order and deferred close events.

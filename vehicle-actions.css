@@ -1,68 +1,28 @@
-/* Keep the existing item pocket centered; the vehicle tool sits beside it. */
-#drive-actions { position: fixed; z-index: 3; left: 50%; bottom: calc(var(--edge-bottom) + 10px); transform: translateX(-152px); display: grid; grid-template-columns: 304px 156px; align-items: end; gap: 12px; width: 472px; pointer-events: none; }
-#drive-actions #item-slot { position: relative; left: auto; bottom: auto; transform: none; width: 100%; max-width: none; pointer-events: auto; display: flex; flex-direction: column; }
-#drive-actions #item-status { position: static; transform: none; width: 100%; max-width: none; margin-bottom: 8px; }
-#drive-actions #item-slot[data-effect="false"] #item-status { position: absolute; margin: 0; }
-#vehicle-action-slot { min-width: 0; pointer-events: auto; }
-#vehicle-action { width: 100%; min-height: 102px; display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px solid var(--ui-amber); border-radius: 20px; background: var(--ui-surface); color: var(--ui-text); box-shadow: 0 4px 0 #101b2480, var(--ui-shadow); touch-action: none; text-align: left; }
-#vehicle-action-icon { flex: 0 0 40px; width: 40px; height: 40px; color: var(--ui-amber); fill: none; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 2px #0004); }
-.vehicle-action-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; }
-#vehicle-action-label { font-size: 18px; line-height: 1.15; font-weight: 750; overflow-wrap: anywhere; }
-.vehicle-action-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: var(--ui-amber); }
-#vehicle-action-state { font-size: 11px; font-weight: 650; line-height: 1.35; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-#vehicle-action kbd { border: 0; background: var(--ui-amber); color: var(--ui-accent-ink); font-weight: 800; }
-#vehicle-action:disabled { opacity: 1; cursor: default; border-color: var(--ui-border); box-shadow: none; }
-#vehicle-action-slot[data-state="working"] #vehicle-action { border-color: var(--ui-accent); background: var(--ui-raised); }
-#vehicle-action-slot[data-state="working"] :is(#vehicle-action-icon, .vehicle-action-feedback) { color: var(--ui-accent); }
-#vehicle-action-slot:is([data-state="cooldown"], [data-state="blocked"]) #vehicle-action-icon { color: var(--ui-muted); filter: none; }
-#vehicle-action:focus-visible { outline: 3px solid var(--ui-amber); outline-offset: 4px; }
-#vehicle-action:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #101b2480; }
-@media (hover: hover) { #vehicle-action:hover:not(:disabled) { background: var(--ui-raised); border-color: var(--ui-amber); } }
+/* One power dock replaces three unrelated floating cards. */
+#drive-actions { --action-size: 72px; position: fixed; z-index: 3; left: 50%; bottom: var(--edge-bottom); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: max-content; padding: 8px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 28px; box-shadow: var(--ui-shadow); }
+#drive-actions > :is(button, section) { flex: 0 0 var(--action-size); width: var(--action-size); height: var(--action-size); min-height: var(--action-size); }
+#drive-actions #boost { position: relative; padding: 12px; border-radius: 20px; touch-action: none; }
+#boost .icon { width: 34px; height: 34px; }
+#boost kbd { position: absolute; bottom: 4px; right: 4px; height: 16px; min-width: 16px; padding: 0 3px; font-size: 8px; color: var(--ui-ink); border: 0; }
+#vehicle-action { position: relative; width: 100%; height: 100%; padding: 10px; border: 2px solid #bfc4ee88; border-radius: 20px; background: #bfc4ee1a; color: var(--ui-lilac); touch-action: none; }
+#vehicle-action-icon { flex: 0 0 42px; width: 42px; height: 42px; color: inherit; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.vehicle-action-copy { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+#vehicle-action:disabled { opacity: 1; cursor: default; }
+#vehicle-action-slot[data-state="working"] #vehicle-action { border-color: var(--ui-accent); background: #d6eb9a26; color: var(--ui-accent); }
+#vehicle-action-slot:is([data-state="cooldown"], [data-state="blocked"]) #vehicle-action { border-style: dashed; border-color: var(--ui-border); color: var(--ui-muted); background: transparent; }
+#vehicle-action-slot[data-state="cooldown"] .vehicle-action-copy { inset: auto 3px 3px auto; width: auto; height: auto; overflow: visible; clip-path: none; }
+#vehicle-action-slot[data-state="cooldown"] :is(#vehicle-action-label, kbd) { display: none; }
+#vehicle-action-state { font-size: 11px; font-weight: 750; padding: 2px 5px; border-radius: 6px; background: var(--ui-surface); }
+#vehicle-action:focus-visible { outline: 3px solid var(--ui-lilac); outline-offset: 4px; }
+@media (hover: hover) { #vehicle-action:hover:not(:disabled) { background: #bfc4ee33; border-color: var(--ui-lilac); } }
 body:not(.app-ready) #drive-actions, #game-ui[inert] #drive-actions, .configuring #drive-actions, .drive-menu-open #drive-actions { visibility: hidden; pointer-events: none; }
-body:not(.app-ready) #drive-actions > *, #game-ui[inert] #drive-actions > *, .configuring #drive-actions > *, .drive-menu-open #drive-actions > * { pointer-events: none; }
 .paused #vehicle-action-slot { opacity: .6; }
-/* Help stays within the existing keyboard card, rather than widening it. */
-.controls { max-width: calc(50vw - var(--edge-left) - 164px); }
-.controls > div { flex-wrap: wrap; }
-.controls .special-action-help { flex-basis: 100%; }
-
-@media (max-width: 1100px) {
-  #drive-actions { width: 304px; max-width: calc(100% - var(--edge-left) - var(--edge-right)); transform: translateX(-50%); grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  #vehicle-action-slot { grid-row: 1; width: 176px; justify-self: center; }
-  #vehicle-action { min-height: 64px; padding: 8px 12px; border-radius: 16px; }
-  body:not(.compact-ui):not(.cockpit-view) #toast { bottom: calc(var(--edge-bottom) + 292px); }
+.touch-device #drive-actions { --action-size: 60px; left: auto; right: var(--edge-right); bottom: calc(var(--drive-bottom) + max(var(--steering-size), var(--pedal-height)) + 12px); transform: none; padding: 0; border: 0; border-radius: 20px; background: transparent; box-shadow: none; }
+.touch-device #drive-actions > section { border-radius: 20px; background: var(--ui-surface); }
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 650px) {
+  .touch-device #drive-actions { --action-size: 68px; }
 }
-.touch-device #drive-actions { bottom: var(--drive-bottom); transform: translateX(-50%); width: min(472px, calc(100% - max(var(--edge-left), var(--edge-right)) * 2 - var(--steering-size) * 2 - 120px)); grid-template-columns: minmax(0, 1fr) 156px; }
-.touch-device #vehicle-action-slot { grid-row: auto; width: 100%; }
-.touch-device #vehicle-action { min-height: 102px; }
-.touch-device #vehicle-action kbd { display: none; }
-@media (max-width: 760px) {
-  .touch-device #drive-actions { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .touch-device #vehicle-action-slot { grid-row: 1; width: 176px; }
-  .touch-device #vehicle-action { min-height: 64px; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-device #drive-actions { bottom: calc(var(--drive-bottom) + var(--pedal-height) + 12px); }
 }
-@media (orientation: portrait) and (min-width: 361px) and (max-width: 600px) {
-  .touch-device #drive-actions { width: clamp(88px, calc(100% - 280px), 140px); }
-}
-/* No safe middle gap on the smallest phones: share a row above both thumbs. */
-@media (orientation: portrait) and (max-width: 360px) {
-  .touch-device #drive-actions { width: 304px; bottom: calc(var(--drive-bottom) + var(--steering-size) + 60px); grid-template-columns: minmax(0, 1fr) 120px; }
-  .touch-device #vehicle-action-slot { grid-row: auto; width: 100%; }
-  .touch-device #vehicle-action { min-height: 102px; flex-direction: column; text-align: center; gap: 6px; }
-  .touch-device .vehicle-action-copy { flex: none; align-items: center; }
-  .touch-device .vehicle-action-feedback { justify-content: center; }
-  #drive-actions #use-item { gap: 6px; padding: 8px; }
-  #drive-actions #item-icon { flex-basis: 44px; width: 44px; height: 44px; }
-  #drive-actions #item-name { font-size: 12px; }
-  #drive-actions .item-trigger { font-size: 11px; }
-}
-@media (max-width: 600px) {
-  .compact-ui:not(.touch-device) #boost { bottom: calc(var(--edge-bottom) + 300px); }
-}
-/* A short, notched landscape cannot stack an effect bubble above both tools. */
-@media (orientation: landscape) and (max-width: 760px) and (max-height: 360px) {
-  .compact-ui.touch-device #vehicle-action { min-height: 56px; padding-block: 4px; }
-  .compact-ui.touch-device #drive-actions #item-slot[data-effect="true"] #item-status { position: absolute; left: auto; right: calc(100% + 8px); bottom: calc(var(--steering-size) + 8px); width: calc(var(--steering-size) + 44px); margin: 0; }
-}
-@media (prefers-reduced-motion: reduce) { #vehicle-action:active:not(:disabled) { transform: none; } }
 @media (forced-colors: active) { #vehicle-action:disabled { border-color: GrayText; } #vehicle-action:focus-visible { outline-color: Highlight; } }

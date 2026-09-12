@@ -1,15 +1,15 @@
 import * as THREE from "three";
 
-// Width:height ratios are 3:2, 2:1, 13:15, 3:2, and 2:1 respectively.
+// Width:height ratios are 3:2, 2:1, 13:15, 3:2, 2:1, and 11:8 respectively.
 const sizes = new Map([
   ["pt", [240, 160]], ["ca", [256, 128]], ["be", [156, 180]],
-  ["fr", [240, 160]], ["nz", [256, 128]],
+  ["fr", [240, 160]], ["nz", [256, 128]], ["no", [220, 160]],
 ]);
 const WHITE = 0xffffff;
 
-/** Creates an independently owned, opaque texture. Country must be pt/ca/be/fr/nz. */
+/** Creates an independently owned, opaque texture. Country must be pt/ca/be/fr/nz/no. */
 export function createCountryFlagTexture(country) {
-  if (!sizes.has(country)) throw new RangeError("Unsupported flag country; expected pt, ca, be, fr, or nz");
+  if (!sizes.has(country)) throw new RangeError("Unsupported flag country; expected pt, ca, be, fr, nz, or no");
   const [width, height] = sizes.get(country);
   const data = new Uint8Array(width * height * 4);
   // Artwork uses top-left coordinates; DataTexture's unflipped rows start at UV v=0.
@@ -47,6 +47,13 @@ export function createCountryFlagTexture(country) {
   if (country === "be" || country === "fr") {
     const colors = country === "be" ? [0x000000, 0xfdda24, 0xef3340] : [0x000091, WHITE, 0xe1000f];
     colors.forEach((color, i) => rect(i * width / 3, 0, width / 3, height, color));
+  } else if (country === "no") {
+    rect(0, 0, width, height, 0xba0c2f);
+    // Nordic cross: 6:1:2:1:12 horizontally and 6:1:2:1:6 vertically.
+    rect(60, 0, 40, height, WHITE);
+    rect(0, 60, width, 40, WHITE);
+    rect(70, 0, 20, height, 0x00205b);
+    rect(0, 70, width, 20, 0x00205b);
   } else if (country === "ca") {
     const red = 0xff0000;
     rect(0, 0, width, height, red);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <meta name="theme-color" content="#1c2323" />
+    <meta name="theme-color" content="#192e29" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="data:," />
@@ -23,6 +23,7 @@
     <section id="loading-screen" data-level="forest" data-state="loading" aria-labelledby="loading-title">
       <div class="loading-topline"><span class="loading-brand">WILDRUN<span>.</span></span></div>
       <div class="loading-main">
+        <svg class="loading-heading-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m5 12 12-5 14 5 12-5v29l-12 5-14-5-12 5V12Z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M17 7v29m14-24v29M10 27c8-17 16 9 27-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 5"/></svg>
         <h2 id="loading-title" tabindex="-1">Pick a world!</h2>
         <div class="loading-art" aria-hidden="true">
           <div class="loading-orbit"><div class="loading-car"><svg viewBox="0 0 72 36" fill="none"><path d="M15 6h38l12 7v14H7V13l8-7Z" fill="currentColor"/><path d="m24 9-5 9h33l-7-9H24Z" fill="#172a25"/><path d="M34 9v9M9 23h54" stroke="#172a25" stroke-width="2"/><rect x="6" y="2" width="5" height="23" rx="2" fill="currentColor"/><circle cx="19" cy="27" r="7" fill="#172a25"/><circle cx="53" cy="27" r="7" fill="#172a25"/><circle cx="19" cy="27" r="3" fill="currentColor"/><circle cx="53" cy="27" r="3" fill="currentColor"/></svg></div></div>
@@ -102,12 +103,12 @@
       </section>
       <div class="loading-launch">
         <div class="loading-garage-card">
-          <button type="button" id="loading-garage" disabled aria-haspopup="dialog" aria-controls="modifier" aria-describedby="loading-status">
+          <button type="button" id="loading-garage" disabled aria-label="My garage" title="My garage" aria-haspopup="dialog" aria-controls="modifier" aria-describedby="loading-status">
             <svg class="loading-garage-art" viewBox="0 0 96 64" fill="none" aria-hidden="true" focusable="false"><path d="M10 41V29l15-5 9-13h30l11 15 11 5v10H10Z" fill="currentColor"/><path d="m39 16-7 11h34l-7-11H39Z" fill="#172a25"/><path d="M48 16v11" stroke="currentColor" stroke-width="2"/><circle cx="28" cy="41" r="10" fill="#172a25" stroke="currentColor" stroke-width="3"/><circle cx="70" cy="41" r="10" fill="#172a25" stroke="currentColor" stroke-width="3"/><circle cx="28" cy="41" r="3" fill="currentColor"/><circle cx="70" cy="41" r="3" fill="currentColor"/><circle cx="37" cy="60" r="3" fill="#ffd19c"/><circle cx="48" cy="60" r="3" fill="#ffb5c6"/><circle cx="59" cy="60" r="3" fill="#c4c2ff"/></svg>
-            <strong>My garage</strong>
+            <strong class="sr-only">My garage</strong>
           </button>
         </div>
-        <button type="button" id="loading-drive" disabled aria-describedby="loading-status"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4a1 1 0 0 1 1.5-.86l13 8a1 1 0 0 1 0 1.72l-13 8A1 1 0 0 1 7 20Z" fill="currentColor"/></svg><span id="loading-drive-label">Drive</span></button>
+        <button type="button" id="loading-drive" disabled title="Drive" aria-describedby="loading-status"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4a1 1 0 0 1 1.5-.86l13 8a1 1 0 0 1 0 1.72l-13 8A1 1 0 0 1 7 20Z" fill="currentColor"/></svg><span id="loading-drive-label" class="sr-only">Drive</span></button>
       </div>
       <p id="loading-storage" role="status" hidden></p>
       <div class="loading-bottom">
@@ -131,6 +132,14 @@
         <symbol id="i-brake" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M4 5a10 10 0 0 0 0 14M20 5a10 10 0 0 1 0 14M12 9v4m0 2v.5"/></symbol>
         <symbol id="i-up" viewBox="0 0 24 24"><path d="M5 12l7-7 7 7M12 5v15"/></symbol>
         <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 12l7 7 7-7M12 19V4"/></symbol>
+        <symbol id="i-garage" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v11H3Z"/><path d="M7 21V11h10v10M7 15h10m-10 3h10"/></symbol>
+        <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15"/></symbol>
+        <symbol id="i-voices" viewBox="0 0 24 24"><path d="M21 11a8 8 0 0 1-8 8H8l-5 3V7a4 4 0 0 1 4-4h6a8 8 0 0 1 8 8Z"/><path d="M7 9v4m4-6v8m4-6v4"/></symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+        <symbol id="i-dawn" viewBox="0 0 24 24"><path d="M3 17h18M5 21h14M6 17a6 6 0 0 1 12 0M12 3v5m-3-3 3-3 3 3M3 10l2 2m14 0 2-2"/></symbol>
+        <symbol id="i-sunset" viewBox="0 0 24 24"><path d="M3 17h18M5 21h14M6 17a6 6 0 0 1 12 0M12 2v6m-3-3 3 3 3-3M3 10l2 2m14 0 2-2"/></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15A9 9 0 0 1 9 3a9 9 0 1 0 11 12Z"/><path d="M18 3v4m-2-2h4"/></symbol>
+        <symbol id="i-wheel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="m4 8 6 2m10-2-6 2m-2 5v6"/></symbol>
       </defs>
     </svg>
 
@@ -142,7 +151,7 @@
 
     <nav class="top" aria-label="Drive controls">
       <button id="home" aria-label="Open maps and launch menu" title="Maps and my garage">
-        <svg class="icon" aria-hidden="true"><use href="#i-location" /></svg><span>Maps</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-map" /></svg><span>Maps</span>
       </button>
       <label class="location-select">
         <svg class="icon" aria-hidden="true"><use href="#i-location" /></svg>
@@ -157,8 +166,8 @@
         </select>
       </label>
       <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="configure" aria-label="Open my garage" aria-haspopup="dialog" aria-controls="modifier" aria-expanded="false">
-        <svg class="icon" aria-hidden="true"><use href="#i-tune" /></svg><span>Garage</span>
+      <button id="configure" aria-label="Open my garage" title="My garage" aria-haspopup="dialog" aria-controls="modifier" aria-expanded="false">
+        <svg class="icon" aria-hidden="true"><use href="#i-garage" /></svg><span>Garage</span>
       </button>
       <button id="camera" aria-label="Change camera view" title="Change camera (C)">
         <svg class="icon" aria-hidden="true"><use href="#i-camera" /></svg><span class="toolbar-label">Camera</span><kbd>C</kbd>
@@ -166,18 +175,18 @@
       <button id="reset" aria-label="Reset car position" title="Reset car (R)">
         <svg class="icon" aria-hidden="true"><use href="#i-reset" /></svg><span class="toolbar-label">Reset</span><kbd>R</kbd>
       </button>
-      <button id="pause" aria-pressed="false" title="Pause driving">
-        <svg class="icon" aria-hidden="true"><use href="#i-pause" /></svg><span data-label>Pause</span>
+      <button id="pause" aria-label="Pause driving" aria-pressed="false" title="Pause driving">
+        <svg class="icon pause-picture" aria-hidden="true"><use href="#i-pause" /></svg><svg class="icon resume-picture" aria-hidden="true"><use href="#i-play" /></svg><span data-label>Pause</span>
       </button>
       <button id="sound" aria-label="Engine sound" aria-pressed="true" title="Engine sound">
         <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Sound</span>
       </button>
       <button id="people-voice" aria-label="People voices" aria-pressed="false" title="Turn people voices on">
-        <svg class="icon" aria-hidden="true"><use href="#i-volume" /></svg><span class="toolbar-label" data-label>Voices</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-voices" /></svg><span class="toolbar-label" data-label>Voices</span>
       </button>
       <div id="time-controls">
         <button type="button" id="time-toggle" disabled aria-expanded="false" aria-controls="time-panel" aria-haspopup="dialog" title="Time of day">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sun" /></svg>
           <span class="sr-only">Time of day, </span><span id="time-clock">16:30</span>
         </button>
         <section id="time-panel" role="dialog" aria-modal="false" aria-labelledby="time-title" hidden>
@@ -189,13 +198,13 @@
           <input id="time-range" type="range" min="0" max="1439" step="1" value="990" aria-valuetext="16:30 game time" />
           <div class="time-scale" aria-hidden="true"><span>00:00</span><span>12:00</span><span>23:59</span></div>
           <div class="time-presets" role="group" aria-label="Time presets">
-            <button type="button" data-time-hour="5"><span>Dawn</span><small>05:00</small></button>
-            <button type="button" data-time-hour="12"><span>Day</span><small>12:00</small></button>
-            <button type="button" data-time-hour="19.5"><span>Golden hour</span><small>19:30</small></button>
-            <button type="button" data-time-hour="23"><span>Night</span><small>23:00</small></button>
+            <button type="button" data-time-hour="5" aria-label="Dawn, 05:00" title="Dawn"><svg class="icon" aria-hidden="true"><use href="#i-dawn" /></svg><span class="sr-only">Dawn</span></button>
+            <button type="button" data-time-hour="12" aria-label="Day, 12:00" title="Day"><svg class="icon" aria-hidden="true"><use href="#i-sun" /></svg><span class="sr-only">Day</span></button>
+            <button type="button" data-time-hour="19.5" aria-label="Golden hour, 19:30" title="Golden hour"><svg class="icon" aria-hidden="true"><use href="#i-sunset" /></svg><span class="sr-only">Golden hour</span></button>
+            <button type="button" data-time-hour="23" aria-label="Night, 23:00" title="Night"><svg class="icon" aria-hidden="true"><use href="#i-moon" /></svg><span class="sr-only">Night</span></button>
           </div>
           <div class="time-cycle-row">
-            <button type="button" id="time-running" aria-label="Auto cycle" aria-pressed="true" aria-describedby="time-cycle-hint"><span>Auto cycle</span><span id="time-running-state" aria-hidden="true">Running</span></button>
+            <button type="button" id="time-running" aria-label="Auto cycle" title="Let the sky change" aria-pressed="true" aria-describedby="time-cycle-hint"><svg class="icon" aria-hidden="true"><use href="#i-reset" /></svg><span class="sr-only">Auto cycle</span><span id="time-running-state" aria-hidden="true">Running</span></button>
             <label class="time-speed-label" for="time-cycle-speed">Minutes / day<select id="time-cycle-speed"><option value="3">3 min</option><option value="12" selected>12 min</option><option value="30">30 min</option></select></label>
           </div>
           <p id="time-cycle-hint">Freeze the sky, not your drive.</p>
@@ -206,14 +215,14 @@
 
     <nav id="mobile-toolbar" aria-label="Drive controls" hidden>
       <button type="button" id="drive-menu-toggle" aria-haspopup="dialog" aria-controls="drive-menu" aria-expanded="false" title="Drive menu">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span class="sr-only">Menu</span>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="sr-only">Menu</span>
       </button>
     </nav>
     <dialog id="drive-menu" aria-labelledby="drive-menu-title">
-      <div class="drive-menu-heading"><div><h2 id="drive-menu-title">Drive menu</h2><p>Driving is paused while you browse.</p></div><button type="button" id="drive-menu-close" aria-label="Back to game" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button></div>
+      <div class="drive-menu-heading"><div><h2 id="drive-menu-title">Pit stop</h2><p class="sr-only">Driving is paused while you browse.</p></div><button type="button" id="drive-menu-close" aria-label="Back to game" title="Back to game" autofocus><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg></button></div>
       <div id="drive-menu-tools"></div>
       <div id="drive-menu-info">
-        <details id="drive-menu-route"><summary>Route map</summary></details>
+        <details id="drive-menu-route"><summary aria-label="Route map"><svg class="icon" aria-hidden="true"><use href="#i-map" /></svg><span class="sr-only">Route map</span></summary></details>
       </div>
       <footer id="drive-menu-footer"></footer>
     </dialog>
@@ -230,7 +239,7 @@
     <div class="bottom">
       <div class="controls" aria-label="Keyboard driving controls">
         <span class="instrument-label">AT THE WHEEL</span>
-        <div><span><kbd>W</kbd><kbd>S</kbd> Drive / reverse</span><span><kbd>A</kbd><kbd>D</kbd> Steer</span><span><kbd>Space</kbd> Handbrake</span><span class="special-action-help"><kbd>E</kbd> Special action</span></div>
+        <div><span><svg class="icon" aria-hidden="true"><use href="#i-up" /></svg><kbd>W</kbd><kbd>S</kbd><span class="sr-only">Drive / reverse</span></span><span><svg class="icon" aria-hidden="true"><use href="#i-wheel" /></svg><kbd>A</kbd><kbd>D</kbd><span class="sr-only">Steer</span></span><span><svg class="icon" aria-hidden="true"><use href="#i-brake" /></svg><kbd>Space</kbd><span class="sr-only">Handbrake</span></span><span class="special-action-help"><kbd>E</kbd> Special action</span></div>
       </div>
       <div class="speed" aria-label="Speedometer">
         <div class="instrument-label">GROUND SPEED</div>
@@ -240,10 +249,10 @@
     </div>
     <div class="mission"><small>EXPLORE THE FOREST LOOP</small><p id="progress">Checkpoint 1 / 8 · Lap 1</p></div>
 
-    <button id="boost" title="Activate boost (Shift)">
+    <div id="drive-actions" role="group" aria-label="Driving powers">
+    <button id="boost" title="Activate boost (Shift)" aria-label="Activate boost" aria-keyshortcuts="Shift">
       <svg class="icon" aria-hidden="true"><use href="#i-bolt" /></svg><span data-label>Boost</span><kbd>Shift</kbd>
     </button>
-    <div id="drive-actions">
     <section id="item-slot" aria-label="Collected item" data-ready="false" data-effect="false">
       <p id="item-status" role="status" aria-live="polite" aria-atomic="true">Item slot empty. Drive through a floating item to collect it.</p>
       <button type="button" id="use-item" disabled aria-label="Item slot empty. Drive through a floating item to collect it." aria-describedby="item-hint" aria-keyshortcuts="F">
@@ -268,7 +277,7 @@
           <span class="steering-guide" aria-hidden="true"></span>
           <span class="steering-arrow steering-arrow-left" aria-hidden="true">‹</span>
           <span class="steering-arrow steering-arrow-right" aria-hidden="true">›</span>
-          <span class="steering-thumb" aria-hidden="true"><span></span></span>
+          <span class="steering-thumb" aria-hidden="true"><svg class="icon"><use href="#i-wheel" /></svg></span>
         </div>
         <span class="steering-hint">SLIDE TO STEER</span>
       </div>

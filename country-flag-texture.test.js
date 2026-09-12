@@ -42,7 +42,7 @@ test("flags are synchronous, opaque, independently owned Node DataTextures", t =
     });
   }
   for (const [country, width, height] of [["pt", 240, 160], ["ca", 256, 128],
-    ["be", 156, 180], ["fr", 240, 160], ["nz", 256, 128]]) {
+    ["be", 156, 180], ["fr", 240, 160], ["nz", 256, 128], ["no", 220, 160]]) {
     const a = createCountryFlagTexture(country), b = createCountryFlagTexture(country);
     t.after(() => { a.dispose(); b.dispose(); });
     assert.ok(a instanceof THREE.DataTexture);
@@ -88,6 +88,18 @@ test("Belgium and France have equal full-height vertical thirds in hoist order",
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       assert.equal(colorAt(texture, x, y), colors[Math.floor(x * 3 / width)]);
     }
+  }
+});
+
+test("Norway has an 11:8 red field with an offset white-bordered blue Nordic cross", t => {
+  const texture = createCountryFlagTexture("no");
+  t.after(() => texture.dispose());
+  const { width, height } = texture.image;
+  assert.equal(width / height, 11 / 8);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const blue = (x >= 70 && x < 90) || (y >= 70 && y < 90);
+    const white = (x >= 60 && x < 100) || (y >= 60 && y < 100);
+    assert.equal(colorAt(texture, x, y), blue ? 0x00205b : white ? 0xffffff : 0xba0c2f);
   }
 });
 

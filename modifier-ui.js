@@ -145,7 +145,7 @@ export function createModifier({ visuals, onVehicleChange, preview, audio, sessi
   turn.setAttribute("aria-label", "Rotate car");
   turn.title = "Rotate car";
   turn.append(icon("turn"), el("span", "mod-sr-only", "Rotate car"));
-  actions.append(drive, undo, turn);
+  actions.append(undo, turn, drive);
   head.append(brand, actions);
 
   const stage = el("div", "mod-stage");

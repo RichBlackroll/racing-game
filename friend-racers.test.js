@@ -66,16 +66,16 @@ test("traffic planning reads the current player's width and vertical reach", () 
   assert.ok(lane({ radius: 1.8, height: 3.15 }) < stock - .05, "friends steer around the wider, taller vehicle");
 });
 
-test("all five existing friends have distinct valid builds, visible parts, and two readable roof faces", () => {
+test("all friends have distinct valid builds, visible parts, and two readable roof faces", () => {
   const { field, scene, labels } = fixture();
   assert.deepEqual(FRIEND_RACERS.map(r => r.name), friends.map(f => f.name));
   assert.deepEqual(Object.fromEntries(FRIEND_RACERS.map(r => [r.name, r.country])), {
-    Camilla: "pt", Maxey: "ca", Vincent: "be", Lea: "fr", Loulou: "fr",
+    Camilla: "pt", Maxey: "ca", Vincent: "be", Lea: "fr", Loulou: "fr", Mads: "no",
   });
   assert.deepEqual(labels, friends.map(f => f.name));
   const states = field.state();
-  assert.equal(new Set(states.map(s => JSON.stringify(s.config))).size, 5);
-  assert.equal(new Set(states.map(s => s.visuals.paint)).size, 5);
+  assert.equal(new Set(states.map(s => JSON.stringify(s.config))).size, friends.length);
+  assert.equal(new Set(states.map(s => s.visuals.paint)).size, friends.length);
   for (const s of states) {
     for (const part of PARTS) assert.ok(part.options.some(o => o.id === s.config[part.id]));
     assert.equal(s.visuals.wheels.count, 4);
@@ -219,7 +219,7 @@ test("zero/invalid steps freeze poses, reset is deterministic and follows a rest
   field.reset(restored);
   const start = course.nearest(restored.x, restored.z).along;
   for (const [i, s] of field.state().entries()) {
-    assert.ok(Math.abs((s.along - start + course.length) % course.length - [18, 48, 140, 170, 205][i]) < 1e-5);
+    assert.ok(Math.abs((s.along - start + course.length) % course.length - [18, 48, 140, 170, 205, 240][i]) < 1e-5);
     assert.equal(s.speed, 0); assert.equal(s.pack, null);
     assert.ok(Math.abs(s.position[1] - course.heightAt(s.position[0], s.position[2])) < .4);
   }
@@ -309,7 +309,7 @@ test("racers pass a stopped player instead of queueing forever; map markers incl
   field.drawMap({ beginPath() {}, arc(x, z, radius) {
     assert.ok(Number.isFinite(x + z)); assert.ok(radius >= 5); markers++;
   }, fill() {}, stroke() { outlines.push([this.strokeStyle, this.lineWidth]); } }, .2);
-  assert.equal(markers, 5);
+  assert.equal(markers, friends.length);
   assert.deepEqual(outlines, friends.flatMap(() => [["#18212b", 4], ["#fff", 2]]));
 });
 
@@ -340,7 +340,7 @@ function fastCircuit() {
 
 test("friends race at fitted engine speeds and rocket cars boost, cool down, and boost again", () => {
   const { field, scene } = fixture("forest", [], fastCircuit());
-  const peak = Array(5).fill(0), durations = Array(5).fill(0), active = Array(5).fill(0), previous = Array(5).fill(false);
+  const peak = Array(friends.length).fill(0), durations = Array(friends.length).fill(0), active = Array(friends.length).fill(0), previous = Array(friends.length).fill(false);
   const flames = field.state().map(s => scene.getObjectByName(`racer-${s.name}`).getObjectByName("boost-flames"));
   const anchors = flames.map(flame => flame.children.map(plume => plume.position.toArray()));
   const firstScale = new Map(), flickered = new Set();

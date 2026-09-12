@@ -11,6 +11,31 @@ import { sampleDrivingSurface } from "./driving-terrain.js";
 
 const source = await readFile(new URL("./game-source.js", import.meta.url), "utf8");
 
+test("boost accepts a secondary touch without stealing held controls or double firing on click", () => {
+  const listeners = new Map();
+  const button = { disabled: false, addEventListener: (name, handler) => listeners.set(name, handler) };
+  let activations = 0;
+  const binding = source.slice(source.indexOf("  boostButton.onclick"), source.indexOf("  await loading.phase(3"));
+  new Function("boostButton", "activateBoost", binding)(button, () => activations++);
+  const pointer = (buttonNumber = 0) => {
+    const event = Object.assign(new Event("pointerdown", { cancelable: true }), {
+      button: buttonNumber, pointerType: "touch", pointerId: 3, isPrimary: false,
+    });
+    listeners.get("pointerdown")(event);
+    return event;
+  };
+  assert.equal(pointer().defaultPrevented, true, "keep focus and both existing driving pointers");
+  assert.equal(activations, 1);
+  button.onclick({ detail: 1 });
+  assert.equal(activations, 1, "pointer click does not repeat activation");
+  button.onclick({ detail: 0 });
+  assert.equal(activations, 2, "keyboard and assistive activation still work");
+  pointer(2);
+  button.disabled = true;
+  pointer();
+  assert.equal(activations, 2, "secondary mouse buttons and disabled input are ignored");
+});
+
 test("the car contact shadow faces upward and returns to full opacity after flight", () => {
   const create = new Function("THREE", "contact", "scene", "mesh", `
     let carShadow;

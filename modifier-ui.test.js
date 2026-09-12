@@ -77,7 +77,14 @@ class Element extends EventTarget {
     return null;
   }
   focus() { this.ownerDocument.activeElement = this; }
-  click() { if (!this.disabled) { this.focus(); this.dispatchEvent(new Event("click")); } }
+  scrollIntoView(options) { this.scrollRequest = options; }
+  click() {
+    if (this.disabled) return;
+    this.focus();
+    if (this.dispatchEvent(new Event("click", { cancelable: true })) && this.tagName === "SUMMARY" && this.parentNode?.tagName === "DETAILS") {
+      this.parentNode.open = !this.parentNode.open;
+    }
+  }
   showModal() { this.open = true; }
   close() { this.open = false; this.dispatchEvent(new Event("close")); }
 }
@@ -193,6 +200,98 @@ test("garage close resolves a visible focus target after the compact breakpoint 
   }
 });
 
+test("icon-led header keeps Drive, Undo and Rotate explicitly named and outside the car preview", (t) => {
+  const { modifier, panel, preview } = garage(t);
+  const actions = panel.querySelector(".mod-head-actions"), stage = panel.querySelector(".mod-stage");
+  for (const [className, name] of [["mod-close", "Drive"], ["mod-undo", "Undo last change"], ["mod-turn", "Rotate car"]]) {
+    const button = panel.querySelector(`.${className}`);
+    assert.equal(button.getAttribute("aria-label"), name, "compact layouts do not depend on visible text for accessible names");
+    assert.equal(button.title, name);
+    assert.equal(button.type, "button");
+    assert.ok(actions.contains(button));
+    assert.ok(!stage.contains(button), "actions never obscure the actual car");
+    assert.equal(button.querySelector(".mod-icon").getAttribute("aria-hidden"), "true");
+  }
+  assert.match(panel.querySelector(".mod-close").querySelector(".mod-icon").innerHTML, /m8 4 12 8-12 8Z/, "Drive uses a play pictogram");
+  modifier.open();
+  const angle = preview.state().angle;
+  panel.querySelector(".mod-turn").click();
+  assert.notEqual(preview.state().angle, angle);
+  panel.querySelector(".mod-close").click();
+  assert.equal(modifier.active, false);
+  assert.equal(preview.state().active, false);
+});
+
+test("part pictograms retain short accessible names and reveal the selected category in the scrolling strip", (t) => {
+  const session = createSession({});
+  session.update({ selectedPart: "rocket" });
+  const { modifier, panel } = garage(t, { session });
+  const tabs = panel.querySelector(".mod-tabs").children;
+  const rocket = tabs.find((tab) => tab.dataset.part === "rocket");
+  assert.equal(rocket.scrollRequest, undefined, "a closed dialog never scrolls the document");
+  modifier.open();
+  assert.deepEqual(rocket.scrollRequest, { block: "nearest", inline: "nearest" }, "saved categories are visible even at narrow widths");
+  assert.deepEqual(tabs.map((tab) => tab.getAttribute("aria-label")), ["Paint", "Wheels", "Springs", "Engine", "Wing", "Rocket"]);
+  for (const tab of tabs) {
+    assert.equal(tab.getAttribute("aria-controls"), "mod-options");
+    assert.equal(tab.firstElementChild.getAttribute("aria-hidden"), "true");
+    assert.match(tab.firstElementChild.innerHTML, /<svg/);
+    tab.click();
+    assert.deepEqual(tab.scrollRequest, { block: "nearest", inline: "nearest" });
+    assert.equal(tab.getAttribute("aria-pressed"), "true");
+    for (const option of panel.querySelector(".mod-options").children) {
+      assert.ok(option.getAttribute("aria-label"));
+      assert.equal(option.firstElementChild.getAttribute("aria-hidden"), "true");
+    }
+  }
+  for (const button of panel.querySelector(".mod-presets").children) {
+    assert.equal(button.getAttribute("aria-label"), PRESETS.find((preset) => preset.id === button.dataset.preset).name);
+    assert.equal(button.firstElementChild.getAttribute("aria-hidden"), "true");
+  }
+  modifier.close();
+});
+
+test("optional facts stay collapsed while read-aloud remains available and follows the selected part", (t) => {
+  const session = createSession({});
+  const { modifier, panel, win } = garage(t, { session });
+  const disclosure = panel.querySelector(".mod-fact-disclosure"), summary = disclosure.firstElementChild;
+  const listen = panel.querySelector(".mod-speak"), factText = panel.querySelector(".mod-fact-text");
+  const utterances = [];
+  win.speechSynthesis = { speak: (speech) => utterances.push(speech), cancel() {} };
+  win.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  modifier.open();
+  assert.equal(disclosure.tagName, "DETAILS");
+  assert.equal(disclosure.open, false);
+  assert.equal(summary.tagName, "SUMMARY");
+  assert.equal(summary.textContent, "Fun fact");
+  assert.equal(summary.getAttribute("aria-label"), "Fun fact about Red");
+  assert.ok(disclosure.contains(factText));
+  assert.ok(!disclosure.contains(listen), "children can listen without first finding and opening the text");
+  const update = t.mock.method(session, "update");
+  summary.click();
+  assert.equal(disclosure.open, true);
+  summary.click();
+  assert.equal(disclosure.open, false);
+  assert.equal(update.mock.callCount(), 0, "disclosures never alter saved car preferences");
+  panel.find((node) => node.dataset.option === "blue").click();
+  const option = PARTS.find((part) => part.id === "color").options.find((option) => option.id === "blue");
+  assert.equal(summary.getAttribute("aria-label"), "Fun fact about Blue");
+  assert.equal(listen.getAttribute("aria-label"), "Read fact about Blue");
+  assert.equal(listen.title, "Read fact about Blue");
+  assert.equal(factText.textContent, option.fact);
+  listen.click();
+  assert.equal(disclosure.open, false, "successful speech does not expand the workbench");
+  assert.equal(utterances.at(-1).text, `${option.name}. ${option.fact}`);
+  summary.click();
+  modifier.close();
+  modifier.open();
+  assert.equal(disclosure.open, false, "reopening prioritizes the car and choices again");
+  const stale = utterances.at(-1);
+  stale.onerror({ error: "network" });
+  assert.equal(disclosure.open, false, "stale speech failures cannot expand a reopened garage");
+  modifier.close();
+});
+
 test("production panel edits the live model, focuses parts, and restores canvas, pose and focus", (t) => {
   let allowed = false;
   const { modifier, panel, configure, preview, doc, canvas, driving, car, body, pose, renderer, changes, events } = garage(t, { canOpen: () => allowed });
@@ -238,7 +337,7 @@ test("production panel edits the live model, focuses parts, and restores canvas,
   Object.assign(tab, { key: "Tab", shiftKey: false });
   panel.dispatchEvent(tab);
   assert.ok(tab.defaultPrevented);
-  assert.equal(doc.activeElement, panel.querySelector(".mod-close"), "Tab wraps past closed presets instead of leaving the garage");
+  assert.ok(doc.activeElement === panel.querySelector(".mod-turn"), "Tab wraps to the first enabled header action, skipping disabled Undo");
   const backTab = new Event("keydown", { cancelable: true });
   Object.assign(backTab, { key: "Tab", shiftKey: true });
   panel.dispatchEvent(backTab);
@@ -871,9 +970,11 @@ test("late audition failures cannot overwrite feedback after changes, cancellati
 test("Read fact guards unavailable speech and reports errors without stale or intentional cancellation feedback", async (t) => {
   const { modifier, panel, win } = garage(t);
   const listen = panel.querySelector(".mod-speak"), feedback = panel.querySelector(".mod-feedback");
+  const disclosure = panel.querySelector(".mod-fact-disclosure");
   modifier.open();
   listen.click();
   assert.match(feedback.textContent, /Reading aloud is unavailable.*read the fact/);
+  assert.equal(disclosure.open, true, "unavailable speech reveals the written fact as a fallback");
   panel.find((node) => node.classList.contains("mod-tab") && node.dataset.part === "engine").click();
   panel.querySelector(".mod-engine-listen").click();
   await Promise.resolve();
@@ -899,6 +1000,7 @@ test("Read fact guards unavailable speech and reports errors without stale or in
   }
   speech.onerror({ error: "not-allowed" });
   assert.match(feedback.textContent, /Could not read.*Try Read fact again/);
+  assert.equal(disclosure.open, true);
   listen.click();
   speech.onerror({ error: "network" });
   assert.equal(feedback.textContent, "", "a new reading invalidates the old request");
@@ -913,6 +1015,7 @@ test("Read fact guards unavailable speech and reports errors without stale or in
   modifier.open();
   closing.onerror({ error: "audio-busy" });
   assert.equal(feedback.textContent, "");
+  assert.equal(disclosure.open, false, "late failures neither announce nor disclose old facts");
   assert.ok(cancellations > 0);
   t.mock.method(win.speechSynthesis, "speak", () => { throw new Error("speech blocked"); });
   listen.click();

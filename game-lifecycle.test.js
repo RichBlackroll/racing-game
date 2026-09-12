@@ -14,7 +14,7 @@ test("driving has no collection quest controller, saved progress, markers or dia
   assert.doesNotMatch(source, /createFriendAdventure|adventure\.|picnic|friend-(hud|dialog|voice)/i);
   const roster = await import("./friends.js");
   assert.deepEqual(Object.keys(roster), ["friends"]);
-  assert.deepEqual(roster.friends.map((friend) => friend.name), ["Vincent", "Lea", "Camilla", "Maxey", "Loulou"]);
+  assert.deepEqual(roster.friends.map((friend) => friend.name), ["Vincent", "Lea", "Camilla", "Maxey", "Loulou", "Mads"]);
   assert.match(source, /friendRacers\.drawMap\(map, mapScale\)/);
   assert.match(source, /itemWorld\.drawMap\(map, mapScale\)/);
 });

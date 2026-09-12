@@ -1,61 +1,16 @@
-/* A single bottom-center pocket. Shape, text, and color all identify the item. */
-#item-slot { --item-color: var(--ui-muted); position: fixed; z-index: 3; left: 50%; bottom: calc(var(--edge-bottom) + 10px); transform: translateX(-50%); width: 304px; max-width: calc(100% - var(--edge-left) - var(--edge-right)); color: var(--ui-text); }
-#use-item { display: flex; align-items: center; width: 100%; min-height: 102px; gap: 16px; padding: 12px 16px; border: 2px solid var(--item-color); border-radius: 20px; color: var(--ui-text); background: var(--ui-surface); box-shadow: 0 4px 0 #101b2480, var(--ui-shadow); text-align: left; touch-action: none; }
+/* The collected object is the button; descriptions stay available to assistive tech. */
+#item-slot { --item-color: var(--ui-muted); position: relative; color: var(--ui-text); }
+#use-item { width: 100%; height: 100%; padding: 8px; border: 2px solid var(--item-color); border-radius: 20px; color: var(--ui-text); background: var(--ui-raised); touch-action: none; }
 #use-item:disabled { opacity: 1; cursor: default; }
-#item-icon { flex: 0 0 72px; width: 72px; height: 72px; padding: 2px; overflow: visible; color: var(--item-color); fill: none; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 4px 3px #0005); }
-.item-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 5px; }
-#item-state { color: var(--item-color); font-size: 10px; font-weight: 750; letter-spacing: 1.6px; text-transform: uppercase; }
-#item-state::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border: 1px solid currentColor; border-radius: 50%; }
-[data-ready="true"] #item-state::before { background: currentColor; }
-#item-name { font-size: 18px; font-weight: 750; line-height: 1.15; }
-.item-trigger { display: flex; align-items: center; gap: 6px; width: fit-content; min-height: 24px; color: var(--item-color); font-size: 13px; font-weight: 650; }
-#use-item kbd { min-width: 23px; height: 23px; color: var(--ui-accent-ink); background: var(--item-color); border: 0; font-weight: 800; }
-.item-touch { display: none; }
-#item-hint { margin: 8px 0 0; font-size: 11px; line-height: 1.4; text-align: center; color: var(--ui-text); text-shadow: 0 1px 4px #101b24, 0 1px 10px #101b24; }
-#item-status { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(280px, calc(100vw - 32px)); margin: 0; padding: 7px 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); color: var(--ui-accent); font-size: 11px; font-weight: 650; text-align: center; line-height: 1.4; }
+#item-icon { flex: 0 0 44px; width: 44px; height: 44px; overflow: visible; color: var(--item-color); fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.item-copy, #item-hint { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); }
+#item-status { position: absolute; bottom: calc(100% + 18px); right: 0; width: max-content; max-width: min(280px, calc(100vw - 32px)); margin: 0; padding: 10px 14px; border: 1px solid var(--ui-border); border-radius: 18px; background: var(--ui-surface); color: var(--ui-accent); font-size: 13px; text-align: center; line-height: 1.4; pointer-events: none; }
 #item-slot[data-effect="false"] #item-status { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
-#item-slot[data-ready="false"] #use-item { border: 2px dashed #a6b0a970; background: #1c2323de; box-shadow: none; }
-#item-slot[data-ready="false"] #item-icon { color: var(--ui-muted); filter: none; }
-#item-slot[data-ready="false"] #item-name { color: #d2d8d2; }
-#item-slot[data-ready="false"] .item-trigger { color: var(--ui-muted); font-size: 11px; font-weight: 500; }
-#item-slot[data-ready="false"] :is(kbd, .item-touch) { display: none; }
+#item-slot[data-ready="false"] #use-item { border: 2px dashed #b6c3b766; background: transparent; }
+#item-slot[data-ready="false"] #item-icon { color: var(--ui-muted); opacity: .7; }
 #item-slot[data-ready="true"] #item-icon { animation: item-collected 340ms var(--ease-out, ease-out); }
+#item-slot[data-ready="true"]::after { content: ""; position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--item-color); border: 2px solid var(--ui-surface); pointer-events: none; }
 #use-item:focus-visible { outline: 3px solid var(--item-color); outline-offset: 4px; }
-@media (hover: hover) { #use-item:hover:not(:disabled) { background: #38413d; border-color: var(--item-color); } }
-#use-item:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #101b2480; }
-.configuring #item-slot, .drive-menu-open #item-slot { visibility: hidden; pointer-events: none; }
+@media (hover: hover) { #use-item:hover:not(:disabled) { background: #3a5143; border-color: var(--item-color); } }
 .paused #item-slot { opacity: .6; }
-
-/* Keep driving controls and notifications out of the pocket's space. */
-body:not(.compact-ui):not(.cockpit-view) #toast { bottom: calc(var(--edge-bottom) + 196px); }
-@media (max-width: 1240px) { body:not(.compact-ui) .controls { display: none; } }
-@media (max-width: 600px) { .compact-ui:not(.touch-device) #boost { bottom: calc(var(--edge-bottom) + 174px); } }
-.touch-device #item-slot { bottom: var(--drive-bottom); width: min(304px, calc(100% - max(var(--edge-left), var(--edge-right)) * 2 - var(--steering-size) * 2 - 120px)); }
-.touch-device #use-item kbd { display: none; }
-.touch-device .item-touch { display: inline; }
-.touch-device .item-trigger { display: block; }
-.touch-device #item-action { text-transform: lowercase; }
-.touch-device #item-hint { display: none; }
-.touch-device #item-name { font-size: 16px; }
-.touch-device #use-item { gap: 10px; padding: 10px 12px; }
-.touch-device #item-icon { flex-basis: 60px; width: 60px; height: 60px; }
-@media (orientation: landscape) and (max-width: 700px) {
-  .touch-device #use-item { min-height: 94px; padding: 8px; gap: 8px; }
-  .touch-device #item-icon { flex-basis: 48px; width: 48px; height: 48px; }
-  .touch-device #item-name { font-size: 13px; }
-  .touch-device .item-trigger { font-size: 12px; }
-}
-@media (orientation: portrait) and (min-width: 361px) and (max-width: 600px) {
-  .touch-device #item-slot { width: clamp(88px, calc(100% - 280px), 140px); }
-  .touch-device #use-item { flex-direction: column; gap: 6px; padding: 10px 6px; text-align: center; }
-  .touch-device #item-icon { flex-basis: 52px; width: 52px; height: 52px; }
-  .touch-device .item-copy { flex: none; align-items: center; width: 100%; }
-  .touch-device #item-state { font-size: 9px; letter-spacing: 1px; }
-  .touch-device #item-name { font-size: 12px; }
-  .touch-device .item-trigger { font-size: 11px; min-height: 0; }
-}
-/* On the narrowest phones there is no thumb-safe gap between the pedals. */
-@media (orientation: portrait) and (max-width: 360px) {
-  .touch-device #item-slot { width: 236px; bottom: calc(var(--drive-bottom) + var(--steering-size) + 60px); }
-}
 @keyframes item-collected { from { transform: translateY(-8px) scale(.75) rotate(-12deg); } to { transform: none; } }

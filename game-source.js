@@ -384,7 +384,7 @@ export async function main(loading) {
   function activateBoost() {
     if (modifier.active || vehicleActions.modifiers().locked) return;
     if (modifier.config.rocket === "none") {
-      show("Add a rocket in the 🛠 CAR panel to boost!");
+      show("Add a rocket in the garage to boost!");
       return;
     }
     if (paused || boosting || recovering) return;
@@ -396,7 +396,14 @@ export async function main(loading) {
     boostButton.disabled = true;
     show(`ROCKET BOOST · ${seconds} SECONDS`);
   }
-  boostButton.onclick = activateBoost;
+  boostButton.onclick = (event) => { if (event.detail === 0) activateBoost(); };
+  boostButton.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || boostButton.disabled) return;
+    // A third finger must work while steering and the accelerator stay held.
+    event.preventDefault();
+    activateBoost();
+  });
+  boostButton.addEventListener("contextmenu", (event) => event.preventDefault());
 
   await loading.phase(3, isMoon ? "Hanging the Earth in the sky..." : "Letting a little sunshine in...");
   // Ground occlusion is baked once; scenery keeps its physical materials.

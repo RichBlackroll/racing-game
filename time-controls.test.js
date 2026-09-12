@@ -185,6 +185,7 @@ test("opening focuses the labeled range and paints the current period and night 
   assert.equal(f.get("time-lights").textContent, "Night lighting: 84%");
   assert.equal(f.get("time-panel").style["--time-panel-top"], "90px");
   assert.equal(f.presets[3].dataset.selected, "true");
+  assert.deepEqual(f.presets.map(preset => preset.getAttribute("aria-pressed")), ["false", "false", "false", "true"]);
 });
 
 test("render updates paint minute boundaries and midnight without callbacks or persistence", () => {
@@ -250,6 +251,7 @@ test("every preset, run toggle, and speed choice applies before notifying and sa
   for (const [i, hour] of [5, 12, 19.5, 23].entries()) {
     f.click(f.presets[i]);
     assert.equal(f.state.hour, hour);
+    assert.deepEqual(f.presets.map(preset => preset.getAttribute("aria-pressed")), f.presets.map((_, index) => String(index === i)));
     assert.equal(f.changes.at(-1).hour, hour);
     assert.equal(f.state.running, true);
     assert.equal(JSON.parse(f.values.get(key)).hour, hour);
@@ -503,7 +505,11 @@ test("markup has native accessible controls and scoped responsive styling withou
   assert.ok(buttons.every(([tag]) => tag.includes('type="button"')));
   assert.match(css, /max-height: calc\(100dvh/);
   assert.match(css, /overflow: auto; overscroll-behavior: contain/);
-  assert.match(css, /@media \(max-width: 480px\) and \(orientation: portrait\)/);
+  assert.match(css, /@media \(max-width: 360px\)/);
+  assert.match(css, /grid-template-columns: repeat\(2, minmax\(56px, 1fr\)\)/);
+  for (const name of ["Dawn", "Day", "Golden hour", "Night"]) {
+    assert.match(markup, new RegExp(`data-time-hour="[^"]+" aria-label="${name}, [^"]+"[^>]*>[\\s\\S]*?<svg`));
+  }
   assert.match(css, /#time-range:focus-visible/);
   assert.doesNotMatch(css, /@import|font-family|\.touch\s*\{|\.pedal\s*\{/);
 });

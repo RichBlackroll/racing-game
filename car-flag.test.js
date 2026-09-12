@@ -37,7 +37,7 @@ test("air direction follows reverse, sideways slides, and world-space headings",
 });
 
 test("pins stay fixed and fabric remains bounded through turns, braking, and extreme speeds", () => {
-  for (const country of ["pt", "ca", "be", "fr", "nz"]) {
+  for (const country of ["pt", "ca", "be", "fr", "nz", "no"]) {
     const flag = createCarFlag(country), p = flag.cloth.geometry.attributes.position;
     const initial = p.array.slice();
     const width = flag.cloth.geometry.parameters.width;
@@ -59,7 +59,7 @@ test("pins stay fixed and fabric remains bounded through turns, braking, and ext
 });
 
 test("larger country-proportioned cloth uses the same mesh budget and a rear bumper bracket", () => {
-  for (const country of ["pt", "ca", "be", "fr", "nz"]) {
+  for (const country of ["pt", "ca", "be", "fr", "nz", "no"]) {
     const flag = createCarFlag(country), geometry = flag.cloth.geometry, image = flag.cloth.material.map.image;
     assert.equal(geometry.parameters.height, .7);
     assert.ok(Math.abs(geometry.parameters.width / geometry.parameters.height - image.width / image.height) < 1e-6);

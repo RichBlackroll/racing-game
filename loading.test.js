@@ -996,7 +996,7 @@ test("markup provides six inline illustrated map buttons, gated launch actions, 
   const garage = html.match(/<button\b[^>]*id="loading-garage"[^>]*\bdisabled\b[^>]*>([\s\S]*?)<\/button>/);
   assert.ok(garage);
   assert.equal(garage[1].replace(/<[^>]*>/g, "").trim(), "My garage");
-  assert.match(html, /id="home"[\s\S]*?<use href="#i-location"\s*\/>[\s\S]*?<span>Maps<\/span>/);
+  assert.match(html, /id="home"[\s\S]*?<use href="#i-map"\s*\/>[\s\S]*?<span>Maps<\/span>/);
   assert.match(html, /id="sound"[^>]*aria-label="Engine sound"[^>]*aria-pressed="true"/);
   assert.match(html, /build\/bootstrap\.js\?v=24/);
 });

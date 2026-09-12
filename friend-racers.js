@@ -11,6 +11,7 @@ const builds = [
   { color: "blue", wheels: "hub", suspension: "standard", engine: "electric", spoiler: "stock", rocket: "none" },
   { color: "pink", wheels: "wide", suspension: "sport", engine: "eight", spoiler: "mega", rocket: "big" },
   { color: "green", wheels: "monster", suspension: "lift", engine: "six", spoiler: "big", rocket: "small" },
+  { color: "purple", wheels: "wide", suspension: "sport", engine: "electric", spoiler: "big", rocket: "small" },
 ];
 export const FRIEND_RACERS = friends.map((friend, i) => ({ ...friend, config: builds[i] }));
 const clamp = THREE.MathUtils.clamp;
@@ -101,7 +102,7 @@ export function createFriendRacers({ scene, course, obstacles = [], ramps = [], 
     const start = course.nearest(position.x, position.z).along;
     packs = []; nextPack = 1; noticeCooldown = 0;
     racers.forEach((r, i) => {
-      Object.assign(r, { along: wrap(start + [18, 48, 140, 170, 205][i]), lane: i % 2 ? -2.5 : 2.5,
+      Object.assign(r, { along: wrap(start + [18, 48, 140, 170, 205, 240][i]), lane: i % 2 ? -2.5 : 2.5,
         speed: 0, mode: "cruise", pack: null, challenge: 0, cooldown: 0, packCooldown: 0, verticalSpeed: 0, onRamp: false, airborne: false,
         boostRemaining: 0, boostCooldown: 1 + i * .7, boosts: 0, recovery: 0, collisions: 0, passLane: 0, passTime: 0,
         speedFactor: 1, wobble: 0, wobblePhase: 0 });
